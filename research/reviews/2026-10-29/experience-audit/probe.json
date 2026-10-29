@@ -1,0 +1,382 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "chat": {
+      "historyWidth": 360,
+      "messages": 3,
+      "profilePhotos": 0,
+      "authors": [
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        },
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        },
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        }
+      ],
+      "participantsButton": 0
+    },
+    "graph": {
+      "nodeKinds": [
+        "project: Workstation",
+        "folder: Direction",
+        "folder: Research"
+      ],
+      "activityElements": 0,
+      "text": "Workstation\nDirection\n3 sources\nResearch\n1 source\nFolder containment\nExpand direction\nOpen…\n⌘K"
+    },
+    "popups": {
+      "workSearch": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 988,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 551.6796875,
+              "y": 788,
+              "width": 770.6328125,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "Open work",
+            "rect": {
+              "x": 1069,
+              "y": 198.5,
+              "width": 350,
+              "height": 523.5
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "Open work",
+            "module": "Project plan",
+            "area": 183225
+          }
+        ]
+      },
+      "attachment": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 988,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 551.6796875,
+              "y": 788,
+              "width": 770.6328125,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "Attach a document",
+            "rect": {
+              "x": 552.6796875,
+              "y": 645.5,
+              "width": 300,
+              "height": 195.5
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "Attach a document",
+            "module": "Project plan",
+            "area": 39150
+          },
+          {
+            "popup": "Attach a document",
+            "module": "composer glass mature-composer",
+            "area": 15900
+          }
+        ]
+      },
+      "account": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 988,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 551.6796875,
+              "y": 788,
+              "width": 770.6328125,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "popover account-pop glass",
+            "rect": {
+              "x": 56,
+              "y": 599.609375,
+              "width": 235,
+              "height": 290.390625
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "popover account-pop glass",
+            "module": "Conversation history",
+            "area": 63305
+          }
+        ]
+      }
+    },
+    "errors": []
+  },
+  {
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "chat": {
+      "historyWidth": 360,
+      "messages": 3,
+      "profilePhotos": 0,
+      "authors": [
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        },
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        },
+        {
+          "text": "Dylan",
+          "color": "rgb(32, 32, 32)"
+        }
+      ],
+      "participantsButton": 0
+    },
+    "graph": {
+      "nodeKinds": [
+        "project: Workstation",
+        "folder: Direction",
+        "folder: Research"
+      ],
+      "activityElements": 0,
+      "text": "Workstation\nDirection\n3 sources\nResearch\n1 source\nFolder containment\nExpand direction\nOpen…\n⌘K"
+    },
+    "popups": {
+      "workSearch": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 828,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 534.078125,
+              "y": 788,
+              "width": 645.8359375,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "Open work",
+            "rect": {
+              "x": 909,
+              "y": 198.5,
+              "width": 350,
+              "height": 523.5
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "Open work",
+            "module": "Project plan",
+            "area": 183225
+          }
+        ]
+      },
+      "attachment": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 828,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 534.078125,
+              "y": 788,
+              "width": 645.8359375,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "Attach a document",
+            "rect": {
+              "x": 535.078125,
+              "y": 645.5,
+              "width": 300,
+              "height": 195.5
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "Attach a document",
+            "module": "Project plan",
+            "area": 39150
+          },
+          {
+            "popup": "Attach a document",
+            "module": "composer glass mature-composer",
+            "area": 15900
+          }
+        ]
+      },
+      "account": {
+        "modules": [
+          {
+            "name": "Conversation history",
+            "rect": {
+              "x": 73,
+              "y": 9,
+              "width": 360,
+              "height": 882
+            }
+          },
+          {
+            "name": "Project plan",
+            "rect": {
+              "x": 443,
+              "y": 9,
+              "width": 828,
+              "height": 767
+            }
+          },
+          {
+            "name": "composer glass mature-composer",
+            "rect": {
+              "x": 534.078125,
+              "y": 788,
+              "width": 645.8359375,
+              "height": 98
+            }
+          }
+        ],
+        "popups": [
+          {
+            "name": "popover account-pop glass",
+            "rect": {
+              "x": 56,
+              "y": 599.609375,
+              "width": 235,
+              "height": 290.390625
+            }
+          }
+        ],
+        "intersections": [
+          {
+            "popup": "popover account-pop glass",
+            "module": "Conversation history",
+            "area": 63305
+          }
+        ]
+      }
+    },
+    "errors": []
+  }
+]

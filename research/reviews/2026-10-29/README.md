@@ -2,6 +2,8 @@
 
 Source revision: `c98ba8a`. Isolated browser contexts on the existing local port 4174; contexts closed after each probe. The user's preview storage and UI were not reset or populated.
 
+The later [experience audit](experience-audit/README.md) adds the user's popup, identity, working-agent and canvas-composition feedback. It preserves corrected probe source, measurements and captures; section 8 of the report distinguishes confirmed requirements from proposed repairs.
+
 | Artifact | Meaning |
 | --- | --- |
 | `layout-probe.json` | Settled 1280 → 900 → 1280 layout observations, preset shape and visual/resource-model gap. It corrects an immediate return sample that had not yet settled. |

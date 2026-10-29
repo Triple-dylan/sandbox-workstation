@@ -1,0 +1,33 @@
+{
+  "before": {
+    "utilities": [
+      "Sources and context",
+      "Project agent",
+      "Goals"
+    ],
+    "inspector": false,
+    "chatVisible": true
+  },
+  "reading": {
+    "utilities": [],
+    "inspector": true,
+    "chatVisible": true
+  },
+  "closed": {
+    "utilities": [
+      "Sources and context",
+      "Project agent",
+      "Goals"
+    ],
+    "inspector": false,
+    "chatVisible": true
+  },
+  "narrow": {
+    "historyWidth": 320,
+    "avatars": [
+      "none",
+      "none",
+      "none"
+    ]
+  }
+}
