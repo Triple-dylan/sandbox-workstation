@@ -1,6 +1,6 @@
 # Research review: workstation behavior and foundations
 
-October 28, 2026. Research and interview evidence only. **No new implementation plan or stack selection is approved.** Implementation is paused at the user's request until research-informed follow-up questions are answered and a plan is reviewed. The existing prototype remains rejected.
+October 28, 2026. This records the research/interview process that preceded the rebuild plan. **The user subsequently approved `Rebuild Plan.md`; stage A is authorized, with a design-review gate before broader implementation.** The statements below about the earlier interview/implementation pause are historical. Findings remain distinct from selected production services or accepted visuals. The existing prototype remains rejected.
 
 ## Latest confirmed direction
 

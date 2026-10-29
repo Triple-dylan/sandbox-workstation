@@ -1,58 +1,59 @@
 # Sandbox Workstation
 
-A general-purpose open canvas workstation for people and agents, with private and collaborative spaces, project channels, and a physics-based graph of shared knowledge.
+A general-purpose workstation for people and agents, with private and collaborative work, bounded snapping modules and a graph of permitted context.
 
-**Current status:** local interaction prototype. Previous visual passes were rejected; the current revision has not been accepted by the user. Real multiplayer, server-enforced access, durable resource storage, document-engine integration, retrieval and executing agents are not implemented.
+**Current work:** the user approved the researched rebuild plan on October 28, 2026. A separate stage A material/layout proof is ready for design review in `workstation/`. The rejected `prototype/` remains preserved. This is not a completed MVP or accepted new visual design. Real accounts, messaging delivery, collaboration, authoritative permissions, Office engines, browser sessions, retrieval and running agents remain unimplemented.
 
-**Current work gate:** implementation is paused for questions → research → follow-up questions → plan. The evening review requires bounded snapping with no overlapping modules, right-side concurrent utilities, an anchored graph and a new design/material system. Read [Research Review.md](Research%20Review.md) and the proposed [Rebuild Plan.md](Rebuild%20Plan.md) before using the older implementation plan or tests as guidance. The new plan is a draft for review; no redesign has been implemented.
+## Handoff
 
-## Start here for handoff
+1. Read [AGENTS.md](AGENTS.md) and [Conversation Context.md](Conversation%20Context.md) in full. Apply later confirmed answers.
+2. Follow the approved [Rebuild Plan.md](Rebuild%20Plan.md) and its design-review gate. [Research Review.md](Research%20Review.md) records the evidence and proposals.
+3. Use [Stage A Review.md](Stage%20A%20Review.md) for the new proof, verification and remaining technical gates.
+4. [Object and Access Model.md](Object%20and%20Access%20Model.md) remains a proposed record/access contract, not implemented server authorization.
+5. The older `Interaction Contract.md`, `Design Research and Revision Plan.md` and `prototype/` contain superseded/rejected implementation evidence. Do not use their camera/zoom behavior or old test count as the current acceptance contract.
 
-1. Read [AGENTS.md](AGENTS.md).
-2. Read [Conversation Context.md](Conversation%20Context.md) in full. Later confirmed answers supersede earlier exploratory ideas. Do not restart a generic discovery interview.
-3. Read [Interaction Contract.md](Interaction%20Contract.md) and [Design Research and Revision Plan.md](Design%20Research%20and%20Revision%20Plan.md). They contain the rejected behavior, latest corrections, reference research, second-pass audit and next implementation gates.
-4. Use [Object and Access Model.md](Object%20and%20Access%20Model.md) as the proposed data/access contract, not a claim of implemented authorization.
-5. Follow [prototype/README.md](prototype/README.md) for the review flow, tests and exact capability limits.
+Private handoff repository: [Triple-dylan/sandbox-workstation](https://github.com/Triple-dylan/sandbox-workstation).
 
-Confirmed requirements, proposed architecture and implementation facts are intentionally distinguished. No production stack, provider, hosting service, budget or schedule has been approved.
+## Run the new proof
 
-## Run locally
-
-Requires Python 3.10+; the application and Office parser use the standard library and browser APIs. No application installation/build is needed.
+Requires Node 22.12+ and npm. From `workstation/`:
 
 ```sh
-python3 prototype/server.py --port 4173
+npm ci
+npm run dev
 ```
 
-Open <http://127.0.0.1:4173/>. The server binds to loopback. Office imports need this server, rather than a generic static file server. Records persist in browser-local storage; they are not Git-tracked project data or durable backups.
+Open [the layout proof](http://127.0.0.1:4174/) or the separate [component/material proof](http://127.0.0.1:4174/materials). The component page is a review specimen, not the product landing page. A fresh workstation starts blank.
 
-## Code map
+`predev` and `prebuild` snapshot the four actual project Markdown sources into the local proof. Their generated copies are ignored by Git and retain stable source IDs in the UI. The loopback preview has no authentication; it must not be deployed as an authorized shared service.
+
+See [workstation/README.md](workstation/README.md) for the review flow, controls and exact limits.
+
+## Verification
+
+With the new server running and Google Chrome installed:
+
+```sh
+cd workstation
+npm run build
+npm run format:check
+npm test
+```
+
+Browser checks use separate temporary contexts. They do not overwrite the user's preview records. A passing suite establishes the exercised layout/interaction behavior, not visual acceptance, production access control or completed integration.
+
+## Source map
 
 | Path | Responsibility |
 | --- | --- |
-| `prototype/app.js` | Local records, scope filtering, channels/threads, sharing/history, Project module, graph/canvas orchestration |
-| `prototype/spatial.js` | World/screen coordinates, anchored zoom, fit and snapping |
-| `prototype/viewers.js` | Local document/workbook/slide surfaces and basic formula evaluation |
-| `prototype/icons.js`, `prototype/style.css` | SVG icon family and current visual treatment |
-| `prototype/office_import.py`, `prototype/server.py` | Bounded local OOXML extraction and loopback import endpoint |
-| `prototype/tests/` | Geometry/formula/parser checks, browser scenarios and generated Office fixtures |
+| `workstation/src/main.tsx` | Typed shell, bounded work regions, conversation/draft state, single viewer, independent utilities and material specimens |
+| `workstation/src/Graph.tsx` | Actual source/folder graph, subject focus, bounded drag and spring return |
+| `workstation/src/splitters.ts` | Keyboard/ARIA behavior for the layout engine's shared splitters |
+| `workstation/src/model.ts` | Proof resource identities, recorded discussion excerpts and local record shapes |
+| `workstation/src/style.css` | Semantic material, color, type, focus and reduced-preference treatments |
+| `workstation/scripts/snapshot-sources.mjs` | Reproducible source snapshots with content hashes |
+| `workstation/tests/workspace.test.mjs` | Browser interaction and allocation checks |
+| `research/references/` | User's supplied module-style and broken-flow evidence |
+| `prototype/` | Preserved rejected buildless implementation and historical tests |
 
-## Checks
-
-```sh
-node prototype/tests/spatial.cjs
-node prototype/tests/viewers.cjs
-python3 -m unittest discover -s prototype/tests -p 'test_*.py'
-```
-
-Browser tests are optional development tooling. With the local server running, install Playwright locally and run:
-
-```sh
-npm install --no-save --package-lock=false playwright
-npx playwright install chromium
-node prototype/tests/run-browser.cjs
-```
-
-`WORKSTATION_URL` can override the local URL. Each scenario uses a fresh browser context. Fixtures load from the preview server, so no original machine paths are required. The recorded prior run passed 66 browser assertions; see the prototype guide for what those assertions establish. Passing checks do not establish design acceptance, production readiness or a completed MVP.
-
-Current visual-review images are retained with the prototype. Superseded screenshots and generated machine artifacts are excluded from Git; the original local files are preserved.
+The old prototype can still run with `python3 prototype/server.py --port 4173`. It is historical output, not the review build.

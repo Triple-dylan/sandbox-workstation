@@ -1,6 +1,6 @@
 # Workstation rebuild proposal
 
-October 28, 2026. **Draft for user review; not approved for implementation.** This follows the required questions → research → follow-up questions → reflection sequence. It replaces the earlier prototype plan where they conflict. No new application code was written to produce this proposal.
+October 28, 2026. **Approved by the user on October 28, 2026. Stage A implementation is authorized; the design-review gate before broader implementation remains.** This follows the required questions → research → follow-up questions → reflection sequence. It replaces the earlier prototype plan where they conflict. No new application code was written to produce this proposal.
 
 Read the complete [conversation record](Conversation%20Context.md), current [handoff](AGENTS.md) and [research evidence](Research%20Review.md). Confirmed requirements below are distinguished from recommended defaults and optional extensions.
 
@@ -28,7 +28,7 @@ The first usable release includes the whole loop: real identities, project/chann
 | Graph meaning | Folder nesting, distinct resource types, permitted human/agent activity; no identical boxed icons. | Define a small node/edge grammar and readable labels before drawing the graph. Containment, explicit references, recorded source usage, live access and inferred similarity must not imply the same relationship. Explain a selected relationship using its actual evidence. |
 | Menus and expanded views | Codex reference establishes module quality/style; working modules never overlap. | Temporary menus, tooltips and placement previews are a separate transient layer. Persistent viewers and expanded work are layout-managed. No chain of resource buttons spawning overlapping working windows. |
 
-These defaults are not all newly confirmed user choices. Their review is part of this proposal; none authorizes changing the app yet.
+The user approved proceeding with this plan. Design/material/layout proofs remain review artifacts, and the implementation must keep future integration work distinct from what is actually built.
 
 ## 3. New design system, before another product screen
 
@@ -142,6 +142,6 @@ These are not approved additions to MVP scope:
 
 Keep these distinct from already-required automatic orientation, provenance, visible agent knowledge access and canonical sharing. The latter are foundational, not optional innovations. Research sources and constraints for each action are in `Research Review.md`.
 
-## 8. What review of this proposal should settle
+## 8. Approved next deliverable and review gate
 
-The next deliverable after approval is the behavior/material/layout proof in A, accompanied by the narrow feasibility evidence in section 4. Full application implementation follows those results and the user's design review. Do not silently execute a new visual redesign, select a paid runtime, call the MVP complete or present this draft as an approved specification.
+The approved next deliverable is the behavior/material/layout proof in A, accompanied by the narrow feasibility evidence in section 4. Full application implementation follows those results and the user's design review. Do not select a paid runtime, call the MVP complete or treat proposed technical choices as user-approved merely because this implementation sequence was approved.

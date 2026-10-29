@@ -1,0 +1,108 @@
+export const storageKey = 'workstation-layout-proof-v1';
+export type Pane =
+  'conversation' | 'graph' | 'document' | 'explorer' | 'browser' | 'agent-settings';
+export type Utility = 'sources' | 'agent' | 'goals';
+export type Theme = 'system' | 'light' | 'dark';
+export type Message = {
+  id: string;
+  author: string;
+  text: string;
+  at: string;
+  replyTo?: string;
+  sources?: string[];
+};
+export type Conversation = {
+  id: string;
+  title: string;
+  kind: 'private' | 'channel' | 'dm';
+  recipient?: string;
+  messages: Message[];
+};
+export type Goal = { id: string; title: string; done: boolean; due: string };
+export type Resource = {
+  id: string;
+  title: string;
+  file: string;
+  summary: string;
+  folder: 'direction' | 'research';
+};
+export const resources: Resource[] = [
+  {
+    id: 'plan',
+    title: 'Rebuild plan',
+    file: 'Rebuild Plan.md',
+    summary: 'Approved sequence, interaction contract and review gates.',
+    folder: 'direction',
+  },
+  {
+    id: 'context',
+    title: 'Conversation record',
+    file: 'Conversation Context.md',
+    summary: 'Original interview and later confirmed clarifications.',
+    folder: 'direction',
+  },
+  {
+    id: 'access',
+    title: 'Object & access model',
+    file: 'Object and Access Model.md',
+    summary: 'Proposed canonical identity and permission contracts.',
+    folder: 'direction',
+  },
+  {
+    id: 'research',
+    title: 'Research review',
+    file: 'Research Review.md',
+    summary: 'References, source inspection and feasibility evidence.',
+    folder: 'research',
+  },
+];
+export const initialConversations: Conversation[] = [
+  {
+    id: 'direction',
+    title: 'product-direction',
+    kind: 'channel',
+    messages: [
+      {
+        id: 'record-1',
+        author: 'Dylan · recorded feedback',
+        text: 'Modules should never, ever be able to overlap each other.',
+        at: 'Interview record',
+      },
+      {
+        id: 'record-2',
+        author: 'Dylan · recorded feedback',
+        text: 'There should be times where you can chat, see the graph, and have a window open.',
+        at: 'Interview record',
+      },
+      {
+        id: 'record-3',
+        author: 'Dylan · recorded feedback',
+        text: 'Sources/context modules, agent modules, goal modules. Not one at a time.',
+        at: 'Interview record',
+      },
+    ],
+  },
+  { id: 'notes', title: 'Personal notes', kind: 'private', messages: [] },
+];
+export const initialGoals: Goal[] = [
+  { id: 'material', title: 'Review materials and layout', done: false, due: '' },
+  { id: 'layout', title: 'Prove bounded placement and restoration', done: false, due: '' },
+  { id: 'engines', title: 'Validate file and browser engines', done: false, due: '' },
+];
+export function canSplit(width: number, height: number, direction: string) {
+  return direction === 'left' || direction === 'right' ? width >= 612 : height >= 380;
+}
+export function placementAt(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): 'left' | 'right' | 'above' | 'below' {
+  const distances = [
+    ['left', x / width],
+    ['right', 1 - x / width],
+    ['above', y / height],
+    ['below', 1 - y / height],
+  ] as const;
+  return [...distances].sort((a, b) => a[1] - b[1])[0][0];
+}
