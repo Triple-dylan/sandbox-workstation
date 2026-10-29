@@ -29,6 +29,12 @@ New document creates a private local record with stable ID, editable body/title 
 
 Agent editing supports local definitions, purpose/instructions, private/project scope, inherited context preference and private autonomy. The dedicated project definition retains project scope. Save version preserves an immutable configuration snapshot; Version history can restore an older version into the editable draft without changing that history. Export downloads the definition/version record. Test/deploy controls explain the missing runtime and remain unavailable. Local saving is not publishing to a live runtime, deployment or execution.
 
+## Direct canvas content
+
+Pin a message from its conversation to keep source-linked evidence on Canvas. Open original returns to the source discussion. Add to plan creates/reuses a goal with its source link; private pins cannot enter the shared project plan without sharing. Open project plan from work search or the Goals module to edit, reorder, date and complete the same goal records used by the utility.
+
+Add visual reference opens the image chooser. Dropping or pasting images onto Canvas uses the same pipeline. PNG/JPEG/WebP/GIF up to 12 MiB remain private on this browser. Actual image Blobs persist in IndexedDB with editable title/caption metadata in local state. Replace/restore retains identity. Closed pins/images remain searchable; closing is not source deletion. Capacity/storage/decoding failures preserve current work. Read `../Canvas Use Results.md` for current evidence and limits.
+
 ## Bounded work and recovery
 
 Browser and agent-editing objects retain separate roles from the single document viewer. Drag a header for a placement preview; only valid non-overlapping drops commit. Escape cancels. Drag near a neighboring edge to snap that pair; unrelated objects stay put. Corner handles and header/resize arrow keys support bounded resizing/movement. Focus/restore preserves the arrangement. Work below short utilities remains usable.

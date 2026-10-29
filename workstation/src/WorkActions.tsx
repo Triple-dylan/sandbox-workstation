@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, FileText, Plus, Workflow, Bookmark, RotateCcw } from 'lucide-react';
+import {
+  Search,
+  FileText,
+  Plus,
+  Workflow,
+  Bookmark,
+  RotateCcw,
+  Image,
+  ListOrdered,
+  Pin,
+} from 'lucide-react';
 import type { Resource } from './model';
 export type WorkCommand =
   | 'new-document'
@@ -7,7 +17,11 @@ export type WorkCommand =
   | 'new-agent'
   | 'browser-connection'
   | 'save-layout'
-  | 'restore-layout';
+  | 'restore-layout'
+  | 'open-plan'
+  | 'add-visual'
+  | `pin:${string}`
+  | `visual:${string}`;
 export function WorkActions({
   resources,
   onOpen,
@@ -15,6 +29,7 @@ export function WorkActions({
   onClose,
   canRestore,
   canSave,
+  canvasItems,
 }: {
   resources: Resource[];
   onOpen: (id: string) => void;
@@ -22,6 +37,7 @@ export function WorkActions({
   onClose: () => void;
   canRestore: boolean;
   canSave: boolean;
+  canvasItems: { id: `pin:${string}` | `visual:${string}`; title: string; detail: string }[];
 }) {
   const [query, setQuery] = useState('');
   const host = useRef<HTMLDivElement>(null),
@@ -43,6 +59,18 @@ export function WorkActions({
     };
   }, []);
   const commands = [
+    {
+      id: 'open-plan',
+      label: 'Open project plan',
+      hint: 'Steps, owners and source messages',
+      icon: ListOrdered,
+    },
+    {
+      id: 'add-visual',
+      label: 'Add visual reference',
+      hint: 'Choose an image · or drop and paste on Canvas',
+      icon: Image,
+    },
     { id: 'new-document', label: 'New document', hint: 'Private · saved locally', icon: Plus },
     {
       id: 'edit-agent',
@@ -67,6 +95,9 @@ export function WorkActions({
   ] as const;
   const matches = resources.filter((r) =>
     `${r.title} ${r.summary}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  const references = canvasItems.filter((r) =>
+    `${r.title} ${r.detail}`.toLowerCase().includes(query.toLowerCase()),
   );
   const actions = commands.filter(
     (c) =>
@@ -139,6 +170,27 @@ export function WorkActions({
             ))}
           </>
         )}
+        {references.length > 0 && (
+          <>
+            <div className="action-group-label">Canvas references</div>
+            {references.map((r) => (
+              <button
+                data-command
+                key={r.id}
+                onClick={() => {
+                  onCommand(r.id);
+                  onClose();
+                }}
+              >
+                {r.id.startsWith('pin:') ? <Pin size={16} /> : <Image size={16} />}
+                <span>
+                  {r.title}
+                  <small>{r.detail}</small>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
         {actions.length > 0 && (
           <>
             <div className="action-group-label">Actions</div>
@@ -160,7 +212,7 @@ export function WorkActions({
             ))}
           </>
         )}
-        {!matches.length && !actions.length && (
+        {!matches.length && !actions.length && !references.length && (
           <p className="no-results">No matching work or actions.</p>
         )}
       </div>

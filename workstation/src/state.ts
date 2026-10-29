@@ -11,6 +11,7 @@ import {
 import type { CanvasObject } from './canvas-layout';
 import { projectAgent, validAgent, type AgentDefinition } from './agents';
 import type { Resource } from './model';
+import { isCanvasId, type CanvasPin, type CanvasVisual } from './canvas-content';
 export type Inspector =
   | { kind: 'document'; id: string; from?: string }
   | { kind: 'folder'; id: string }
@@ -39,6 +40,8 @@ export type State = {
   selectedAgent: string;
   threadByConversation: Record<string, string>;
   sendShortcut: 'enter' | 'modifier';
+  canvasPins: CanvasPin[];
+  visuals: CanvasVisual[];
   legacyLayout?: unknown;
 };
 export function loadState(): State {
@@ -75,7 +78,7 @@ export function loadState(): State {
       ? raw.objects.filter(
           (o: any) =>
             o &&
-            ['document', 'browser', 'agent-settings'].includes(o.id) &&
+            isCanvasId(o.id) &&
             ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(o[k])),
         )
       : [];
@@ -179,6 +182,29 @@ export function loadState(): State {
       : agents[0].id,
     threadByConversation: stringMap(raw.threadByConversation),
     sendShortcut: raw.sendShortcut === 'modifier' ? 'modifier' : 'enter',
+    canvasPins: Array.isArray(raw.canvasPins)
+      ? raw.canvasPins.filter(
+          (p: any) =>
+            p &&
+            typeof p.id === 'string' &&
+            p.id.startsWith('pin:') &&
+            typeof p.conversationId === 'string' &&
+            typeof p.messageId === 'string',
+        )
+      : [],
+    visuals: Array.isArray(raw.visuals)
+      ? raw.visuals.filter(
+          (v: any) =>
+            v &&
+            typeof v.id === 'string' &&
+            v.id.startsWith('visual:') &&
+            ['imageKey', 'title', 'caption', 'fileName', 'mimeType', 'addedAt'].every(
+              (k) => typeof v[k] === 'string',
+            ) &&
+            Number.isFinite(v.width) &&
+            Number.isFinite(v.height),
+        )
+      : [],
     legacyLayout: raw.legacyLayout || raw.layout,
   };
 }

@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
 let browser;
 const base = process.env.WORKSTATION_URL || 'http://127.0.0.1:4174';
 before(async () => {
@@ -857,6 +858,250 @@ test('conversation search returns to a source message and thread drafts survive 
     assert.equal(await page.locator('.message-search-results').count(), 0);
     assert.equal(await page.locator('#composer').inputValue(), '');
     assert.match(await page.locator('.transcript').innerText(), /Sources\/context/);
+  } finally {
+    await context.close();
+  }
+});
+
+test('message pins reuse their source identity, reopen and follow current message content', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).nth(1).click();
+    await validObjects(page);
+    const pin = (await stored(page)).canvasPins[0];
+    assert.equal((await stored(page)).canvasPins.length, 1);
+    await page.getByRole('button', { name: 'Open original', exact: true }).click();
+    await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).nth(1).click();
+    assert.equal((await stored(page)).objects.filter((o) => o.id.startsWith('pin:')).length, 1);
+    assert.equal((await stored(page)).canvasPins[0].id, pin.id);
+    await page.getByRole('button', { name: 'Close pinned message', exact: true }).click();
+    assert.equal((await stored(page)).canvasPins.length, 1);
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('times where');
+    await page.locator('.work-results').getByRole('button').click();
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.conversations
+        .find((c) => c.id === 'direction')
+        .messages.find((m) => m.id === 'record-2').text = 'Updated original message';
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    });
+    await page.reload();
+    assert.equal(
+      await page.locator('.pinned-message blockquote').innerText(),
+      'Updated original message',
+    );
+    assert.equal((await stored(page)).canvasPins[0].id, pin.id);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a pinned message becomes one sourced step and plan edits use the existing goals', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1100 });
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
+    await validObjects(page);
+    const source = (await stored(page)).goals.at(-1);
+    assert.equal(source.source.messageId, 'record-1');
+    assert.equal(source.source.conversationId, 'direction');
+    await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
+    assert.equal((await stored(page)).goals.length, 4);
+    await page.getByLabel('Step 1 title', { exact: true }).fill('First next step');
+    await page.getByLabel('Owner for step 1', { exact: true }).fill('Dylan');
+    await page.getByRole('button', { name: 'Set due date for step 1', exact: true }).click();
+    await page.getByLabel('Due date for step 1', { exact: true }).fill('2026-11-03');
+    await page.getByRole('button', { name: 'Move step 1 down', exact: true }).click();
+    assert.equal((await stored(page)).goals[1].title, 'First next step');
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    const plan = page.locator('.canvas-plan');
+    await plan.getByRole('button', { name: 'Complete First next step', exact: true }).click();
+    const goals = page.getByRole('region', { name: 'Goals', exact: true });
+    await goals.getByRole('button', { name: 'Reopen First next step', exact: true }).waitFor();
+    const record = (await stored(page)).goals[1];
+    assert.equal(record.owner, 'Dylan');
+    assert.equal(record.due, '2026-11-03');
+    assert.equal(record.done, true);
+    await plan.getByRole('button', { name: 'From conversation', exact: true }).click();
+    assert.equal((await stored(page)).selected, 'direction');
+    assert.equal((await stored(page)).goals.at(-1).id, source.id);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('private message pins stay private and unavailable originals do not leak cached text', async () => {
+  const { context, page } = await session();
+  try {
+    await page.locator('#composer').fill('A private planning thought');
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).click();
+    assert.equal(
+      await page.getByRole('button', { name: 'Add to plan', exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal((await stored(page)).goals.length, 3);
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.conversations.find((c) => c.id === 'notes').messages = [];
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    });
+    await page.reload();
+    assert.match(
+      await page.locator('.canvas-unavailable').innerText(),
+      /original message is unavailable/,
+    );
+    assert.doesNotMatch(
+      await page.locator('[data-object]').innerText(),
+      /private planning thought/,
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+const visualFixture = fileURLToPath(
+  new URL('../../research/references/codex-module-style.png', import.meta.url),
+);
+async function loadedVisual(page) {
+  await page.waitForFunction(() => document.querySelector('.visual-image img')?.naturalWidth > 0);
+}
+test('visual references persist binary content, captions and identity through close/reopen/replace', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByLabel('Choose visual references', { exact: true }).setInputFiles(visualFixture);
+    await loadedVisual(page);
+    await page.getByLabel('Visual reference title', { exact: true }).fill('Interface reference');
+    await page
+      .getByLabel('Visual reference caption', { exact: true })
+      .fill('Clear sources and hierarchy.');
+    const first = (await stored(page)).visuals[0];
+    await page.reload();
+    await loadedVisual(page);
+    assert.equal(
+      await page.getByLabel('Visual reference caption', { exact: true }).inputValue(),
+      'Clear sources and hierarchy.',
+    );
+    await page.getByRole('button', { name: 'Close visual reference', exact: true }).click();
+    assert.equal((await stored(page)).visuals.length, 1);
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('Interface reference');
+    await page.locator('.work-results').getByRole('button').click();
+    await loadedVisual(page);
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Replace image', exact: true }).click();
+    await (await chooserPromise).setFiles(visualFixture);
+    await loadedVisual(page);
+    const current = (await stored(page)).visuals[0];
+    assert.equal(current.id, first.id);
+    assert.equal(current.imageKey, first.imageKey);
+    assert.equal(current.caption, 'Clear sources and hierarchy.');
+    assert.equal((await stored(page)).visuals.length, 1);
+    const resize = page.getByRole('button', { name: 'Resize visual reference', exact: true });
+    for (let i = 0; i < 10; i++) await resize.press('ArrowUp');
+    const object = (await objects(page))[0].rect;
+    const caption = await page
+      .getByLabel('Visual reference caption', { exact: true })
+      .boundingBox();
+    assert(object.height >= 280);
+    assert(caption.y + caption.height <= object.bottom);
+    assert.equal(
+      await page.getByLabel('Visual reference caption', { exact: true }).inputValue(),
+      'Clear sources and hierarchy.',
+    );
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('invalid images retain work and a crowded canvas keeps saved visuals recoverable', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.locator('#composer').fill('Keep this draft');
+    await page.getByLabel('Choose visual references', { exact: true }).setInputFiles({
+      name: 'broken.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('not an image'),
+    });
+    await page.getByRole('status').filter({ hasText: 'could not be read as an image' }).waitFor();
+    assert.equal((await stored(page)).visuals.length, 0);
+    assert.equal(await page.locator('#composer').inputValue(), 'Keep this draft');
+    const area = await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .boundingBox();
+    await page.evaluate((area) => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.objects = [{ id: 'document', x: 0, y: 0, width: area.width, height: area.height }];
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    }, area);
+    await page.reload();
+    await page.getByLabel('Choose visual references', { exact: true }).setInputFiles(visualFixture);
+    await page
+      .getByRole('status')
+      .filter({ hasText: 'Image saved to visual references' })
+      .waitFor();
+    assert.equal((await stored(page)).visuals.length, 1);
+    assert.equal((await stored(page)).objects.length, 1);
+    await page.getByRole('button', { name: 'Close document', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('codex-module-style');
+    await page.locator('.work-results').getByRole('button').click();
+    await loadedVisual(page);
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('image drop and paste add visual objects without intercepting text composition', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1100 });
+  try {
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1kAAAAASUVORK5CYII=';
+    await page.getByRole('main', { name: 'Working canvas', exact: true }).evaluate((el, png) => {
+      const data = new DataTransfer();
+      data.items.add(
+        new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'dropped.png', {
+          type: 'image/png',
+        }),
+      );
+      el.dispatchEvent(
+        new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }),
+      );
+    }, png);
+    await loadedVisual(page);
+    await page.getByRole('main', { name: 'Working canvas', exact: true }).evaluate((el, png) => {
+      const data = new DataTransfer();
+      data.items.add(
+        new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'pasted.png', {
+          type: 'image/png',
+        }),
+      );
+      el.dispatchEvent(
+        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data }),
+      );
+    }, png);
+    await page.waitForFunction(
+      () => JSON.parse(localStorage.getItem('workstation-layout-proof-v1')).visuals.length === 2,
+    );
+    await page.locator('#composer').fill('Pasting text still belongs in the composer.');
+    assert.equal((await stored(page)).visuals.length, 2);
+    await validObjects(page);
+    assert.deepEqual(errors, []);
   } finally {
     await context.close();
   }

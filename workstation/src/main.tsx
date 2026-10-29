@@ -40,6 +40,8 @@ import {
   BookOpen,
   PanelLeftClose,
   Pin,
+  Image as ImageIcon,
+  ListOrdered,
 } from 'lucide-react';
 import {
   IconButton,
@@ -51,6 +53,9 @@ import {
   WidthDivider,
 } from './components';
 import { Graph } from './Graph';
+import { PinnedMessage, VisualReference, CanvasPlan } from './CanvasContent';
+import type { CanvasPin, CanvasVisual } from './canvas-content';
+import { inspectImage, saveImage } from './image-store';
 import { ConversationView } from './Conversation';
 import { Composer } from './Composer';
 import { WorkActions, type WorkCommand } from './WorkActions';
@@ -63,7 +68,7 @@ import {
   fits,
   snapped,
   pairSnap,
-  minimum,
+  minimumFor,
   type CanvasObject,
   type Bounds,
   type Tool,
@@ -72,12 +77,30 @@ import '@fontsource-variable/dm-sans/index.css';
 import './style.css';
 import './workspace.css';
 
-const toolNames: Record<Tool, string> = {
+const toolNames: Record<string, string> = {
   document: 'Document',
   browser: 'Browser',
   'agent-settings': 'Agent builder',
+  planning: 'Project plan',
 };
-const toolIcons = { document: FileText, browser: Globe, 'agent-settings': SlidersHorizontal };
+const toolIcons = {
+  document: FileText,
+  browser: Globe,
+  'agent-settings': SlidersHorizontal,
+  planning: ListOrdered,
+};
+const toolName = (id: Tool) =>
+  id.startsWith('pin:')
+    ? 'Pinned message'
+    : id.startsWith('visual:')
+      ? 'Visual reference'
+      : toolNames[id];
+const toolIcon = (id: Tool) =>
+  id.startsWith('pin:')
+    ? Pin
+    : id.startsWith('visual:')
+      ? ImageIcon
+      : toolIcons[id as keyof typeof toolIcons];
 function App() {
   const [s, setState] = useState<State>(loadState);
   const patch = useCallback(
@@ -105,6 +128,20 @@ function App() {
   const stage = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null),
     recovery = useRef<CanvasObject[] | null>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const replacingVisual = useRef<string | null>(null);
+  const latest = useRef(s);
+  latest.current = s;
+  const [imageDrag, setImageDrag] = useState(false);
+  const pendingVisuals = useRef<string[]>([]);
+  useEffect(() => {
+    const saved = pendingVisuals.current.filter((id) => s.visuals.some((v) => v.id === id));
+    if (saved.some((id) => !s.objects.some((o) => o.id === id)))
+      setNotice(
+        'Image saved to visual references. Make room and reopen it from Open… to place it.',
+      );
+    pendingVisuals.current = pendingVisuals.current.filter((id) => !saved.includes(id));
+  }, [s.visuals, s.objects]);
   const [readerWidth, setReaderWidth] = useState(400);
   const utilitiesHost = useRef<HTMLElement>(null);
   const [graphExclusion, setGraphExclusion] = useState<{
@@ -359,6 +396,146 @@ function App() {
     setFocus(null);
     setPicker(false);
   };
+  const placeCanvasContent = (id: Tool, add: Partial<State> = {}) => {
+    if (s.objects.some((o) => o.id === id)) {
+      patch({ surface: 'canvas', ...add });
+      setNotice('Already on your canvas.');
+      return true;
+    }
+    const object = initialObject(id, bounds, blockers);
+    if (!object) {
+      setNotice(
+        'There is no free space for this object. Close or move some work; your existing content is retained.',
+      );
+      return false;
+    }
+    patch({ surface: 'canvas', objects: [...s.objects, object], ...add });
+    setFocus(null);
+    setPicker(false);
+    return true;
+  };
+  const pinMessage = (conversationId: string, messageId: string) => {
+    if (
+      !s.conversations
+        .find((c) => c.id === conversationId)
+        ?.messages.some((m) => m.id === messageId)
+    )
+      return;
+    const pin: CanvasPin = s.canvasPins.find(
+      (p) => p.conversationId === conversationId && p.messageId === messageId,
+    ) || { id: `pin:${crypto.randomUUID()}`, conversationId, messageId };
+    placeCanvasContent(pin.id, {
+      canvasPins: s.canvasPins.some((p) => p.id === pin.id) ? s.canvasPins : [...s.canvasPins, pin],
+    });
+  };
+  const openMessage = (conversationId: string, messageId: string) => {
+    const c = s.conversations.find((c) => c.id === conversationId),
+      m = c?.messages.find((m) => m.id === messageId);
+    if (!c || !m) {
+      setNotice('The original message is unavailable.');
+      return;
+    }
+    patch({
+      selected: c.id,
+      left: 'chat',
+      threadByConversation: { ...s.threadByConversation, [c.id]: m.replyTo || '' },
+      ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
+    });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        document
+          .querySelector(`[data-source-message="${CSS.escape(m.id)}"]`)
+          ?.scrollIntoView({ block: 'center' }),
+      ),
+    );
+  };
+  const addPinToPlan = (pin: CanvasPin) => {
+    const c = s.conversations.find((c) => c.id === pin.conversationId),
+      m = c?.messages.find((m) => m.id === pin.messageId);
+    if (!m || c?.kind !== 'channel') {
+      setNotice('Share private messages before adding them to the project plan.');
+      return;
+    }
+    const exists = s.goals.some(
+      (g) => g.source?.conversationId === c.id && g.source?.messageId === m.id,
+    );
+    const goal: Goal = {
+      id: crypto.randomUUID(),
+      title: m.text.replace(/\s+/g, ' ').slice(0, 160),
+      done: false,
+      due: '',
+      source: { conversationId: c.id, messageId: m.id },
+    };
+    placeCanvasContent('planning', { goals: exists ? s.goals : [...s.goals, goal] });
+  };
+  const chooseVisual = (id?: string) => {
+    replacingVisual.current = id || null;
+    imageInput.current?.click();
+  };
+  const importVisuals = async (files: FileList | File[]) => {
+    const replacement = replacingVisual.current;
+    replacingVisual.current = null;
+    for (const file of Array.from(files)) {
+      try {
+        const dimensions = await inspectImage(file);
+        const previous = latest.current.visuals.find((v) => v.id === replacement);
+        const id: CanvasVisual['id'] = previous?.id || `visual:${crypto.randomUUID()}`;
+        const imageKey = previous?.imageKey || crypto.randomUUID();
+        await saveImage(imageKey, file);
+        const visual: CanvasVisual = {
+          id,
+          imageKey,
+          title: previous?.title || file.name.replace(/\.[^.]+$/, ''),
+          caption: previous?.caption || '',
+          fileName: file.name,
+          mimeType: file.type,
+          ...dimensions,
+          addedAt: new Date().toISOString(),
+        };
+        const rect = stage.current?.getBoundingClientRect();
+        if (!rect) return;
+        pendingVisuals.current.push(id);
+        const utilitiesRect = utilitiesHost.current?.getBoundingClientRect();
+        const excluded = utilitiesRect
+          ? {
+              x: utilitiesRect.x - rect.x,
+              y: utilitiesRect.y - rect.y,
+              width: utilitiesRect.width,
+              height: utilitiesRect.height,
+            }
+          : null;
+        setState((old) => {
+          const occupied = [
+            ...old.objects,
+            ...(!old.inspector && old.utilities.length && excluded
+              ? [{ id: 'reserved-tools' as Tool, ...excluded }]
+              : []),
+          ];
+          const object =
+            old.objects.find((o) => o.id === id) ||
+            initialObject(id, { width: rect.width, height: rect.height }, occupied);
+          return {
+            ...old,
+            surface: 'canvas',
+            visuals: previous
+              ? old.visuals.map((v) => (v.id === id ? visual : v))
+              : [...old.visuals, visual],
+            objects:
+              old.objects.some((o) => o.id === id) || !object
+                ? old.objects
+                : [...old.objects, object],
+          };
+        });
+      } catch (error) {
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : 'The image could not be saved. Your existing work is retained.',
+        );
+      }
+      if (replacement) break;
+    }
+  };
   const placeDocument = () => {
     // Closing the inspection releases its width; use the resulting canvas bounds.
     const expanded = {
@@ -411,14 +588,14 @@ function App() {
         ? {
             ...item,
             width: Math.max(
-              minimum.width,
+              minimumFor(item.id).width,
               Math.min(
                 bounds.width - item.x,
                 Math.round((item.width + e.clientX - start.x) / 16) * 16,
               ),
             ),
             height: Math.max(
-              minimum.height,
+              minimumFor(item.id).height,
               Math.min(
                 bounds.height - item.y,
                 Math.round((item.height + e.clientY - start.y) / 16) * 16,
@@ -482,7 +659,13 @@ function App() {
     else openTool('agent-settings');
   };
   const runCommand = (id: WorkCommand) => {
-    if (id === 'new-document') {
+    if (id === 'open-plan') {
+      placeCanvasContent('planning');
+    } else if (id === 'add-visual') {
+      chooseVisual();
+    } else if (id.startsWith('pin:') || id.startsWith('visual:')) {
+      placeCanvasContent(id as Tool);
+    } else if (id === 'new-document') {
       const resource = {
         id: crypto.randomUUID(),
         title: 'Untitled document',
@@ -515,6 +698,7 @@ function App() {
     }
   };
   const context = {
+    pinMessage,
     resources,
     updateResource: (id: string, body: string, title?: string) =>
       setState((old) => ({
@@ -551,6 +735,18 @@ function App() {
   return (
     <Workspace.Provider value={context}>
       <div className="app-shell revised-shell">
+        <input
+          ref={imageInput}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          multiple
+          hidden
+          aria-label="Choose visual references"
+          onChange={(e) => {
+            if (e.target.files) void importVisuals(e.target.files);
+            e.target.value = '';
+          }}
+        />
         <nav className="rail glass" aria-label="Workspace navigation">
           <div className="rail-top">
             <IconButton
@@ -781,6 +977,47 @@ function App() {
           <div className="surface-row">
             <main
               ref={stage}
+              tabIndex={-1}
+              onPointerDown={(e) => {
+                if (
+                  s.surface === 'canvas' &&
+                  !(e.target as HTMLElement).closest('.canvas-object, .work-action-anchor')
+                )
+                  e.currentTarget.focus();
+              }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('Files')) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = s.surface === 'canvas' ? 'copy' : 'none';
+                  if (s.surface === 'canvas') setImageDrag(true);
+                }
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setImageDrag(false);
+              }}
+              onDrop={(e) => {
+                if (e.dataTransfer.files.length) {
+                  e.preventDefault();
+                  setImageDrag(false);
+                  if (s.surface !== 'canvas') {
+                    setNotice('Switch to Canvas to add a visual reference.');
+                    return;
+                  }
+                  replacingVisual.current = null;
+                  void importVisuals(e.dataTransfer.files);
+                }
+              }}
+              onPaste={(e) => {
+                if (
+                  s.surface === 'canvas' &&
+                  e.clipboardData.files.length &&
+                  !(e.target as HTMLElement).closest('input,textarea,[contenteditable="true"]')
+                ) {
+                  e.preventDefault();
+                  replacingVisual.current = null;
+                  void importVisuals(e.clipboardData.files);
+                }
+              }}
               className={`primary-surface surface-${s.surface}`}
               data-surface={s.surface}
               aria-label={s.surface === 'graph' ? 'Graph canvas' : 'Working canvas'}
@@ -810,11 +1047,11 @@ function App() {
                   {s.objects
                     .filter((o) => !focus || o.id === focus)
                     .map((object) => {
-                      const Icon = toolIcons[object.id],
+                      const Icon = toolIcon(object.id),
                         title =
                           object.id === 'document'
                             ? resources.find((r) => r.id === s.document)!.title
-                            : toolNames[object.id];
+                            : toolName(object.id);
                       return (
                         <section
                           key={object.id}
@@ -843,7 +1080,7 @@ function App() {
                           <header
                             className="object-header"
                             tabIndex={0}
-                            aria-label={`Move ${toolNames[object.id].toLowerCase()}`}
+                            aria-label={`Move ${toolName(object.id).toLowerCase()}`}
                             onPointerDown={(e) => beginGesture(e, object)}
                             onKeyDown={(e) => {
                               if ((e.target as HTMLElement).closest('button')) return;
@@ -875,7 +1112,7 @@ function App() {
                               label={
                                 focus
                                   ? 'Restore canvas arrangement'
-                                  : `Focus ${toolNames[object.id].toLowerCase()}`
+                                  : `Focus ${toolName(object.id).toLowerCase()}`
                               }
                               onClick={() => {
                                 if (focus) {
@@ -888,12 +1125,36 @@ function App() {
                             />
                             <IconButton
                               icon={X}
-                              label={`Close ${toolNames[object.id].toLowerCase()}`}
+                              label={`Close ${toolName(object.id).toLowerCase()}`}
                               onClick={() => closeTool(object.id)}
                             />
                           </header>
                           <div className="object-body">
-                            {object.id === 'document' ? (
+                            {object.id.startsWith('pin:') ? (
+                              <PinnedMessage
+                                pin={s.canvasPins.find((p) => p.id === object.id)}
+                                onSource={openMessage}
+                                onPlan={addPinToPlan}
+                              />
+                            ) : object.id.startsWith('visual:') ? (
+                              <VisualReference
+                                visual={s.visuals.find((v) => v.id === object.id)}
+                                onChange={(value) =>
+                                  patch({
+                                    visuals: s.visuals.map((v) =>
+                                      v.id === object.id ? { ...v, ...value } : v,
+                                    ),
+                                  })
+                                }
+                                onReplace={() => chooseVisual(object.id)}
+                              />
+                            ) : object.id === 'planning' ? (
+                              <CanvasPlan
+                                goals={s.goals}
+                                onChange={(goals) => patch({ goals })}
+                                onSource={openMessage}
+                              />
+                            ) : object.id === 'document' ? (
                               <DocumentView />
                             ) : object.id === 'browser' ? (
                               <BrowserProof />
@@ -904,7 +1165,7 @@ function App() {
                           {!focus && (
                             <button
                               className="resize-handle"
-                              aria-label={`Resize ${toolNames[object.id].toLowerCase()}`}
+                              aria-label={`Resize ${toolName(object.id).toLowerCase()}`}
                               onPointerDown={(e) => beginGesture(e, object, true)}
                               onKeyDown={(e) => {
                                 const delta = {
@@ -946,6 +1207,12 @@ function App() {
                   )}
                 </>
               )}
+              {imageDrag && (
+                <div className="image-drop-overlay" aria-hidden="true">
+                  <ImageIcon size={23} />
+                  <span>Drop a visual reference</span>
+                </div>
+              )}
               <div className="work-action-anchor">
                 <button
                   className="open-work-button glass"
@@ -962,6 +1229,25 @@ function App() {
                     resources={resources}
                     canRestore={!!s.preset}
                     canSave={s.objects.length > 0}
+                    canvasItems={[
+                      ...s.canvasPins.map((p) => {
+                        const c = s.conversations.find((c) => c.id === p.conversationId),
+                          m = c?.messages.find((m) => m.id === p.messageId);
+                        return {
+                          id: p.id,
+                          title: m?.text.slice(0, 65) || 'Unavailable message',
+                          detail:
+                            c?.kind === 'channel'
+                              ? `Pinned · #${c.title}`
+                              : 'Pinned · private conversation',
+                        };
+                      }),
+                      ...s.visuals.map((v) => ({
+                        id: v.id,
+                        title: v.title,
+                        detail: `Visual · ${v.fileName}`,
+                      })),
+                    ]}
                     onOpen={(id) => inspect(id)}
                     onCommand={runCommand}
                     onClose={() => setPicker(false)}
@@ -1055,6 +1341,7 @@ function App() {
                       onClose={() => patch({ utilities: s.utilities.filter((u) => u !== kind) })}
                       onSource={(id) => inspect(id)}
                       onAgent={() => runCommand('edit-agent')}
+                      onPlan={() => placeCanvasContent('planning')}
                     />
                   ))}
                 </aside>
@@ -1154,6 +1441,7 @@ function UtilityCard({
   onClose,
   onSource,
   onAgent,
+  onPlan,
 }: {
   kind: Utility;
   goals: Goal[];
@@ -1163,6 +1451,7 @@ function UtilityCard({
   onClose: () => void;
   onSource: (id: string) => void;
   onAgent: () => void;
+  onPlan: () => void;
 }) {
   const [adding, setAdding] = useState(false),
     [dateFor, setDateFor] = useState<string | null>(null);
@@ -1181,6 +1470,9 @@ function UtilityCard({
         <strong>
           {kind === 'sources' ? 'Sources & context' : kind === 'agent' ? 'Project agent' : 'Goals'}
         </strong>
+        {kind === 'goals' && (
+          <IconButton icon={ListOrdered} label="Open project plan on canvas" onClick={onPlan} />
+        )}
         <IconButton
           icon={collapsed ? ChevronRight : ChevronDown}
           label={`${collapsed ? 'Expand' : 'Collapse'} ${kind}`}

@@ -1,7 +1,12 @@
-export type Tool = 'document' | 'browser' | 'agent-settings';
+export type Tool =
+  'document' | 'browser' | 'agent-settings' | 'planning' | `pin:${string}` | `visual:${string}`;
 export type Bounds = { width: number; height: number };
 export type CanvasObject = { id: Tool; x: number; y: number; width: number; height: number };
 export const minimum = { width: 300, height: 220 };
+export const minimumFor = (id: Tool) => ({
+  width: 300,
+  height: id === 'planning' ? 300 : id.startsWith('visual:') ? 280 : 220,
+});
 const gap = 16;
 export function intersects(a: CanvasObject, b: CanvasObject) {
   return (
@@ -15,8 +20,8 @@ export function fits(item: CanvasObject, bounds: Bounds, others: CanvasObject[])
   return (
     item.x >= 0 &&
     item.y >= 0 &&
-    item.width >= minimum.width &&
-    item.height >= minimum.height &&
+    item.width >= minimumFor(item.id).width &&
+    item.height >= minimumFor(item.id).height &&
     item.x + item.width <= bounds.width + 0.5 &&
     item.y + item.height <= bounds.height + 0.5 &&
     !others.some((other) => other.id !== item.id && intersects(item, other))
@@ -33,7 +38,13 @@ export function initialObject(
       ? { width: 560, height: 520 }
       : id === 'browser'
         ? { width: 520, height: 340 }
-        : { width: 480, height: 580 };
+        : id === 'planning'
+          ? { width: 540, height: 480 }
+          : id.startsWith('pin:')
+            ? { width: 360, height: 260 }
+            : id.startsWith('visual:')
+              ? { width: 440, height: 360 }
+              : { width: 480, height: 580 };
   const width = Math.min(preferred.width, bounds.width),
     height = Math.min(preferred.height, bounds.height);
   for (const size of [

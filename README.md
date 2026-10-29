@@ -6,6 +6,8 @@ A general-purpose workstation for people and agents, with private and collaborat
 
 Real accounts, contacts/delivery, collaboration, server authorization, Office/browser engines, retrieval, deployed/running agents and automatic context maintenance remain unimplemented. Local agent definitions and versions are not live deployments. The existing full-surface Graph/Canvas, bounded snapping, reusable document inspection and content-sized utilities are retained.
 
+**Latest canvas iteration:** source-linked message pins, captioned private images and an editable sequential plan now work directly on the canvas. Pins can become sourced steps using the existing project goals. Read [Canvas Use Results.md](Canvas%20Use%20Results.md) for the flow, evidence and limits.
+
 ## Handoff
 
 1. Read [AGENTS.md](AGENTS.md) and [Conversation Context.md](Conversation%20Context.md) in full. Apply later confirmed answers.

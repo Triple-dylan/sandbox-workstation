@@ -19,7 +19,14 @@ export type Conversation = {
   messages: Message[];
   pinned?: boolean;
 };
-export type Goal = { id: string; title: string; done: boolean; due: string };
+export type Goal = {
+  id: string;
+  title: string;
+  done: boolean;
+  due: string;
+  owner?: string;
+  source?: { conversationId: string; messageId: string };
+};
 export type Resource = {
   id: string;
   title: string;

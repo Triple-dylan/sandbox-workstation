@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Workflow,
   ExternalLink,
+  Pin,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -48,6 +49,7 @@ export type WorkspaceContext = {
   selectedAgent: string;
   selectAgent: (id: string) => void;
   updateAgents: (agents: AgentDefinition[]) => void;
+  pinMessage: (conversationId: string, messageId: string) => void;
 };
 export const Workspace = createContext<WorkspaceContext>(null!);
 const readingPositions: Record<string, number> = {};
@@ -95,11 +97,11 @@ export function useTheme(theme: Theme) {
 export function MessageItem({ message }: { message: Conversation['messages'][number] }) {
   const w = useContext(Workspace);
   return (
-    <article className="message">
+    <article className="message" data-source-message={message.id}>
       <div className="message-avatar">
         {message.author === 'You' ? 'Y' : message.author.slice(0, 1)}
       </div>
-      <div>
+      <div className="message-body">
         <div className="message-meta">
           <strong>{message.author.replace(' · recorded feedback', '')}</strong>
           <time>{message.at}</time>
@@ -117,6 +119,16 @@ export function MessageItem({ message }: { message: Conversation['messages'][num
           </div>
         )}
       </div>
+      {w?.pinMessage && (
+        <button
+          className="message-pin"
+          aria-label="Pin message to canvas"
+          title="Pin message to canvas"
+          onClick={() => w.pinMessage(w.selected, message.id)}
+        >
+          <Pin size={13} />
+        </button>
+      )}
     </article>
   );
 }
