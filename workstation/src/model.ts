@@ -1,6 +1,4 @@
 export const storageKey = 'workstation-layout-proof-v1';
-export type Pane =
-  'conversation' | 'graph' | 'document' | 'explorer' | 'browser' | 'agent-settings';
 export type Utility = 'sources' | 'agent' | 'goals';
 export type Theme = 'system' | 'light' | 'dark';
 export type Message = {
@@ -89,20 +87,3 @@ export const initialGoals: Goal[] = [
   { id: 'layout', title: 'Prove bounded placement and restoration', done: false, due: '' },
   { id: 'engines', title: 'Validate file and browser engines', done: false, due: '' },
 ];
-export function canSplit(width: number, height: number, direction: string) {
-  return direction === 'left' || direction === 'right' ? width >= 612 : height >= 380;
-}
-export function placementAt(
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): 'left' | 'right' | 'above' | 'below' {
-  const distances = [
-    ['left', x / width],
-    ['right', 1 - x / width],
-    ['above', y / height],
-    ['below', 1 - y / height],
-  ] as const;
-  return [...distances].sort((a, b) => a[1] - b[1])[0][0];
-}

@@ -38,13 +38,15 @@ export function Graph({
   onFolder,
   expanded,
   setExpanded,
+  exclusion,
 }: {
   expanded: boolean;
   setExpanded: (value: boolean) => void;
   subject: string;
   setSubject: (id: string) => void;
   onResource: (id: string) => void;
-  onFolder: () => void;
+  onFolder: (id: string) => void;
+  exclusion?: { x: number; y: number; width: number; height: number } | null;
 }) {
   const host = useRef<HTMLDivElement>(null),
     svg = useRef<SVGSVGElement>(null);
@@ -100,7 +102,7 @@ export function Graph({
         'link',
         forceLink<Node, Edge>(links)
           .id((n) => n.id)
-          .distance(Math.min(width * 0.3, height * 0.31, 140))
+          .distance(Math.min(width * 0.3, height * 0.31, 200))
           .strength(0.22),
       )
       .force('charge', forceManyBody().strength(-280))
@@ -126,6 +128,21 @@ export function Graph({
         }
         n.x = Math.max(58, Math.min(width - 58, n.x!));
         n.y = Math.max(46, Math.min(height - 47, n.y!));
+        if (
+          exclusion &&
+          n.id !== subject &&
+          n.x! + 90 > exclusion.x &&
+          n.x! - 90 < exclusion.x + exclusion.width &&
+          n.y! + 50 > exclusion.y &&
+          n.y! - 35 < exclusion.y + exclusion.height
+        ) {
+          const left = exclusion.x - 92,
+            below = exclusion.y + exclusion.height + 52;
+          if (below < height - 50 && Math.abs(below - n.y!) < Math.abs(left - n.x!)) n.y = below;
+          else n.x = Math.max(90, left);
+          n.vx = 0;
+          n.vy = 0;
+        }
       }
       setPositions(nodes.map((n) => ({ ...n })));
       setEdges(links.map((l) => ({ ...l })));
@@ -135,7 +152,7 @@ export function Graph({
       sim.stop();
       runtime.current = null;
     };
-  }, [size, subject, expanded]);
+  }, [size, subject, expanded, exclusion]);
   const begin = (e: React.PointerEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -188,10 +205,10 @@ export function Graph({
     }
     setSubject(n.id);
     if (n.kind === 'document') onResource(n.id);
-    if (n.kind === 'folder') onFolder();
+    if (n.kind === 'folder') onFolder(n.id);
   };
   return (
-    <div className="graph-view">
+    <div className="graph-view" data-subject={subject}>
       <div className="graph-breadcrumb">
         {subject !== 'root' ? (
           <button onClick={() => setSubject('root')}>

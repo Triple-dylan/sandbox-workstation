@@ -1,39 +1,34 @@
-# Stage A layout and material proof
+# Workstation primary-surface correction
 
-This is the new review artifact, separate from the rejected `../prototype/`. It is a browser-local interaction proof, not the MVP. Read `../Stage A Review.md` and the approved plan before continuing implementation.
-
-**Subsequent review:** this artifact's interaction structure was rejected. The generic tile layout, graph-as-window, rail-driven pane creation and stretched utilities are not the target experience. Read `../Primary Surface UX Review.md` and the latest handoff. The flows below describe the reviewed implementation; they are not approved acceptance criteria for its replacement.
+The user explicitly authorized this implementation after rejecting the six-box stage A layout. Read `../Primary Surface Fix Plan.md`, `../Primary Surface Fix Results.md` and the latest handoff before continuing. This revision still requires user review. It is not a completed MVP.
 
 ## Run
 
-Node 22.12+ and npm are required:
+Requires Node 22.12+ and npm:
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:4174/>. The server binds to loopback. `predev` snapshots the four repository source documents, with stable proof IDs and a content-hash manifest. The generated files are not separate shared-resource records. Do not deploy the preview as a shared authorized service; it has no authentication.
+Open <http://127.0.0.1:4174/>. The existing loopback server can be reused. Predev/prebuild prepare four actual project Markdown snapshots and a content-hash manifest. Generated files retain their source IDs; they are not private/shared copies. This preview has no authentication and is not a production shared service.
 
-The separate <http://127.0.0.1:4174/materials> is a design specimen. Its sample approval/reconnect controls demonstrate styling, not connected services. A fresh product entry has no heading, logo, dashboard or preloaded work panes.
+## Navigation and work
 
-## Review a working arrangement
+- **Canvas** and **Graph** are primary rail destinations. Neither becomes a window. Graph fills the working surface; full graph returns to its centered project subject.
+- **Conversations** reveals the left navigation extension. Select a conversation to show its history there; Back returns to the list. New private chat opens an identified draft, without a naming form. Personal plus opens a human-DM draft without a project.
+- **Files** reveals resource navigation on the left. It creates no canvas objects. A folder/file selection opens one supporting inspection area. A file replaces the folder in that area; it does not add another explorer window. Close inspection restores the preceding utilities.
+- **Project tools** reveals independent Sources/context, Agent and Goals. Each fits its content and collapses/closes independently. These tools anchor on both working surfaces without taking an empty column. Graph nodes and canvas objects avoid their occupied area; the space beneath a short tool remains usable. A lone Goals module does not fill the screen. Optional due dates appear through each goal's calendar action.
+- The floating composer keeps its selected conversation/thread and draft. Its plus attaches a source. Opening a file never changes the recipient. Sending saves locally and explains that no message was delivered.
+- Account opens local status and System/Light/Dark appearance. It never cycles fake users.
 
-1. Open the conversation list from the rail. Select `# product-direction`. Its imported interview excerpts are labeled; right-side Sources/context, Project agent and Goals appear as independent utilities.
-2. Open the context graph from the rail. Select `Rebuild plan` in Sources. The document gets a full-height reading region, with conversation and graph alongside it.
-3. Select graph folders to explore them and file nodes to reuse the document viewer. Full graph returns to the centered project subject. Drag the subject slightly and release; it returns home. No global zoom or physics switch exists.
-4. Drag a module header toward an edge of another module. A preview marks a valid placement. Release to snap; Escape cancels. Working panes never float over each other. An invalid placement retains the prior arrangement.
-5. Resize a shared divider. Focus it with Tab and use its orientation's arrow keys; Shift uses a larger step. Utility boundaries and the conversation/utility column widths also have pointer and keyboard controls.
-6. Focus a pane from its header and restore the arrangement. Shrink the browser, then make room and restore. Navigation may collapse to retain readable work; it can be reopened from the rail. Hidden panes retain their records but are not keyboard-active.
-7. Use the work area's bottom-right layout menu to save/restore one local work-pane arrangement, or open another module. Command/Ctrl+K also opens the compact module picker. Right-click the empty work surface opens the same picker. Browser and agent-settings panes are separate module types.
+## Canvas tools
 
-## Conversation and draft checks
+Use the small Add a canvas tool action on Canvas. Command/Ctrl+K and right-click on empty Canvas are supplemental routes. Document, Browser and Agent settings are distinct tools. Selecting a source inspects it; Place document on canvas deliberately moves the one reader into a work object. A second document viewer is never created.
 
-- New private chat goes directly to a draft, without a naming form. An existing blank new-chat draft is reused. A meaningful first message supplies a local title.
-- The Personal section's plus opens a human-DM draft by name/email without a project. It does not look up contacts or send to a real recipient.
-- Main conversation and thread drafts retain separate state. Opening a file never changes the composer recipient. The plus inside the composer attaches a source to that specific draft; it is not a general workspace toolbar.
-- Sending stores a local message and source IDs, then clearly reports that no message was delivered. Source references in a stored message can reopen the same viewer.
-- Account opens local-account status and System/Light/Dark appearance. It never cycles sample users.
+Working objects are purpose-sized, not stretched into a wall of tiles. Drag a header to preview a snapped position; release only commits a valid collision-free position. Escape cancels. Drag close to another object's edge to snap that pair together; other objects remain unchanged. Use the corner handle to resize. Header/corner arrow keys offer keyboard movement/resizing. Focus/restore retains the arrangement.
+
+The Canvas actions menu saves/restores one local arrangement. It does not copy resources. Lack of room is explained without dropping existing objects. Narrow-window recovery retains object positions and restores them when room returns. Smaller graph/reader layouts may hide navigation to protect readable work; drafts and reading state remain intact.
 
 ## Checks
 
@@ -45,14 +40,12 @@ npm run format:check
 npm test
 ```
 
-Tests use independent browser contexts. The suite exercises allocation and actual pointer/keyboard workflows, rather than testing absolute-position math in isolation. `WORKSTATION_URL` can override the local base URL. Normal browser accessibility zoom is unaffected; there is no application zoom handler.
+The replacement browser suite checks the corrected navigation and ordinary task sequence, not a required count of generic panes. It covers full Graph bounds, no rail-driven work creation, content-sized utilities, inspection reuse, recipients/drafts, intentional placement, pointer/keyboard behavior, recovery, migration and failed source retry. Browser contexts are isolated from the user's preview records.
 
-## State and implementation boundaries
+## State and limits
 
-Storage uses only `workstation-layout-proof-v1` on this app's origin. It does not migrate, reset or overwrite old prototype data. It is not an authorized private/shared data service or a backup. Reading offsets last within the loaded session; selected document, graph focus/expansion, drafts/attachments, messages, local goals/preferences and the work-pane arrangement persist locally. One work-pane preset is supported. Utility sizes/order/pinning, named preset collections and per-project layouts are not implemented as durable user settings.
+The same origin/key, `workstation-layout-proof-v1`, now stores version 2 view state alongside existing conversation/message/draft/attachment/goal/appearance records. The rejected split tree is retained as `legacyLayout` and never restored as windows. Canvas objects/preset and graph/navigation/inspection state persist locally. Reading offsets survive source switching within the loaded session; they are not cross-device or durable server state.
 
-The Markdown viewer is read-only and uses actual source snapshots. It has no native Office engine. Browser and project-agent panes are explicitly disconnected. No real accounts, permissions, delivery, collaboration, presence, retrieval, approvals, jobs or automatic context maintenance are implied.
+The reader is read-only Markdown. Browser reports no session connected; Agent settings save preferences without running a model. No real accounts, message delivery, access enforcement, shared editing, presence, retrieval, approvals, jobs, schedules or automatic context maintenance are implemented. The material page at `/materials` contains visual state specimens, not connected approval/reconnect actions.
 
-Gridview 8.8.0 owns the split allocations. Movement resolves the destination after removing the origin, with snapshot rollback if the result fails: the library's direct move operation produced an invalid location when an ancestor branch collapsed. No floating/tabbed layout or commercial Dockview extension is enabled. React/TypeScript, D3, Markdown, icon and font versions are pinned in `package-lock.json`; the font is bundled locally.
-
-`src/style.css` holds semantic light/dark material tokens and reduced-preference behavior. The new component/material direction requires user review. Preserve the old prototype as historical evidence; do not copy its camera/zoom, generic Project tabs or fake participant behaviors into this app.
+Whole-workspace Dockview/Gridview and its adapter were removed. `main.tsx` owns primary navigation, `components.tsx` contains reused content components, `state.ts` migrates records and `canvas-layout.ts` constrains only deliberate work objects. The accepted color/material direction is retained separately from the revised structural layout. See the root results document for exact evidence and remaining technical gates.

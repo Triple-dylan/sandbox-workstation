@@ -1,0 +1,146 @@
+import {
+  resources,
+  initialConversations,
+  initialGoals,
+  storageKey,
+  type Conversation,
+  type Goal,
+  type Theme,
+  type Utility,
+} from './model';
+import type { CanvasObject } from './canvas-layout';
+export type Inspector =
+  | { kind: 'document'; id: string; from?: string }
+  | { kind: 'folder'; id: string }
+  | { kind: 'agent-settings'; id: string };
+export type LeftMode = 'closed' | 'list' | 'chat' | 'files';
+export type State = {
+  version: 2;
+  surface: 'canvas' | 'graph';
+  left: LeftMode;
+  selected: string;
+  conversations: Conversation[];
+  drafts: Record<string, string>;
+  attachments: Record<string, string[]>;
+  document: string;
+  graphSubject: string;
+  graphExpanded: boolean;
+  goals: Goal[];
+  utilities: Utility[];
+  inspector: Inspector | null;
+  theme: Theme;
+  autonomy: string;
+  objects: CanvasObject[];
+  preset: CanvasObject[] | null;
+  legacyLayout?: unknown;
+};
+export function loadState(): State {
+  let raw: any = {};
+  try {
+    raw = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    if (!raw || typeof raw !== 'object') raw = {};
+  } catch {
+    /* Use intact defaults if storage is damaged. */
+  }
+  const conversations =
+    Array.isArray(raw.conversations) &&
+    raw.conversations.length &&
+    raw.conversations.every(
+      (c: any) =>
+        c &&
+        typeof c.id === 'string' &&
+        typeof c.title === 'string' &&
+        ['private', 'channel', 'dm'].includes(c.kind) &&
+        Array.isArray(c.messages) &&
+        c.messages.every(
+          (m: any) =>
+            m &&
+            typeof m.id === 'string' &&
+            typeof m.text === 'string' &&
+            typeof m.author === 'string' &&
+            typeof m.at === 'string',
+        ),
+    )
+      ? raw.conversations
+      : initialConversations;
+  const objects =
+    raw.version === 2 && Array.isArray(raw.objects)
+      ? raw.objects.filter(
+          (o: any) =>
+            o &&
+            ['document', 'browser', 'agent-settings'].includes(o.id) &&
+            ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(o[k])),
+        )
+      : [];
+  const stringMap = (value: unknown) =>
+    value && typeof value === 'object'
+      ? Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v === 'string'))
+      : {};
+  const subject = ['root', 'direction', 'research-folder', ...resources.map((r) => r.id)].includes(
+    raw.graphSubject,
+  )
+    ? raw.graphSubject
+    : 'root';
+  const inspector =
+    raw.version === 2 &&
+    raw.inspector &&
+    ['document', 'folder', 'agent-settings'].includes(raw.inspector.kind) &&
+    (resources.some((r) => r.id === raw.inspector.id) ||
+      ['direction', 'research-folder', 'root', 'agent'].includes(raw.inspector.id))
+      ? raw.inspector
+      : null;
+  return {
+    version: 2,
+    surface:
+      raw.version === 2 && ['canvas', 'graph'].includes(raw.surface)
+        ? raw.surface
+        : raw.layout
+          ? 'graph'
+          : 'canvas',
+    left:
+      raw.version === 2 && ['closed', 'list', 'chat', 'files'].includes(raw.left)
+        ? raw.left
+        : 'closed',
+    selected: conversations.some((c: Conversation) => c.id === raw.selected)
+      ? raw.selected
+      : conversations.find((c: Conversation) => c.id === 'notes')?.id || conversations[0].id,
+    conversations,
+    drafts: stringMap(raw.drafts),
+    attachments:
+      raw.attachments && typeof raw.attachments === 'object'
+        ? (Object.fromEntries(
+            Object.entries(raw.attachments).filter(
+              ([, v]) => Array.isArray(v) && v.every((id) => resources.some((r) => r.id === id)),
+            ),
+          ) as Record<string, string[]>)
+        : {},
+    document: resources.some((r) => r.id === raw.document) ? raw.document : 'plan',
+    graphSubject: subject,
+    graphExpanded: typeof raw.graphExpanded === 'boolean' ? raw.graphExpanded : false,
+    goals:
+      Array.isArray(raw.goals) &&
+      raw.goals.every(
+        (g: any) =>
+          g &&
+          typeof g.id === 'string' &&
+          typeof g.title === 'string' &&
+          typeof g.done === 'boolean' &&
+          typeof g.due === 'string',
+      )
+        ? raw.goals
+        : initialGoals,
+    utilities: Array.isArray(raw.utilities)
+      ? ([
+          ...new Set(
+            raw.utilities.filter((u: Utility) => ['sources', 'agent', 'goals'].includes(u)),
+          ),
+        ] as Utility[])
+      : [],
+    inspector,
+    theme: ['light', 'dark', 'system'].includes(raw.theme) ? raw.theme : 'system',
+    autonomy: ['ask', 'autonomous'].includes(raw.autonomy) ? raw.autonomy : 'ask',
+    objects,
+    preset: raw.version === 2 && Array.isArray(raw.preset) ? raw.preset : null,
+    legacyLayout: raw.legacyLayout || raw.layout,
+  };
+}

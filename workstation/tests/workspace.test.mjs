@@ -1,7 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-
 let browser;
 const base = process.env.WORKSTATION_URL || 'http://127.0.0.1:4174';
 before(async () => {
@@ -16,318 +15,598 @@ async function session(size = { width: 1440, height: 1000 }, options = {}) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
-  return { context, page, errors };
+  await page.getByRole('button', { name: 'Canvas', exact: true }).waitFor();
+  return { page, context, errors };
 }
 async function project(page) {
-  await page.getByRole('button', { name: 'Show conversation list', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
   await page.getByRole('button', { name: '# product-direction', exact: true }).click();
 }
-async function arrangement(page) {
-  await project(page);
-  await page.getByRole('button', { name: 'Open context graph', exact: true }).click();
-  await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
-  await page.waitForTimeout(200);
+async function openTool(page, name) {
+  await page.getByRole('button', { name: 'Add a canvas tool', exact: true }).click();
+  await page.getByRole('button', { name, exact: true }).click();
 }
-async function geometry(page) {
+async function graphFillsSurface(page) {
+  await page.getByRole('main', { name: 'Graph canvas', exact: true }).waitFor({ state: 'visible' });
+  await page.locator('.graph-stage').waitFor({ state: 'visible' });
+  const main = await page.getByRole('main', { name: 'Graph canvas', exact: true }).boundingBox();
+  const graph = await page.locator('.graph-stage').boundingBox();
+  assert(main && graph);
+  for (const key of ['x', 'y', 'width', 'height'])
+    assert(Math.abs(main[key] - graph[key]) < 1, `Graph does not fill main ${key}`);
+  assert.equal(await page.locator('[data-pane]').count(), 0);
+  return main;
+}
+async function objects(page) {
   return page
-    .locator('[data-pane]')
+    .locator('[data-object]')
     .evaluateAll((els) =>
-      els
-        .filter(
-          (el) =>
-            getComputedStyle(el).visibility !== 'hidden' &&
-            el.getBoundingClientRect().width > 0 &&
-            el.getBoundingClientRect().height > 0,
-        )
-        .map((el) => ({ id: el.dataset.pane, rect: el.getBoundingClientRect().toJSON() })),
+      els.map((el) => ({ id: el.dataset.object, rect: el.getBoundingClientRect().toJSON() })),
     );
 }
-async function assertAllocated(page) {
-  const panes = await geometry(page);
-  const work = await page.getByRole('main', { name: 'Work area', exact: true }).boundingBox();
-  assert(work);
-  for (const { id, rect: r } of panes) {
-    assert(r.width >= 285, `${id} unreadable width ${r.width}`);
-    assert(r.height >= 170, `${id} unreadable height ${r.height}`);
+async function validObjects(page) {
+  const area = await page.getByRole('main', { name: 'Working canvas', exact: true }).boundingBox();
+  const all = await objects(page);
+  for (const o of all) {
+    const r = o.rect;
+    assert(r.width >= 298 && r.height >= 218, `${o.id} too small`);
     assert(
-      r.x >= work.x - 1 && r.right <= work.x + work.width + 1,
-      `${id} outside horizontal allocation`,
-    );
-    assert(
-      r.y >= work.y - 1 && r.bottom <= work.y + work.height + 1,
-      `${id} outside vertical allocation`,
+      r.x >= area.x - 0.5 &&
+        r.y >= area.y - 0.5 &&
+        r.right <= area.x + area.width + 0.5 &&
+        r.bottom <= area.y + area.height + 0.5,
+      `${o.id} outside canvas`,
     );
   }
-  for (let i = 0; i < panes.length; i++)
-    for (let j = i + 1; j < panes.length; j++) {
-      const a = panes[i].rect,
-        b = panes[j].rect;
-      const overlap =
-        Math.min(a.right, b.right) - Math.max(a.x, b.x) > 1 &&
-        Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) > 1;
-      assert(!overlap, `${panes[i].id} overlaps ${panes[j].id}`);
+  for (let i = 0; i < all.length; i++)
+    for (let j = i + 1; j < all.length; j++) {
+      const a = all[i].rect,
+        b = all[j].rect;
+      assert(
+        !(
+          Math.min(a.right, b.right) > Math.max(a.x, b.x) + 1 &&
+          Math.min(a.bottom, b.bottom) > Math.max(a.y, b.y) + 1
+        ),
+        'Working objects overlap',
+      );
     }
-  return panes;
+  return all;
+}
+async function stored(page) {
+  return page.evaluate(() => JSON.parse(localStorage.getItem('workstation-layout-proof-v1')));
 }
 
-test('fresh entry stays blank and contains no rejected composer controls', async () => {
+test('fresh Canvas remains open space and starts in a private conversation', async () => {
   const { context, page, errors } = await session();
   try {
-    assert.equal(await page.locator('[data-pane]').count(), 0);
+    assert.equal(await page.locator('[data-object]').count(), 0);
     assert.equal(await page.locator('h1').count(), 0);
-    assert.equal(await page.getByRole('button', { name: /zoom|physics|agent$/i }).count(), 0);
-    assert.equal(await page.locator('#composer').inputValue(), '');
+    assert.equal(
+      await page.getByRole('button', { name: 'Add a canvas tool', exact: true }).count(),
+      1,
+    );
+    assert.equal(await page.getByRole('complementary').count(), 0);
+    assert.equal(await page.locator('#composer').getAttribute('placeholder'), 'Message…');
+    assert.equal(await page.getByRole('button', { name: /zoom|physics|^agent$/i }).count(), 0);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();
   }
 });
-
 for (const [width, height] of [
-  [1280, 800],
+  [1280, 720],
   [1440, 1000],
   [1920, 1080],
-  [1280, 720],
 ])
-  test(`conversation, graph, viewer and concurrent utilities allocate at ${width}×${height}`, async () => {
+  test(`Graph is the entire primary surface at ${width}×${height}`, async () => {
     const { context, page, errors } = await session({ width, height });
     try {
-      await arrangement(page);
-      const panes = await assertAllocated(page);
-      assert.deepEqual(panes.map((p) => p.id).sort(), ['conversation', 'document', 'graph']);
-      for (const label of ['Sources and context', 'Project agent', 'Goals'])
-        assert.equal(await page.getByRole('region', { name: label, exact: true }).count(), 1);
+      await page.getByRole('button', { name: 'Graph', exact: true }).click();
+      const area = await graphFillsSurface(page);
+      assert(area.width > width * 0.9);
+      assert.equal(await page.locator('.canvas-object').count(), 0);
       assert.deepEqual(errors, []);
     } finally {
       await context.close();
     }
   });
 
-test('document selection reuses a viewer and never changes recipient or conversation/thread drafts', async () => {
+test('rail navigation never creates or rearranges canvas work', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await openTool(page, 'Browser');
+    const original = (await stored(page)).objects;
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Files', exact: true }).click();
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Resource navigation', exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Resource inspection', exact: true }).count(),
+      0,
+    );
+    await project(page);
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Conversation history', exact: true }).count(),
+      1,
+    );
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Project utilities', exact: true }).count(),
+      0,
+    );
+    await graphFillsSurface(page);
+    assert.deepEqual((await stored(page)).objects, original);
+    await page.getByRole('button', { name: 'Hide left navigation', exact: true }).click();
+    await page.getByRole('button', { name: 'Canvas', exact: true }).click();
+    assert.deepEqual((await stored(page)).objects, original);
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('Goals remains content-sized after closing other utilities; dates are optional', async () => {
   const { context, page } = await session();
   try {
-    await arrangement(page);
-    await page.locator('#composer').fill('Unsent project draft');
-    await page.getByRole('button', { name: 'Research review', exact: true }).click();
-    assert.equal(await page.locator('[data-pane="document"]').count(), 1);
-    assert.equal(await page.locator('#composer').inputValue(), 'Unsent project draft');
-    assert.match(await page.locator('#composer').getAttribute('placeholder'), /product-direction/);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    const goals = page.getByRole('region', { name: 'Goals', exact: true });
+    const before = await goals.boundingBox();
+    assert.equal(await goals.locator('input[type=date]').count(), 0);
+    await page.getByRole('button', { name: 'Hide sources', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide agent', exact: true }).click();
+    const after = await goals.boundingBox();
+    assert(Math.abs(before.height - after.height) < 2);
+    assert(after.height < 300);
+    assert(after.height < 1000 * 0.35);
+    await graphFillsSurface(page);
+    await goals
+      .getByRole('button', { name: /^Set due date/ })
+      .first()
+      .focus();
+    await goals
+      .getByRole('button', { name: /^Set due date/ })
+      .first()
+      .click();
+    const date = goals.locator('input[type=date]');
+    await date.fill('2026-11-04');
+    await date.press('Tab');
+    assert.equal((await stored(page)).goals[0].due, '2026-11-04');
+    await page.getByRole('button', { name: 'Collapse goals', exact: true }).click();
+    assert((await goals.boundingBox()).height < 48);
+    await page.getByRole('button', { name: 'Expand goals', exact: true }).click();
+    assert((await goals.boundingBox()).height < 330);
+  } finally {
+    await context.close();
+  }
+});
+
+test('Graph → folder → document reuses one inspection and retains conversation and orientation', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await project(page);
+    await page.locator('#composer').fill('Keep this project draft');
+    await page.locator('[data-node="direction"]').press('Enter');
+    const inspector = page.getByRole('complementary', { name: 'Resource inspection', exact: true });
+    assert.equal(await inspector.count(), 1);
+    await inspector.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    await inspector
+      .getByRole('heading', { name: 'Workstation rebuild proposal', exact: true })
+      .waitFor();
+    assert.equal(await inspector.count(), 1);
+    assert.equal(await page.locator('.document-view').count(), 1);
+    assert.equal(await page.locator('[data-object]').count(), 0);
+    await graphFillsSurface(page);
+    assert.equal(await page.locator('#composer').inputValue(), 'Keep this project draft');
+    await page.getByRole('button', { name: 'Back to folder', exact: true }).click();
+    assert.equal(
+      await inspector.getByRole('button', { name: 'Rebuild plan', exact: true }).count(),
+      1,
+    );
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    assert.equal(await inspector.count(), 0);
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'direction');
+    await page.getByRole('button', { name: 'Full graph', exact: true }).click();
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'root');
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('reader reuses one viewer, preserves main/thread/DM drafts and recipient', async () => {
+  const { context, page } = await session();
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await project(page);
+    await page.locator('#composer').fill('Main draft');
     await page.getByRole('button', { name: 'Reply', exact: true }).first().click();
     assert.equal(await page.locator('#composer').inputValue(), '');
-    await page.locator('#composer').fill('Unsent thread draft');
+    await page.locator('#composer').fill('Thread draft');
     await page.getByRole('button', { name: 'Exit thread reply', exact: true }).click();
-    assert.equal(await page.locator('#composer').inputValue(), 'Unsent project draft');
-    await page.getByRole('button', { name: 'Reply', exact: true }).first().click();
-    assert.equal(await page.locator('#composer').inputValue(), 'Unsent thread draft');
+    assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
+    await page.getByRole('button', { name: 'Files', exact: true }).click();
+    await page.getByRole('button', { name: 'Research review', exact: true }).click();
+    assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
+    assert.match(await page.locator('#composer').getAttribute('placeholder'), /product-direction/);
+    await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    assert.equal(await page.locator('.document-view').count(), 1);
+    await page.getByRole('button', { name: 'Conversations', exact: true }).click();
     await page.getByRole('button', { name: 'Personal notes', exact: true }).click();
     assert.equal(await page.locator('#composer').inputValue(), '');
     await page.locator('#composer').fill('Private draft');
+    await page.getByRole('button', { name: 'Back to conversations', exact: true }).click();
     await page.getByRole('button', { name: '# product-direction', exact: true }).click();
-    assert.equal(await page.locator('#composer').inputValue(), 'Unsent project draft');
+    assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
+    await page.getByRole('button', { name: 'Reply', exact: true }).first().click();
+    assert.equal(await page.locator('#composer').inputValue(), 'Thread draft');
     await page.reload();
-    assert.equal(await page.locator('#composer').inputValue(), 'Unsent project draft');
+    assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
   } finally {
     await context.close();
   }
 });
 
-test('graph folders explore, document focus preserves graph, and subject springs home', async () => {
-  const { context, page } = await session({ width: 1920, height: 1080 });
+test('one document viewer moves deliberately onto Canvas; navigation does not manufacture another', async () => {
+  const { context, page } = await session();
   try {
-    await arrangement(page);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Files', exact: true }).click();
+    await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide left navigation', exact: true }).click();
+    await page.getByRole('button', { name: 'Place document on canvas', exact: true }).click();
+    assert.equal(await page.getByRole('main', { name: 'Working canvas', exact: true }).count(), 1);
+    assert.equal(await page.locator('[data-object=document]').count(), 1);
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Resource inspection', exact: true }).count(),
+      0,
+    );
+    await validObjects(page);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Files', exact: true }).click();
+    await page.getByRole('button', { name: 'Research review', exact: true }).click();
+    assert.equal((await stored(page)).objects.filter((o) => o.id === 'document').length, 0);
+    assert.equal(await page.locator('.document-view').count(), 1);
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    await page.getByRole('button', { name: 'Canvas', exact: true }).click();
+    assert.equal(await page.locator('[data-object=document]').count(), 0);
+  } finally {
+    await context.close();
+  }
+});
+
+test('intentional tools leave open space; pointer drag cancels and snaps without overlap', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await openTool(page, 'Browser');
+    await openTool(page, 'Agent settings');
+    const before = await validObjects(page);
+    const area = await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .boundingBox();
+    assert(
+      before.reduce((a, b) => a + b.rect.width * b.rect.height, 0) < area.width * area.height * 0.7,
+    );
+    const header = await page.locator('[data-object=browser] .object-header').boundingBox();
+    await page.mouse.move(header.x + 80, header.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(800, 700, { steps: 10 });
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    assert.deepEqual(await objects(page), before);
+    await page.mouse.move(header.x + 80, header.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(header.x + 80, header.y + 418, { steps: 10 });
+    assert.equal((await page.locator('.placement-preview').count()) > 0, true);
+    await page.mouse.up();
+    assert.notDeepEqual(await objects(page), before);
+    await validObjects(page);
+    await page.getByRole('button', { name: 'Focus browser', exact: true }).click();
+    assert.equal(await page.locator('[data-object]').count(), 1);
+    await page.getByRole('button', { name: 'Restore canvas arrangement', exact: true }).click();
+    assert.equal(await page.locator('[data-object]').count(), 2);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('canvas keyboard move/resize and personal preset preserve records', async () => {
+  const { context, page } = await session();
+  try {
+    await openTool(page, 'Browser');
+    const move = page.getByLabel('Move browser', { exact: true });
+    const start = (await objects(page))[0];
+    await move.focus();
+    await move.press('ArrowRight');
+    assert((await objects(page))[0].rect.x > start.rect.x);
+    await page.getByRole('button', { name: 'Resize browser', exact: true }).press('ArrowDown');
+    await validObjects(page);
+    await page.getByLabel('Canvas actions', { exact: true }).click();
+    await page.getByRole('button', { name: 'Save arrangement', exact: true }).click();
+    const saved = (await stored(page)).objects;
+    await page.getByRole('button', { name: 'Close browser', exact: true }).click();
+    await page.getByRole('button', { name: 'Restore arrangement', exact: true }).click();
+    assert.deepEqual((await stored(page)).objects, saved);
+    await validObjects(page);
+  } finally {
+    await context.close();
+  }
+});
+
+test('narrow-window inspection retains drafts and a usable full graph surface', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await project(page);
+    await page.locator('#composer').fill('Retain draft during resize');
     await page.locator('[data-node="direction"]').press('Enter');
-    assert.equal(await page.locator('[data-pane="explorer"]').count(), 1);
-    assert.equal(await page.locator('[data-pane="graph"]').count(), 1);
-    await page.locator('[data-node="context"]').press('Enter');
-    assert.equal(await page.locator('[data-pane="document"]').count(), 1);
-    await page.getByRole('button', { name: 'Full graph', exact: true }).click();
-    await page.waitForTimeout(900);
-    const root = page.locator('[data-node="root"]');
-    const start = await root.boundingBox();
-    const stage = await page.locator('.graph-stage').boundingBox();
+    await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    await page.setViewportSize({ width: 900, height: 650 });
+    await page.waitForTimeout(200);
+    const area = await graphFillsSurface(page);
+    assert(area.width >= 300);
+    assert.equal(await page.locator('#composer').inputValue(), 'Retain draft during resize');
+    assert.equal(await page.locator('.document-view').count(), 1);
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    assert((await graphFillsSurface(page)).width > 800);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('subject node remains centered after a bounded drag', async () => {
+  const { context, page } = await session();
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.waitForTimeout(300);
+    const root = page.locator('[data-node=root]'),
+      start = await root.boundingBox(),
+      stage = await page.locator('.graph-stage').boundingBox();
     await page.mouse.move(start.x + start.width / 2, start.y + 30);
     await page.mouse.down();
-    await page.mouse.move(start.x + 180, start.y + 150, { steps: 10 });
+    await page.mouse.move(start.x + 200, start.y + 140, { steps: 10 });
     await page.mouse.up();
-    await page.waitForTimeout(1600);
-    const end = await root.getAttribute('transform');
-    const coords = end
+    await page.waitForTimeout(1400);
+    const xy = (await root.getAttribute('transform'))
       .match(/translate\(([^,]+),([^)]+)\)/)
       .slice(1)
       .map(Number);
-    assert(Math.abs(coords[0] - stage.width / 2) < 2, 'subject did not return horizontally');
-    assert(Math.abs(coords[1] - stage.height / 2) < 2, 'subject did not return vertically');
-    await assertAllocated(page);
+    assert(Math.abs(xy[0] - stage.width / 2) < 2);
+    assert(Math.abs(xy[1] - stage.height / 2) < 2);
   } finally {
     await context.close();
   }
 });
 
-test('canceled drags leave arrangement unchanged; a valid placement snaps without overlap', async () => {
+test('direct messages need no project and attachment selection cannot send accidentally', async () => {
   const { context, page } = await session();
   try {
-    await arrangement(page);
-    const before = await geometry(page);
-    const header = await page.locator('[data-pane="document"] .module-header').boundingBox();
-    await page.mouse.move(header.x + 50, header.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(10, 300, { steps: 8 });
-    await page.keyboard.press('Escape');
-    await page.mouse.up();
-    assert.deepEqual(await geometry(page), before);
-    const target = await page.locator('[data-pane="graph"]').boundingBox();
-    await page.mouse.move(header.x + 55, header.y + 20);
-    await page.mouse.down();
-    await page.mouse.move(target.x + target.width / 2, target.y + 12, { steps: 12 });
-    assert.equal(await page.locator('.snap-preview').count(), 1);
-    await page.mouse.up();
-    await page.waitForTimeout(200);
-    await assertAllocated(page);
-    assert.notDeepEqual(await geometry(page), before);
-    assert.equal(await page.locator('.snap-preview').count(), 0);
+    await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+    await page.getByRole('button', { name: 'Start a direct message', exact: true }).click();
+    await page.getByPlaceholder('Name or email').fill('teammate@example.com');
+    await page.getByRole('button', { name: 'Open draft', exact: true }).click();
+    await page.locator('#composer').fill('Hello');
+    await page.getByRole('button', { name: 'Attach context', exact: true }).click();
+    await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    assert.equal(await page.locator('#composer').inputValue(), 'Hello');
+    assert.doesNotMatch(await page.locator('.transcript').innerText(), /Hello/);
+    assert.equal(await page.locator('[data-object]').count(), 0);
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    assert.match(await page.getByRole('status').innerText(), /No message was delivered/);
+    assert.match(await page.locator('.transcript').innerText(), /Hello/);
+    assert.equal(
+      (await stored(page)).conversations.find((c) => c.recipient === 'teammate@example.com')
+        .messages[0].sources[0],
+      'plan',
+    );
   } finally {
     await context.close();
   }
 });
 
-test('splitters support keyboard resizing and utilities collapse/reflow independently', async () => {
-  const { context, page } = await session();
+test('legacy records migrate without restoring rejected windows; OS appearance remains', async () => {
+  const context = await browser.newContext({ colorScheme: 'dark' });
+  await context.addInitScript(() => {
+    if (!localStorage.getItem('workstation-layout-proof-v1'))
+      localStorage.setItem(
+        'workstation-layout-proof-v1',
+        JSON.stringify({
+          selected: 'personal',
+          conversations: [
+            { id: 'personal', title: 'Existing conversation', kind: 'private', messages: [] },
+          ],
+          drafts: { personal: 'Existing draft' },
+          theme: 'system',
+          layout: { grid: { root: 'legacy' } },
+        }),
+      );
+  });
+  const page = await context.newPage();
   try {
-    await arrangement(page);
-    const sash = page
-      .getByRole('separator', { name: 'Resize panes horizontally', exact: true })
-      .first();
-    const value = Number(await sash.getAttribute('aria-valuenow'));
-    await sash.focus();
-    await sash.press('ArrowRight');
-    assert.notEqual(Number(await sash.getAttribute('aria-valuenow')), value);
-    await assertAllocated(page);
-    const source = page.getByRole('region', { name: 'Sources and context', exact: true });
-    const initial = (await source.boundingBox()).height;
-    await page
-      .getByRole('separator', { name: 'Resize sources and agent', exact: true })
-      .press('ArrowDown');
-    assert((await source.boundingBox()).height > initial);
-    await page.getByRole('button', { name: 'Collapse sources', exact: true }).click();
-    assert((await source.boundingBox()).height <= 46);
-    assert.equal(await page.getByRole('region', { name: 'Goals', exact: true }).isVisible(), true);
-    await page.getByRole('button', { name: 'Expand sources', exact: true }).click();
-    await assertAllocated(page);
-  } finally {
-    await context.close();
-  }
-});
-
-test('small-window recovery keeps allocations bounded and restores after room returns', async () => {
-  const { context, page } = await session();
-  try {
-    await arrangement(page);
-    await page.locator('#composer').fill('Keep this draft');
-    await page.setViewportSize({ width: 900, height: 650 });
-    await page.waitForTimeout(300);
-    await assertAllocated(page);
-    assert.equal(await page.locator('#composer').inputValue(), 'Keep this draft');
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.waitForTimeout(150);
-    const restore = page.getByRole('button', { name: 'Restore arrangement', exact: true });
-    if (await restore.count()) await restore.click();
-    await assertAllocated(page);
-    assert.equal((await geometry(page)).length, 3);
-  } finally {
-    await context.close();
-  }
-});
-
-test('OS appearance, direct message drafts and account settings have real local behavior', async () => {
-  const { context, page } = await session(undefined, { colorScheme: 'dark' });
-  try {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Canvas', exact: true }).waitFor();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+    assert.equal(await page.locator('#composer').inputValue(), 'Existing draft');
+    assert.equal(await page.locator('[data-object]').count(), 0);
+    assert((await stored(page)).legacyLayout);
     await page.getByRole('button', { name: 'Account and appearance', exact: true }).click();
     assert.match(await page.locator('.account-pop').innerText(), /No account is connected/);
     await page.getByRole('button', { name: 'Light', exact: true }).click();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Show conversation list', exact: true }).click();
-    await page.getByRole('button', { name: 'Start a direct message', exact: true }).click();
-    await page.getByPlaceholder('Name or email').fill('teammate@example.com');
-    await page.getByRole('button', { name: 'Open draft', exact: true }).click();
-    assert.match(
-      await page.locator('#composer').getAttribute('placeholder'),
-      /teammate@example.com/,
+    await page.reload();
+    assert.equal(await page.locator('#composer').inputValue(), 'Existing draft');
+  } finally {
+    await context.close();
+  }
+});
+
+test('failed source fetch shows recovery state while preserving graph and draft', async () => {
+  const { context, page, errors } = await session();
+  try {
+    let failed = true;
+    await page.route('**/resources/Rebuild%20Plan.md', (route) =>
+      failed
+        ? route.fulfill({ status: 503, body: 'Unavailable' })
+        : route.fulfill({
+            status: 200,
+            body: '# Recovered document\n\nThe source is available again.',
+          }),
     );
-    await page.locator('#composer').fill('Hello');
-    await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    assert.match(await page.getByRole('status').innerText(), /No message was delivered/);
-    assert.match(await page.locator('.transcript').innerText(), /Hello/);
-  } finally {
-    await context.close();
-  }
-});
-
-test('attaching context never submits the pending message', async () => {
-  const { context, page } = await session();
-  try {
-    await page.getByRole('button', { name: 'Conversations', exact: true }).click();
-    await page.locator('#composer').fill('Do not send this');
-    await page.getByRole('button', { name: 'Attach context', exact: true }).click();
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.locator('#composer').fill('Safe draft');
+    await page.getByRole('button', { name: 'Files', exact: true }).click();
     await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
-    assert.equal(await page.locator('#composer').inputValue(), 'Do not send this');
-    assert.doesNotMatch(await page.locator('.transcript').innerText(), /Do not send this/);
-    await assertAllocated(page);
+    await page.getByText('Document could not be loaded', { exact: true }).waitFor();
+    failed = false;
+    await page.getByRole('button', { name: 'Retry document', exact: true }).click();
+    await page.getByRole('heading', { name: 'Recovered document', exact: true }).waitFor();
+    assert.equal(await page.locator('#composer').inputValue(), 'Safe draft');
+    await graphFillsSurface(page);
+    assert.deepEqual(errors, []);
   } finally {
     await context.close();
   }
 });
 
-test('pointer resizing and a saved work-pane arrangement restore without losing the document or draft', async () => {
+test('edge snapping reflows only the two requested canvas tools', async () => {
   const { context, page } = await session();
   try {
-    await arrangement(page);
-    await page.locator('#composer').fill('Saved draft');
-    const sash = await page
-      .getByRole('separator', { name: 'Resize panes vertically', exact: true })
-      .boundingBox();
-    await page.mouse.move(sash.x + sash.width / 2, sash.y + sash.height / 2);
+    await openTool(page, 'Browser');
+    await openTool(page, 'Agent settings');
+    const before = await validObjects(page);
+    const a = before.find((o) => o.id === 'browser').rect,
+      b = await page.locator('[data-object="agent-settings"] .object-header').boundingBox();
+    await page.mouse.move(b.x + 80, b.y + 18);
     await page.mouse.down();
-    await page.mouse.move(sash.x + sash.width / 2, sash.y + 65, { steps: 10 });
+    await page.mouse.move(a.right, a.y + a.height / 2, { steps: 12 });
+    assert.equal(await page.locator('.placement-preview').count(), 2);
     await page.mouse.up();
-    await assertAllocated(page);
-    const saved = await geometry(page);
-    await page.getByLabel('Layout actions', { exact: true }).click();
-    await page.getByRole('button', { name: 'Save arrangement', exact: true }).click();
-    await page.getByRole('button', { name: 'Close document', exact: true }).click();
-    await page.getByRole('button', { name: 'Restore arrangement', exact: true }).click();
-    assert.deepEqual(await geometry(page), saved);
-    assert.equal(await page.locator('#composer').inputValue(), 'Saved draft');
-    await assertAllocated(page);
+    const after = await validObjects(page);
+    assert.equal(after.length, 2);
+    assert.notDeepEqual(after, before);
+    assert(Math.abs(after[0].rect.width - after[1].rect.width) < 1);
   } finally {
     await context.close();
   }
 });
 
-test('damaged local state is rejected without crashing the workspace', async () => {
-  const context = await browser.newContext();
-  await context.addInitScript(() =>
-    localStorage.setItem(
-      'workstation-layout-proof-v1',
-      JSON.stringify({
-        document: 'missing',
-        selected: 'missing',
-        theme: 'rainbow',
-        conversations: [{ id: 1 }],
-        goals: [null],
-        utilities: ['invalid'],
-      }),
-    ),
-  );
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
+test('canvas resize recovery retains both objects and restores their prior arrangement', async () => {
+  const { context, page, errors } = await session();
   try {
-    await page.goto(base);
-    await page.getByRole('button', { name: 'Conversations', exact: true }).click();
-    assert.equal(await page.locator('[data-pane="conversation"]').count(), 1);
+    await openTool(page, 'Browser');
+    await openTool(page, 'Agent settings');
+    const before = (await stored(page)).objects;
+    await page.setViewportSize({ width: 900, height: 650 });
+    await page.waitForTimeout(200);
+    await validObjects(page);
+    assert.equal((await stored(page)).objects.length, 2);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.waitForTimeout(200);
+    assert.equal((await objects(page)).length, 2);
+    assert.deepEqual((await stored(page)).objects, before);
+    await validObjects(page);
     assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('Graph keeps its width and nodes remain accessible beside compact utilities', async () => {
+  const { context, page } = await session();
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    const before = await graphFillsSurface(page);
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Project agent details', exact: true }).click();
+    assert.equal(
+      await page.getByRole('complementary', { name: 'Resource inspection', exact: true }).count(),
+      0,
+    );
+    await page.getByRole('button', { name: 'Expand direction', exact: true }).click();
+    await page.waitForTimeout(800);
+    const after = await graphFillsSurface(page);
+    assert.equal(after.width, before.width);
+    const blocked = await page
+      .getByRole('complementary', { name: 'Project utilities', exact: true })
+      .boundingBox();
+    const center = await page.locator('.graph-stage').boundingBox();
+    const nodes = await page
+      .locator('[data-node]')
+      .evaluateAll((els) =>
+        els.map((el) => ({ id: el.dataset.node, position: el.getAttribute('transform') })),
+      );
+    for (const n of nodes) {
+      const [x, y] = n.position
+        .match(/translate\(([^,]+),([^)]+)\)/)
+        .slice(1)
+        .map(Number);
+      assert(
+        !(
+          x + center.x > blocked.x - 20 &&
+          y + center.y > blocked.y - 20 &&
+          x + center.x < blocked.x + blocked.width + 20 &&
+          y + center.y < blocked.y + blocked.height + 20
+        ),
+        `${n.id} hidden behind utilities`,
+      );
+    }
+  } finally {
+    await context.close();
+  }
+});
+
+test('dragging far from a target cannot trigger a pair snap along its imaginary edge', async () => {
+  const { context, page } = await session();
+  try {
+    await openTool(page, 'Browser');
+    await openTool(page, 'Agent settings');
+    const before = await validObjects(page);
+    const target = before.find((o) => o.id === 'agent-settings').rect;
+    const header = await page.locator('[data-object=browser] .object-header').boundingBox();
+    await page.mouse.move(header.x + 80, header.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(target.x + 2, 800, { steps: 12 });
+    assert.equal(await page.locator('.placement-preview').count(), 1);
+    await page.mouse.up();
+    await validObjects(page);
+    assert.deepEqual((await objects(page)).find((o) => o.id === 'agent-settings').rect, target);
+  } finally {
+    await context.close();
+  }
+});
+
+test('the canvas below a compact utility stays usable without an invisible column', async () => {
+  const { context, page } = await session();
+  try {
+    const before = await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .boundingBox();
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide sources', exact: true }).click();
+    await page.getByRole('button', { name: 'Hide agent', exact: true }).click();
+    const area = await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .boundingBox();
+    assert.equal(area.width, before.width);
+    await openTool(page, 'Browser');
+    const goal = await page.getByRole('region', { name: 'Goals', exact: true }).boundingBox();
+    const header = await page.locator('[data-object=browser] .object-header').boundingBox();
+    const object = (await objects(page))[0].rect;
+    await page.mouse.move(header.x + 80, header.y + 18);
+    await page.mouse.down();
+    await page.mouse.move(area.x + area.width - object.width + 70, goal.y + goal.height + 80, {
+      steps: 12,
+    });
+    await page.mouse.up();
+    const actual = (await validObjects(page))[0].rect;
+    assert(actual.right > goal.x + 100);
+    assert(actual.y >= goal.y + goal.height + 15);
+    assert(actual.right <= area.x + area.width + 1);
   } finally {
     await context.close();
   }

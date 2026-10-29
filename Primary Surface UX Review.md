@@ -2,6 +2,8 @@
 
 October 28, 2026, following the user's 8:34 and 8:36 PM screenshots. This is an audit and proposed correction, not a newly accepted design. No application changes accompany this review.
 
+Subsequently, the user explicitly authorized “review, plan, and implement.” See `Primary Surface Fix Plan.md` and `Primary Surface Fix Results.md` for the resulting implementation. The findings below remain the reason for replacing the tiled layout; the statement about no app changes applies to the audit itself.
+
 ## Review outcome
 
 The user said colors are better, the left rail is more beneficial and the right-hand module treatment feels better. Retain those improvements for the next review. This is not blanket approval of the design system.
