@@ -1,0 +1,178 @@
+<div id="chat-canvas-options">
+  <div class="viz-carousel" aria-label="Chat and canvas layout proposals">
+    <section data-variant="Conversation beside work" aria-label="Conversation beside work">
+      <div class="study-app beside" data-study="beside">
+        <nav class="study-rail" aria-label="Workspace destinations">
+          <span aria-label="Canvas"><i data-lucide="panels-top-left" aria-hidden="true"></i></span>
+          <span aria-label="Graph"><i data-lucide="network" aria-hidden="true"></i></span>
+          <span class="chosen" aria-label="Conversations"><i data-lucide="messages-square" aria-hidden="true"></i></span>
+          <span aria-label="Files"><i data-lucide="folder-open" aria-hidden="true"></i></span>
+        </nav>
+        <div class="study-layout">
+          <section class="study-chat" aria-label="Selected conversation">
+            <div class="chat-heading"><span># product-direction</span><span class="secondary">Shared</span></div>
+            <div class="study-messages">
+              <div class="message-identity"><span class="photo-fallback" aria-label="No photo on this recorded message"><i data-lucide="user-round" aria-hidden="true"></i></span><span class="author">Dylan</span><span class="secondary">Recorded feedback</span></div>
+              <p>Modules should never, ever be able to overlap each other.</p>
+              <div class="message-actions"><button class="study-action cursor-interaction" data-pin>Pin to canvas</button><button class="study-action cursor-interaction" data-reply>Reply</button></div>
+              <div class="thread-context" hidden><span class="secondary">Replying to Dylan</span><p>Modules should never, ever be able to overlap each other.</p><button class="study-action cursor-interaction" data-exit>Return to channel</button></div>
+            </div>
+            <form class="study-composer" onsubmit="return false">
+              <label class="compose-label">Message #product-direction<textarea aria-label="Draft beside the canvas" placeholder="Message…" rows="2"></textarea></label>
+              <div class="compose-foot"><span class="secondary" data-draft-state>Draft · layout preview</span><span aria-hidden="true"><i data-lucide="arrow-up" aria-hidden="true"></i></span></div>
+            </form>
+          </section>
+          <div class="study-workspace">
+            <div class="study-content">
+              <article class="canvas-writing">
+                <label class="draft-label">Working draft<textarea aria-label="Canvas writing beside conversation" rows="5">Keep the discussion, evidence and next action connected.
+
+Write and revise directly here. Keep useful source material beside the draft.</textarea></label>
+              </article>
+              <blockquote class="canvas-quote" hidden><span class="secondary">Dylan · #product-direction</span><p>Modules should never, ever be able to overlap each other.</p><div class="message-actions"><button class="study-action cursor-interaction" data-origin>Open original</button><button class="study-action cursor-interaction" data-next>Create next step</button></div></blockquote>
+              <section class="canvas-steps" aria-label="Existing project goals"><span class="secondary">Next steps</span><label><input type="checkbox"> Keep source and draft visible</label><label><input type="checkbox"> Preserve the conversation destination</label></section>
+            </div>
+            <aside class="study-utilities" hidden aria-label="Independent project utilities"><section><strong>Sources &amp; context</strong><p>Conversation record</p><p>Rebuild plan</p></section><section><strong>Project agent</strong><p class="secondary">Runtime not connected</p></section><section><strong>Goals</strong><p>Same goals as the canvas</p></section></aside>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section data-variant="Conversation below work" aria-label="Conversation below work" hidden>
+      <div class="study-app below" data-study="below">
+        <nav class="study-rail" aria-label="Workspace destinations">
+          <span aria-label="Canvas"><i data-lucide="panels-top-left" aria-hidden="true"></i></span>
+          <span aria-label="Graph"><i data-lucide="network" aria-hidden="true"></i></span>
+          <span class="chosen" aria-label="Conversations"><i data-lucide="messages-square" aria-hidden="true"></i></span>
+          <span aria-label="Files"><i data-lucide="folder-open" aria-hidden="true"></i></span>
+        </nav>
+        <div class="study-layout">
+          <div class="study-workspace">
+            <div class="study-content">
+              <article class="canvas-writing">
+                <label class="draft-label">Working draft<textarea aria-label="Canvas writing above conversation" rows="4">Keep the discussion, evidence and next action connected.
+
+Write and revise directly here. Keep useful source material beside the draft.</textarea></label>
+              </article>
+              <blockquote class="canvas-quote" hidden><span class="secondary">Dylan · #product-direction</span><p>Modules should never, ever be able to overlap each other.</p><div class="message-actions"><button class="study-action cursor-interaction" data-origin>Open original</button><button class="study-action cursor-interaction" data-next>Create next step</button></div></blockquote>
+              <section class="canvas-steps" aria-label="Existing project goals"><span class="secondary">Next steps</span><label><input type="checkbox"> Keep source and draft visible</label><label><input type="checkbox"> Preserve the conversation destination</label></section>
+            </div>
+            <aside class="study-utilities" hidden aria-label="Independent project utilities"><section><strong>Sources &amp; context</strong><p>Conversation record</p><p>Rebuild plan</p></section><section><strong>Project agent</strong><p class="secondary">Runtime not connected</p></section><section><strong>Goals</strong><p>Same goals as the canvas</p></section></aside>
+          </div>
+          <section class="study-chat" aria-label="Selected conversation">
+            <div class="chat-heading"><span># product-direction</span><span class="secondary">Shared</span></div>
+            <div class="study-messages">
+              <div class="message-identity"><span class="photo-fallback" aria-label="No photo on this recorded message"><i data-lucide="user-round" aria-hidden="true"></i></span><span class="author">Dylan</span><span class="secondary">Recorded feedback</span></div>
+              <p>Modules should never, ever be able to overlap each other.</p>
+              <div class="message-actions"><button class="study-action cursor-interaction" data-pin>Pin to canvas</button><button class="study-action cursor-interaction" data-reply>Reply</button></div>
+              <div class="thread-context" hidden><span class="secondary">Replying to Dylan</span><p>Modules should never, ever be able to overlap each other.</p><button class="study-action cursor-interaction" data-exit>Return to channel</button></div>
+            </div>
+            <form class="study-composer" onsubmit="return false">
+              <label class="compose-label">Message #product-direction<textarea aria-label="Draft below the canvas" placeholder="Message…" rows="1"></textarea></label>
+              <div class="compose-foot"><span class="secondary" data-draft-state>Draft · layout preview</span><span aria-hidden="true"><i data-lucide="arrow-up" aria-hidden="true"></i></span></div>
+            </form>
+          </section>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<style>
+  #chat-canvas-options { color-scheme: light dark; }
+  #chat-canvas-options .study-app { --paper:light-dark(#fafaf9,#18191b); --glass:light-dark(#f0f1f0,#202225); --ink:light-dark(#202224,#edeeee); --secondary:light-dark(#666b70,#a6adb5); --line:light-dark(#dadddf,#393e43); --person:light-dark(#68408d,#d3b6f0); font:14px/1.5 system-ui,sans-serif; color:var(--ink); background:var(--paper); display:grid; grid-template-columns:48px minmax(0,1fr); min-height:660px; border:1px solid var(--line); border-radius:16px; overflow:clip; }
+  #chat-canvas-options .study-app * { box-sizing:border-box; }
+  #chat-canvas-options .study-app [hidden] { display:none!important; }
+  #chat-canvas-options .study-rail { display:flex; flex-direction:column; gap:16px; padding:18px 6px; background:var(--glass); border-right:1px solid var(--line); }
+  #chat-canvas-options .study-rail span { display:flex; justify-content:center; padding:8px 0; border-radius:8px; }
+  #chat-canvas-options .chosen { background:var(--paper); }
+  #chat-canvas-options .study-rail svg { width:18px; height:18px; }
+  #chat-canvas-options .study-layout { display:grid; min-width:0; }
+  #chat-canvas-options .beside .study-layout { grid-template-columns:minmax(230px,var(--chat-width,280px)) minmax(0,1fr); }
+  #chat-canvas-options .below .study-layout { grid-template-rows:minmax(360px,1fr) auto; }
+  #chat-canvas-options .study-chat { display:flex; flex-direction:column; gap:18px; padding:16px; min-width:0; background:var(--glass); }
+  #chat-canvas-options .beside .study-chat { border-right:1px solid var(--line); }
+  #chat-canvas-options .below .study-chat { border-top:1px solid var(--line); display:grid; grid-template-columns:minmax(0,1fr) minmax(200px,0.9fr); gap:12px 24px; }
+  #chat-canvas-options .below .chat-heading { grid-column:1/-1; }
+  #chat-canvas-options .chat-heading { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-bottom:10px; border-bottom:1px solid var(--line); font-weight:500; }
+  #chat-canvas-options .secondary { color:var(--secondary); font-size:12px; font-weight:400; }
+  #chat-canvas-options .message-identity { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  #chat-canvas-options .author { color:var(--person); font-weight:500; }
+  #chat-canvas-options .photo-fallback { display:flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; background:var(--paper); }
+  #chat-canvas-options .photo-fallback svg { width:16px; height:16px; }
+  #chat-canvas-options p { margin:9px 0 12px; }
+  #chat-canvas-options .message-actions { display:flex; gap:14px; flex-wrap:wrap; }
+  #chat-canvas-options .study-action { font:inherit; font-size:12px; border:0; background:transparent; color:var(--secondary); padding:5px 0; text-decoration:underline; text-underline-offset:3px; }
+  #chat-canvas-options .study-action:disabled { text-decoration:none; }
+  #chat-canvas-options .thread-context { margin-top:18px; border-top:1px solid var(--line); padding-top:12px; }
+  #chat-canvas-options .study-composer { margin-top:auto; border:1px solid var(--line); border-radius:14px; padding:12px; background:var(--paper); min-width:0; align-self:stretch; }
+  #chat-canvas-options .compose-label { display:block; color:var(--secondary); font-size:12px; }
+  #chat-canvas-options textarea { display:block; resize:vertical; width:100%; min-width:0; color:var(--ink); background:transparent; border:0; border-radius:4px; padding:8px 0; font:inherit; }
+  #chat-canvas-options .study-app textarea:focus-visible, #chat-canvas-options .study-app button:focus-visible, #chat-canvas-options .study-app input:focus-visible { outline:1px solid var(--ink); outline-offset:3px; }
+  #chat-canvas-options .step-entry { width:100%; }
+  #chat-canvas-options .step-entry > span { display:block; flex:1; min-width:0; }
+  #chat-canvas-options .step-entry textarea { width:100%; min-width:0; font:inherit; color:var(--ink); background:transparent; border:0; padding:0; }
+  #chat-canvas-options .compose-foot { display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  #chat-canvas-options .compose-foot svg { width:18px; height:18px; }
+  #chat-canvas-options .study-workspace { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; align-content:start; }
+  #chat-canvas-options .study-workspace.has-utilities { grid-template-columns:minmax(0,1fr) 170px; }
+  #chat-canvas-options .study-content { padding:30px; display:grid; grid-template-columns:minmax(0,1fr); gap:28px; align-content:start; min-width:0; }
+  #chat-canvas-options .below .study-content { grid-template-columns:minmax(0,1.3fr) minmax(180px,1fr); }
+  #chat-canvas-options .canvas-writing { min-width:0; }
+  #chat-canvas-options .draft-label { display:block; font-weight:500; }
+  #chat-canvas-options .draft-label textarea { margin-top:9px; font-weight:400; }
+  #chat-canvas-options .canvas-quote { border-left:2px solid var(--line); padding:0 0 0 14px; margin:0; min-width:0; }
+  #chat-canvas-options .canvas-steps { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+  #chat-canvas-options .canvas-steps label { display:flex; gap:10px; align-items:flex-start; }
+  #chat-canvas-options input[type=checkbox] { margin-top:5px; accent-color:var(--ink); }
+  #chat-canvas-options .study-utilities { padding:16px 12px; background:var(--glass); border-left:1px solid var(--line); align-self:start; min-width:0; }
+  #chat-canvas-options .study-utilities section + section { margin-top:22px; padding-top:15px; border-top:1px solid var(--line); }
+  #chat-canvas-options .study-utilities strong { font-size:12px; font-weight:500; }
+  #chat-canvas-options .study-utilities p { font-size:12px; overflow-wrap:anywhere; }
+  @media(max-width:760px) {
+    #chat-canvas-options .study-app { min-height:900px; }
+    #chat-canvas-options .beside .study-layout { grid-template-columns:minmax(205px,0.8fr) minmax(0,1fr); }
+    #chat-canvas-options .study-content { padding:20px; }
+    #chat-canvas-options .study-workspace.has-utilities { grid-template-columns:minmax(0,1fr); }
+    #chat-canvas-options .study-utilities { border-left:0; border-top:1px solid var(--line); }
+    #chat-canvas-options .below .study-content { grid-template-columns:minmax(0,1fr); }
+    #chat-canvas-options .below .study-chat { grid-template-columns:minmax(0,1fr); }
+  }
+  @media(max-width:540px) {
+    #chat-canvas-options .study-app { min-height:1080px; grid-template-columns:38px minmax(0,1fr); }
+    #chat-canvas-options .beside .study-layout { display:flex; flex-direction:column; }
+    #chat-canvas-options .beside .study-chat { border-right:0; border-bottom:1px solid var(--line); }
+    #chat-canvas-options .study-chat { padding:12px; }
+    #chat-canvas-options .study-content { padding:18px; }
+    #chat-canvas-options textarea { font-size:16px; }
+  }
+</style>
+<script>
+(() => {
+ const root=document.getElementById('chat-canvas-options');
+ const saved=window.openai?.widgetState?.privateContent?.layouts || {};
+ const settings={};
+ for(const app of root.querySelectorAll('[data-study]')) {
+   const key=app.dataset.study;
+   const state={pinned:false,utilities:false,width:280,...saved[key]}; settings[key]=state;
+   const pin=app.querySelector('[data-pin]');
+   const quote=app.querySelector('.canvas-quote');
+   const chat=app.querySelector('.study-chat');
+   const draft=app.querySelector('.study-composer textarea');
+   const label=app.querySelector('.compose-label');
+   const thread=app.querySelector('.thread-context');
+   const status=app.querySelector('[data-draft-state]');
+   const remember=()=>window.openai?.setWidgetState?.({modelContent:{layouts:Object.fromEntries(Object.entries(settings).map(([k,s])=>[k,{pinned:s.pinned,utilities:s.utilities}]))},privateContent:{layouts:settings}})?.catch(()=>{});
+   function render(){quote.hidden=!state.pinned;pin.textContent=state.pinned?'Pinned to canvas':'Pin to canvas';pin.disabled=state.pinned;app.querySelector('.study-utilities').hidden=!state.utilities;app.querySelector('.study-workspace').classList.toggle('has-utilities',state.utilities);app.style.setProperty('--chat-width',state.width+'px');}
+   pin.addEventListener('click',()=>{state.pinned=true;render();remember();});
+   app.querySelector('[data-origin]').addEventListener('click',()=>{chat.querySelector('.study-messages').style.outline='1px solid var(--line)';draft.focus();status.textContent='Original message · #product-direction';});
+   app.querySelector('[data-reply]').addEventListener('click',()=>{thread.hidden=false;label.firstChild.textContent='Reply in #product-direction';draft.focus();});
+   app.querySelector('[data-exit]').addEventListener('click',()=>{thread.hidden=true;label.firstChild.textContent='Message #product-direction';draft.focus();});
+   function sizeText(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+   function grow(el){el.addEventListener('input',()=>sizeText(el));let width=-1;new ResizeObserver(entries=>{const next=entries[0].contentRect.width;if(next!==width && next>0){width=next;sizeText(el);}}).observe(el.parentElement);sizeText(el);}
+   for(const el of app.querySelectorAll('textarea'))grow(el);
+   app.querySelector('[data-next]').addEventListener('click',()=>{const item=document.createElement('label');item.className='step-entry';const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label','Complete sourced step');const body=document.createElement('span');const input=document.createElement('textarea');input.rows=1;input.value='Keep canvas tools from covering each other';input.setAttribute('aria-label','New sourced step');const source=document.createElement('span');source.className='secondary';source.textContent='Source: Dylan · #product-direction';body.append(input,source);item.append(check,body);app.querySelector('.canvas-steps').append(item);grow(input);input.focus();});
+   draft.addEventListener('input',()=>{status.textContent=draft.value?'Unsent draft · layout preview':'Draft · layout preview';});
+   render();
+   if(globalThis.Tweak){const tweak=new Tweak({container:app,onChange:()=>{render();remember();}});if(key==='beside')tweak.addSlider(state,'width',{label:'Conversation width',min:240,max:360,step:20,unit:'px'});tweak.addToggle(state,'utilities',{label:'Show project utilities'});tweak.addToggle(state,'pinned',{label:'Keep source on canvas'});}
+ }
+})();
+</script>
