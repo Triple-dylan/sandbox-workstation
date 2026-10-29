@@ -220,3 +220,55 @@ Current verification, exact commands, screenshots and limits are in `prototype/R
 The user requested a GitHub project to hand the work to other agents. Created the private repository `https://github.com/Triple-dylan/sandbox-workstation`. The initial handoff contains the current prototype, requirements and interview record, interaction/access contracts, production-reference research, current visual evidence and generated test fixtures. Superseded screenshots remain local and are excluded from Git.
 
 The root `README.md` is the entry point for the next agent. Browser fixture imports now load through the local preview server rather than absolute paths from the original Mac. `prototype/tests/run-browser.cjs` provides an optional standalone Playwright harness. These packaging changes do not select a production stack or imply design acceptance.
+
+## Walking review: conversation behavior and direct messages
+
+The user is reviewing by voice while walking and cannot inspect the interface visually. Focus this review on user experience, behavior and general refinement; avoid substantial visual changes during it.
+
+The user agreed that working context and message destination are distinct: opening a document must not silently change who receives a message. Unsent drafts should remain with their channel/thread when navigating elsewhere. These are confirmed behavior requirements; draft isolation has not yet been implemented.
+
+The user also confirmed that this is a workstation with messaging as an important component, not a messaging-platform product. Support one-to-one messages between people without requiring a project. Direct conversations need independent identities and participant access rather than hidden projects. The current owner-only private-chat sample does not implement person-to-person direct messaging; add this to the implementation backlog. No new visual layout was approved by this clarification.
+
+## Approval clarification during voice review
+
+The user confirmed that collaborative agent work needs an approval/prompting process. Private agent conversations can have configurable autonomy preferences, potentially in agent settings or an agent module. Do not keep asking whether these two settings differ. Specific approval routing, autonomy controls and placement were not decided. The assistant's later background-job and retirement proposals were not confirmed by the user.
+
+## Evening rejection and required research/interview reset
+
+The user supplied a Codex popout reference and screenshots of overlapping/broken prototype modules. They rejected the current interaction model: modules must snap with organized layout allocation, must never overlap, and must not form an endless open pan/zoom canvas. No workspace zoom controls belong in the chat bar. The unexplained Agent toggle, inline New chat naming form and bottom-left identity cycling are rejected. The combined Goals/Knowledge/People/Agents Project module is rejected.
+
+Some modules are fixed on the right by default. The user clarified that these are sources/context, agent and goal modules, not conversations, and several need to be available concurrently. The left rail may extend to show conversation threads. Opening a DM can switch the active conversation while an existing document stays open; quick reply remains a potential supplement to research. Human DMs do not require projects.
+
+The graph's central node must be centrally anchored, only slightly draggable and forced back to its original placement; other nodes have greater movement. Folders/documents need meaningful interactions. Selecting them should open a node explorer or document viewer as a module. The precise relation between expanded viewers and the non-overlap rule still needs a concrete follow-up answer. The Codex screenshot specifies general module style and quality rather than post-it cards; it does not mandate copying the popover's exact behavior.
+
+The user chose the proposed desktop-style snap behavior: placement preview and neighboring modules resizing. Their answer about an extended left conversation rail does not settle what happens when an additional work module cannot fit. Do not invent an answer from that response.
+
+The user requested a new UI/design system. Muted gray is explicitly rejected; they want more Liquid Glass. This supersedes earlier monochrome-only and nearly square-card design prescriptions. New defaults for chat creation and quick reply should be grounded in research rather than pushed back as generic design questions.
+
+The user explicitly requires questions, research, more questions and then a plan before implementation. The plan must address the actual product, avoid generic/half-built output, prevent broken behavior and trace the cumulative feedback from October 27–28. They named the open-source T3 Code repository as a research source and then stressed that research must cover the whole system, not just harnesses.
+
+`Research Review.md` records pinned T3 Code source inspection, reassessment of earlier references, other production interfaces, and research into layout, design/materials, collaboration/conflicts, file editing, authenticated browsing, automatic context, permissions, provenance, approvals/recovery, graph hierarchy and accessibility. These findings are not a selected stack, completed implementation or approved plan. Copies of the four supplied reference screenshots are preserved under `research/references/`. The app was not changed during this research round.
+
+## Research follow-up answers
+
+The user clarified that there is one document viewer showing one document at a time. This is not a universal one-window limit: browser windows, agent-editing surfaces and other extended modules have their own roles. Do not infer unlimited document windows or a single universal viewer for all module types.
+
+The graph centers on its current subject node. Leaving that focused interaction or returning to the canvas/full graph restores the centered full view. Combine this with the previously confirmed limited central-node drag/restoring force; do not reintroduce workspace zoom.
+
+The user selected web for now, particularly for sharing and demos. An installed desktop application is not the current delivery target. Browser embedding/session limits remain engineering constraints to research and explain, not grounds to quietly change that decision.
+
+The user confirmed light and dark glass variants following the OS. They did not specify a color family; the design work should exercise judgment and offer a coherent direction for review.
+
+The phrase “beside any snapped document” was unclear to the user. Exact placement of the actual message history remains to clarify in plain language, distinct from the extended left rail's conversation list. “Integration action” was also unclear: explain it as using an account in a connected service. A private/personal versus explicitly shared project connection policy remains a proposal, not a confirmed new decision.
+
+## Coexistence, shared connections and final reflection
+
+The user clarified that chat, the graph and an open work window must be able to coexist; the interface is not always one or another. Preserve this alongside a single document viewer and independently useful browser/agent-editing/utility modules. The earlier question's “central area” must not become an exclusive-page restriction.
+
+The user accepted the proposed connected-account distinction: personal connections stay personal, while projects can explicitly add connections shared agents are allowed to use. This is now a confirmed direction rather than merely a proposal. Connection ownership and access need actual enforcement.
+
+The user requested a final reflection and, if useful, more research into innovative features, interesting actions and anything overlooked. `Research Review.md` now distinguishes missing core behavior from optional extensions: precise selection-based questions, source-linked personal catch-up, recorded-dependency impact checks and explicit navigation to a collaborator's shared work. These ideas remain proposals. The additional research also found a web-first interactive remote-browser approach worth a feasibility proof; no browser provider, service account or paid service was selected.
+
+## Proposed rebuild plan after reflection
+
+`Rebuild Plan.md` is the concrete proposal produced after the two question rounds, primary-source and T3 source research, final clarifications and additional action research. It covers the working interaction contract, a new light/dark glass design system, technical feasibility proofs, authoritative collaboration/context/agent foundations, sequenced implementation and feedback-to-acceptance evidence. Optional actions are labeled separately and not treated as approved MVP scope. No app implementation, paid service selection or claim of user approval accompanied its creation.

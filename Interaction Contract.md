@@ -1,4 +1,6 @@
-# Interaction rebuild contract
+# Earlier interaction contract — superseded in part
+
+**Current authority:** the evening October 28 user review, `AGENTS.md` and `Research Review.md` supersede the free-canvas/zoom, all-in-one Project tabs, right-side conversation assumptions and muted gray styling below. Working modules must snap without overlap, utility modules coexist on the right, conversations are navigated from the left, and the graph center is anchored. Implementation is paused for research-informed follow-up questions and a plan. The older body is preserved as history, not a new build specification.
 
 October 27, 2026. The user rejected both previous visual passes. This contract translates the latest review into behaviors to implement and verify; it does not replace the recorded product scope.
 
@@ -9,6 +11,8 @@ Only the left rail and floating composer persist over the working surface. No lo
 Separate personal work and shared projects into explicit rail sections. Shared project rows show their names and nested channels. People, roles and agent assignments belong in searchable, filtered, paginated directories in an on-canvas Project module; do not use aggregate membership/agent sentences or a project-context tree in the rail. This supersedes the earlier rail-count requirement. Sample people must not be presented as live connected users. Private work is a separate scope, not a small badge attached to an otherwise identical project row.
 
 Project conversations have channels and nested threads. Selecting a channel selects the conversation targeted by the composer. Threads retain their parent/channel identity. Messages are not converted into independent documents. Project creation initializes channels, folder structure, context documents, and an agent assignment.
+
+Direct conversations between people do not require a project. Messaging is an integrated workstation capability, not the organizing purpose of the entire product. Keep destination independent of the resource currently being inspected: opening a document must not silently retarget the composer. Preserve unsent drafts per conversation and thread when navigating; do not carry text to a different audience. Person-to-person direct messages and draft isolation are confirmed requirements not yet implemented by the owner-only private-chat sample.
 
 ## Canvas geometry
 

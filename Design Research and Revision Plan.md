@@ -1,4 +1,6 @@
-# Production references and revision plan
+# Earlier production references and revision plan
+
+**Superseded in part:** the user rejected this revision and requires a new interview/research/plan cycle. See `Research Review.md`, current `AGENTS.md` and the latest conversation entries. Do not implement the old tabbed Project module, free pan/zoom layout or muted gray treatment from this document. Its research and test history are retained for audit.
 
 October 28, 2026. This is a new revision of the rejected interaction prototype, not an assertion that previous visuals were accepted.
 

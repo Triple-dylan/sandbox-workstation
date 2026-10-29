@@ -1,71 +1,63 @@
 # Project handoff and working instructions
 
-## Read first
+## Read first and current work gate
 
-Read `Conversation Context.md` in full before proposing designs or changing this project. It contains the original context, subsequent confirmed interview direction, and a proposed MVP implementation plan. Later confirmed clarifications supersede earlier exploratory statements. The MVP plan is a proposal, not an approved stack or implemented system.
+Read `Conversation Context.md` in full. Later confirmed clarifications supersede earlier exploration and earlier implementation plans. Read `Research Review.md` for the latest requirements, screenshot evidence, source-level T3 Code review and research beyond harnesses.
 
-This file was explicitly requested by the user to prevent context decay. Its creation supersedes the earlier request to keep this fresh folder to one Markdown file. Do not discard the conversation document or replace the project with assumptions from another repository.
+The researched `Rebuild Plan.md` is now a draft for user review, not permission to implement. The user has paused implementation and requires this sequence: substantive questions, research, research-informed follow-up questions, then a concrete plan. **Do not implement another redesign or treat the plan as approved before that process is complete.** Research findings and proposed defaults are not user decisions. Do not ask the user to justify the product through a first use case or repeat questions already answered.
+
+This handoff was explicitly requested to prevent context decay. Preserve the conversation history. The older `Design Research and Revision Plan.md` and earlier `Interaction Contract.md` describe rejected/superseded work where they conflict with the latest review. Passing old checks does not validate the new behavior or imply acceptance.
 
 ## Product purpose
 
-Build a general-purpose, canvas-focused workstation where humans and agents work together across private and collaborative spaces. It supports work, design, development, finance, marketing, hobbies, and informal collaboration. Do not narrow it around a single example use case.
+Build a general-purpose workstation where people and agents work across private and collaborative spaces: work, design, development, finance, marketing, hobbies and informal collaboration. Do not narrow the product to coding merely because a coding harness is a research reference. Messaging is important, but this is not primarily a messaging-platform product.
 
-A central problem is the burden of gathering, organizing, updating, and repeatedly handing context to AI. Agents maintain useful context automatically as work happens; people govern access and sharing without maintaining that machinery manually.
+Agents automatically gather, organize, update and hand over useful context as work happens. People govern access and sharing without maintaining this machinery manually.
 
-## Settled experience requirements
+## Latest settled experience requirements
 
-Latest visual correction after reviewing the first prototype: the user rejected its appearance and clarified that open canvas means a blank page. The only persistent visible shell is the left rail and floating chat. No title of any size, logo, hero, marketing copy, top header/menu, inset canvas frame, or preloaded dashboard/card grid. Use monochrome with strong contrast and a modern, restrained treatment. Content and tools appear through intentional interaction. This correction supersedes any earlier populated-default canvas recommendation; shared modules still exist as project records and can be opened in context. Do not claim the original prototype design was accepted.
+- The canvas is a bounded workspace with desktop-style snapping, placement feedback and neighboring modules resizing. Working modules must never overlap. Replace the endless free pan/zoom interpretation; no workspace zoom or zoom controls in the composer.
+- Chat history/input, the graph and an open work window must be able to coexist. Do not make them universally mutually exclusive pages. Keep one document viewer while preserving independent browser/agent-editing modules and concurrent utilities.
+- Graph and canvas remain separate surfaces in one harness. Projects open into work, with no overview/hero pages, workspace title, logo, marketing copy or top-menu clutter. Content/tools appear through intentional interaction; do not preload a dashboard to fake usefulness.
+- Preserve the left rail and floating chat input. Conversation navigation can extend from the left rail. The exact chat-creation and quick-reply flow is being researched; do not restore an inline naming form in the composer.
+- Right-side sources/context, agent and goal modules are independently useful and can be visible concurrently. Conversations do not belong in the right utility region. The all-in-one Goals/Knowledge/People/Agents Project module is rejected.
+- Opening a DM can switch the active conversation while an open document remains. One-to-one human messaging does not require a project. Preserve message destination and drafts per conversation/thread; opening a document must not silently change recipients. The owner-only private-chat sample does not implement human DMs.
+- Private and collaborative conversations need clear audience/scope, channels and nested threads. Avoid summary labels such as “4 members · 1 agent.” Large directories need useful search/filtering, not rows or totals repeated throughout the shell.
+- The bottom-left account control must not cycle fake identities. Remove demo fluff and unexplained Agent toggles. No implemented/executing state may be simulated and described as real.
+- Module style should have the quality, hierarchy and depth shown in the user's Codex popout reference, not post-it cards. That screenshot is a style reference; it does not settle every popover/overlay behavior.
+- A new UI/design system with more Liquid Glass is required. The muted gray appearance is rejected. Earlier monochrome-only and nearly square-card prescriptions are superseded. Color, typography, materials, icon meaning, focus and motion require a coherent design, not an added blur effect.
+- Graph physics/magnetism always apply, with no toggle. Its central node is anchored, can be dragged only slightly and returns to its original position. Other nodes have greater movement. Do not apply a global zoom/camera to the harness.
+- Folder nesting manages graph density. Nodes must communicate meaningful types and actions, without bordered boxes containing icons or an identical node for everything. Selecting a folder/document opens a node explorer or document viewer module. Keep access to the graph; do not silently navigate to Canvas. Expanded-view placement remains a follow-up decision against the no-overlap rule.
+- Graphs visualize folders, resources, relationships and permitted activity: a teammate working on a shared document and the knowledge domains an agent accesses. Document edits do not inherently reshape the graph. Agents retrieve underlying context; they do not live in or get deployed into the graph.
+- One document viewer shows one document at a time; this does not impose a single-window limit on browser, agent-editing or other distinct module types. The graph centers its current subject and restores the centered full view when exiting focus/returning to the canvas/full graph. Web is the current delivery target for sharing/demos; do not quietly substitute a desktop-first shell. Support light/dark glass variants following the OS; no color family was specified.
+- Work surfaces include browsers, documents, sheets, slides, conversations, integrations/connectors, goals/milestones and agent work. Real content-specific viewer/editor behavior is required. Parsed Office previews must never be called full-fidelity native Office integration.
+- Shared content and personal layout are separate. Personal arrangements/presets remain part of the product. Collaborative projects have common required modules while people can adjust their own views.
+- Goals/milestones are lightweight and sequential: human owner, agent assignment, simple deadline. Do not turn this into a complex project-management suite.
 
-The subsequent interaction review also rejected the second pass. Read `Interaction Contract.md` before changes. Creation belongs in the composer's integrated controls, not a rail Add to canvas menu. Use Slack/Discord-style channels with nested threads. The later scale review supersedes rail membership/count summaries: people and agents belong in searchable on-canvas directories. Resource review must stay within Graph when initiated there. History/sharing/details change the existing resource surface and must not spawn windows. Physics is always on with no toggle. Provide a subtle spatial grid, snapping, unrestricted world coordinates, reliable zoom/pan, resizing, and recovery of distant components. No generic View menu, numbered navigation badges, or project-name pill in the composer. These are confirmed corrections, not optional polish.
+## Context, privacy and agent behavior
 
-The latest review rejects ornamental or inconsistent icons, summary labels such as “4 members · 1 agent,” Project context in the rail, rounded-square module styling, generic document/sheet/deck viewers, and bordered graph tiles containing icons. Read `Design Research and Revision Plan.md` for primary production references, the second review and remaining work. Keep navigation in the rail; goals, knowledge, people and agents are local tabs of an intentionally opened on-canvas Project module. Use search/filter/pagination for large directories. Graph content uses distinct unframed miniatures/anchors. Content-specific viewers must operate on actual content; parsed Office previews must never be called full-fidelity native Office integration.
+- Personal service connections stay personal; projects can explicitly add connections that shared agents may use. Enforce account ownership/scope; project membership does not expose a personal browser session or connection secrets.
+- Private agents, jobs, tasks, chats, projects and activity coexist with collaborative equivalents. Enforce privacy across resource access, graph visibility, retrieval, presence and provenance.
+- Project creation creates a folder represented in the graph, automatic orientation Markdown and a resources/context child folder. Agents maintain purpose, relevant context, goals, references and useful history. Exact filenames/internal organization remain open.
+- Every collaborative project receives at least one dedicated agent by default until completion or retirement, including manual retirement. Assignment does not imply continuous inference. Whether retirement drains or immediately stops running jobs remains unresolved.
+- Project context is the starting point, not an absolute retrieval boundary. Wider access depends on configured permissions. This was explicitly answered; do not ask again.
+- Accessible conversations, goals and history help distinguish tentative discussion from settled direction. Routine context maintenance is automatic; do not introduce mandatory human approval for every update.
+- Collaborative agent work requires approvals or prompting for consequential changes. Private agents have configurable autonomy preferences in their module/settings. Exact approval routing and settings placement are not approved designs. Do not treat private preferences as authorization to override shared access rules.
+- Sharing makes the original item shared, retaining one canonical identity. Do not silently create private/shared duplicates or private-source synchronization. An explicit private variant is a distinct item with ancestry.
+- Retain contributor attribution, origin, sharing history, revisions and variant ancestry. Audit/provenance must not reveal private source conversations.
 
-- Graph and canvas are separate tabs in one harness. Projects open directly into canvases, without project overview pages.
-- Both surfaces retain a left rail and a floating chat bar at the bottom. The later floating-bar requirement supersedes the original rejection of a fixed composer. Preserve the open workspace feel; avoid large pop-up windows and drawers.
-- The graph visualizes knowledge, folders, relationships, and permitted human/agent activity. It supports meaningful actions such as opening a resource or initiating contextual agent work.
-- Graph physics and magnetism are required. Use nested folders to manage visual density and intentional visual differences between content types. Do not show everything as identical, simultaneously expanded nodes.
-- Agents retrieve from the underlying context represented by the graph. Do not describe agents as being deployed into or living inside the graph.
-- Graph activity can show a teammate working on a shared document in a project and the knowledge domains an agent is accessing. Document edits do not inherently reshape graph nodes or layout.
-- Canvas surfaces include browser windows, documents, conversations, integration/connector modules, goals and milestones, and shared agent work.
-- Personal canvases are freely adjustable with saved presets. Collaborative canvases have common required modules, while participants can adjust their own views. Shared content and personal layout are distinct.
-- Goals and milestones are lightweight, sequential coordination: human ownership, agent assignment, and simple deadlines. Avoid turning this into a complex project-management suite.
+## Implementation facts and repository
 
-## Context, privacy, and agent behavior
+Private handoff repository: `https://github.com/Triple-dylan/sandbox-workstation`. The root README maps the existing source and local checks. The repo's creation is not acceptance of its design.
 
-- Private agents, jobs, tasks, chats, projects, and activity coexist with collaborative equivalents. Respect privacy in resource access, retrieval, graph visibility, presence, and provenance.
-- Creating a project creates a folder represented by a folder node. Private chats/projects appear in the private graph; collaborative projects/sessions appear in their shared graph.
-- Agents automatically create project orientation Markdown and a resources/context child folder. Exact filenames and internal organization remain open. Maintain purpose, relevant context, goals, useful history, and resource references automatically.
-- Every collaborative project receives at least one dedicated agent by default. It remains assigned through completion or retirement, including manual retirement. Persistent assignment does not imply continuously running inference.
-- Project context is the starting point, not an absolute retrieval boundary. Wider access depends on configured permissions. This was explicitly answered; do not ask it again as unresolved.
-- Accessible conversations, shared goals, and history give agents clues about tentative versus settled direction. Do not introduce mandatory human approval for every context update. Formal confirmation mechanisms may be explored later.
-- Sharing makes the original item shared, retaining one canonical identity. Do not silently create private/shared duplicates or private-source synchronization. A later private variant is a distinct item with ancestry.
-- Retain contributor attribution, origin, sharing history, revisions, and variant ancestry over time. Provenance must not reveal private source conversations.
+`prototype/` is the rejected browser-local implementation. It has canvas/graph code, template context, sample identities, limited content viewers/imports and browser-local records. It does not implement real multiplayer, authoritative server permissions, durable resources, live presence, retrieval, executing agents or real connectors. Current human DMs, isolated drafts and agent approval/preferences remain unbuilt. Named presets and private project creation remain incomplete.
 
-## Current state and next work
+Old tests checked six spatial categories, ten formula cases, six Office parser tests and 66 browser assertions. Some explicitly validate the now-rejected infinite-canvas/zoom behavior. They are historical implementation evidence, not current acceptance criteria. The user supplied actual overlap/broken-flow screenshots despite those checks.
 
-The private handoff repository is `https://github.com/Triple-dylan/sandbox-workstation`. The root README maps the source, review documents, current limits and reproducible local checks. Preserve this repository’s own confirmed direction; its existence is not approval of the prototype design.
-
-The MVP plan is recorded in `Conversation Context.md`. The user subsequently authorized proceeding with the interaction prototype and object/access model and explicitly asked work to continue after the voice call.
-
-A buildless local interaction prototype now exists in `prototype/` with source, a run/review guide, and documented verification limits. `Object and Access Model.md` defines the proposed object/access contract. “Common” is only a provisional prototype label. No production stack or hosted service is selected. The prototype uses browser-local persistence and simulated collaborators/agent activity, not real multiplayer, server permissions, connectors, retrieval, or model execution. Do not claim phase 2–5 are implemented.
-
-As of October 28, the interaction implementation has been rebuilt without the Common branding. `prototype/spatial.js` supplies shared world/screen geometry; `prototype/app.js` contains the local records, channel/thread flows, canvas, and graph-local inspection. Current checks include six spatial categories, ten formula cases, six Office parser tests and 66 browser assertions across spatial, workflow, scale/import and content-editing scenarios; see the current README for what was actually verified and what remains unimplemented. The new local storage key is `workstation-interaction-v3`; old sample storage was preserved. The latest revision also has local bounded Office imports through `prototype/server.py`, content-specific document/sheet/deck surfaces and paginated project directories. Full-fidelity document engines, real access enforcement, collaboration and model execution remain unimplemented. No user acceptance of this rebuild has been recorded yet. Do not use the earlier JPG screenshots as evidence of the current design.
-
-The proposed sequence is:
-
-1. Define the object/access model and create a populated interactive prototype of the harness, graph, and canvas.
-2. Build persistent identity, membership, folders, resources, conversations, revisions, and canonical sharing.
-3. Connect graph and canvas to real data, live collaboration, browser/connector modules, and personal layouts.
-4. Add dedicated project agents, permission-filtered retrieval, automatic context maintenance, and visible job/activity state.
-5. Validate complete workflows with real persistence, multiple users, privacy checks, and agent execution.
-
-The populated interaction prototype and object/access model are the phase 1 review artifacts. Continue from them rather than restarting discovery. Investigate browser embedding/authentication constraints before selecting the production shell; they may affect its architecture. Runtime/provider, connector, deployment, stack, schedule, and costs remain unresolved technical decisions. Do not present recommendations as user-approved choices.
+No production stack, runtime/provider, document engine, shell, connector, deployment, schedule or cost was approved. Investigate authenticated browser behavior, file engines, collaboration/conflicts, permission-aware context, provenance, durable jobs/approvals, accessible docking and the new material/design system together. T3 Code and other references inform concrete patterns; do not copy coding-specific assumptions or import their code without a reason grounded in this product.
 
 ## Collaboration discipline
 
-- Apply the recorded answers. Do not restart a generic discovery interview or ask the user to justify the project through one first use case.
-- Ask only consequential questions genuinely unresolved by the documentation, using concrete language. Avoid ambiguous phrases such as moving something in the graph.
-- Continue toward concrete, reviewable artifacts when authorized. Do not end planning with an offer to stop or ask whether the user wants an already-requested plan.
-- Keep confirmed requirements distinct from proposals and implementation facts. Record new decisions and meaningful changes in the conversation document; update this handoff when durable instructions change.
-- Do not claim progress from empty graphs, static screens, disconnected data, or placeholder agent behavior. Demonstrate the intended end-to-end experience and state limitations plainly.
-- Preserve this project's fresh start. The earlier effort failed by missing the open canvas experience and disregarding interview answers; do not import its design or code without an explicit reason grounded in these requirements.
+Apply the user's recorded answers. Ask only consequential unresolved questions with concrete scenarios and evidence-informed recommendations. Keep sources, inference, proposals and implementation facts distinct. Update the conversation record and this handoff when durable instructions change.
+
+Continue authorized work to concrete reviewable artifacts, while honoring the current research/interview gate. Do not count placeholder screens, fake participants, disconnected data or empty graphs as completed workflows. Preserve this project's fresh start and the reason earlier efforts were rejected.

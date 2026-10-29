@@ -4,6 +4,8 @@ A general-purpose open canvas workstation for people and agents, with private an
 
 **Current status:** local interaction prototype. Previous visual passes were rejected; the current revision has not been accepted by the user. Real multiplayer, server-enforced access, durable resource storage, document-engine integration, retrieval and executing agents are not implemented.
 
+**Current work gate:** implementation is paused for questions → research → follow-up questions → plan. The evening review requires bounded snapping with no overlapping modules, right-side concurrent utilities, an anchored graph and a new design/material system. Read [Research Review.md](Research%20Review.md) and the proposed [Rebuild Plan.md](Rebuild%20Plan.md) before using the older implementation plan or tests as guidance. The new plan is a draft for review; no redesign has been implemented.
+
 ## Start here for handoff
 
 1. Read [AGENTS.md](AGENTS.md).

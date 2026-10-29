@@ -1,5 +1,7 @@
 # MVP object and access model
 
+**Current review:** the records below remain a proposal. The old tabbed Project-module presentation described at the end is rejected. Latest snapping, concurrent right-side utilities, conversation and graph requirements are in `AGENTS.md`, `Research Review.md` and the latest conversation entries. Implementation is paused until the follow-up interview and new plan.
+
 Proposed implementation contract, October 27, 2026. This is a design artifact; the accompanying local prototype is not an access-control implementation.
 
 ## Authoritative records
@@ -11,6 +13,7 @@ Proposed implementation contract, October 27, 2026. This is a design artifact; t
 | Membership | User's role in a collaborative space. Roles and capabilities are implementation decisions still to finalize. |
 | Project | Stable identity, parent space, folder root, lifecycle, goals, and dedicated agent assignment. |
 | Resource | Stable identity for a document, reference, conversation, generated context document, or other artifact. Includes containing folder, access scope, origin attribution, and current revision. |
+| Conversation | Private chat, direct human conversation or project channel, with stable identity, participant access and threads. A direct conversation does not require a project. Draft destination is conversation/thread-specific and separate from the inspected resource. |
 | Folder | Hierarchical grouping with parent folder and project relationships. Its graph representation can expand or collapse. |
 | Revision | Immutable resource version, source revision, contributor, timestamp, and content reference. |
 | Sharing event | Explicit change of an existing item's scope/destination; records actor, old/new scope, and time without duplicating identity. |
