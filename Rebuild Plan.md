@@ -68,7 +68,7 @@ Turn the table above into module roles, layout transitions and actual interactio
 
 ### B. Establish real identities and canonical data
 
-Implement users, private/shared scopes, memberships, projects/folders, resources/revisions, conversations/participants/channels/threads, goals, agent assignments and connection ownership. Persist user views independently. Enforce access on the server for direct reads/writes, search, graph queries, history, attachments, event subscriptions and retrieval.
+Implement users, private/shared scopes, memberships, projects/folders, resources/revisions, conversations/participants/channels/threads, goals, agent assignments and connection ownership. Persist user views independently, including explicit personal layout presets that restore arrangements of the same records rather than copying content. Shared required-module configuration remains separate from personal placement. Enforce access on the server for direct reads/writes, search, graph queries, history, attachments, event subscriptions and retrieval.
 
 Project creation transactionally initializes its folder, resources/context grouping and dedicated agent assignment. Orientation generation has pending/failure states until actual execution completes. Human DMs do not require a project. Invite/join/revoke flows and reconnect must work with two actual users; the account button is never the test identity switch.
 
@@ -98,6 +98,8 @@ Create persistent assignments and durable jobs independently of UI visibility. M
 
 Add actual activity/job states: queued, running, awaiting approval/input, completed, failed and canceled. Configure private-agent autonomy in its settings/module; collaborative actions use project approval rules. Bind an approval to the exact proposed operation, target revision and effective access; revalidate stale proposals before applying them. Separate job checkpoints, long-term project knowledge and ephemeral activity. Retries must not repeat completed external actions.
 
+Support simple user-configured routines for shared or private agents, alongside event-driven context maintenance. Persist the schedule, owner, connection scope, approval policy and each run separately; prevent duplicate runs on retry/reconnect. This is routine agent work, not a broad workflow-builder project.
+
 Agent retirement prevents new work; whether to drain or immediately stop existing jobs still needs an explicit lifecycle decision before that control ships. Closing a module is not an implicit retirement/cancellation action.
 
 **Exit:** a real newly assigned agent can orient using maintained sources; a changed conversation/goal/reference leads to a traceable context update; a shared modification follows approval; failed updates do not claim context is fresh; private material never appears in shared retrieval or output.
@@ -121,6 +123,7 @@ Run the acceptance scenarios below with real records/users and actual execution.
 | Graph not actionable or understandable | Pointer and keyboard folder exploration, meaningful node/edge types, viewer/explorer opening, subject-center drag/rebound and full-view return; readable nested/busy graph with permission-filtered activity |
 | File viewers superficial | Representative real files, formulas/images/layout, edit/save/reopen/export and collaboration; explicit unsupported cases; source binary and canonical identity preserved |
 | Sharing creates copies/leaks | Same original ID after sharing; distinct explicit variant; contributor/revision/ancestry history; private-source chat and unauthorized attachments inaccessible |
+| Personal layouts/routine work omitted | Save/restore a personal preset without changing another person’s arrangement or copying shared records; execute an authorized routine without its UI open; retry/reconnect does not create duplicate runs |
 | Context burden remains manual | Project initialization, automatic source capture/maintenance, actual retrieval and a fresh agent handoff with source links; failures/retries and uncertainty observable |
 | Shared approvals/private preferences | Private autonomy configuration; shared proposed edit; approve/reject; collaborator edits before approval; stale proposal revalidation and retry without duplicated external effects |
 | Integration/account ambiguity | Personal and explicitly shared project connections; project agent uses permitted connection; revocation/expiry handling; personal browser session remains private |
