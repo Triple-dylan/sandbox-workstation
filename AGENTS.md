@@ -16,6 +16,8 @@ Agents automatically gather, organize, update and hand over useful context as wo
 
 ## Latest settled experience requirements
 
+Latest stage A review supersedes the tiled-pane interpretation: the user rejected the six-box layout. The graph must occupy the whole working canvas as a primary surface, not be a small Graph window within a generic split grid. The left rail navigates/reveals navigation; it must not spawn work modules into the canvas. Utilities must size to useful content instead of stretching to fill available height (especially when other utilities close). Preserve the improved color direction, useful rail and better utility treatment while correcting the interaction structure. Read `Primary Surface UX Review.md`. The stage A design remains rejected; tests that prove non-intersection or expect several generic panes are not proof of the intended experience.
+
 - The canvas is a bounded workspace with desktop-style snapping, placement feedback and neighboring modules resizing. Working modules must never overlap. Replace the endless free pan/zoom interpretation; no workspace zoom or zoom controls in the composer.
 - Chat history/input, the graph and an open work window must be able to coexist. Do not make them universally mutually exclusive pages. Keep one document viewer while preserving independent browser/agent-editing modules and concurrent utilities.
 - Graph and canvas remain separate surfaces in one harness. Projects open into work, with no overview/hero pages, workspace title, logo, marketing copy or top-menu clutter. Content/tools appear through intentional interaction; do not preload a dashboard to fake usefulness.

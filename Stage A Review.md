@@ -2,6 +2,8 @@
 
 October 28, 2026. The user approved the rebuild plan, not these new visuals. This is the first review artifact under that plan. The full MVP and the file/browser feasibility gates are not complete.
 
+**Review outcome:** the user rejected this artifact's interaction structure. Colors, rail usefulness and utility styling improved, but the six-box composition, small Graph window, rail-created work modules and stretched utility heights miss the intended experience. See `Primary Surface UX Review.md`. The implementation descriptions and test results below are historical evidence, not current design acceptance or the next layout contract.
+
 ## What changed
 
 The new `workstation/` app preserves `prototype/` and its data. A fresh entry is blank, with the compact rail and floating composer. Work appears deliberately. The separate `/materials` page is a component specimen with headings and examples; it is not a product landing page.

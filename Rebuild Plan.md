@@ -4,6 +4,8 @@ October 28, 2026. **Approved by the user on October 28, 2026. Stage A implementa
 
 Read the complete [conversation record](Conversation%20Context.md), current [handoff](AGENTS.md) and [research evidence](Research%20Review.md). Confirmed requirements below are distinguished from recommended defaults and optional extensions.
 
+**Subsequent stage A review:** the user rejected the generic tiled-pane result. The Graph must be a whole-canvas primary surface; rail navigation must not spawn canvas modules; right utilities must fit useful content rather than fill unused screen height. Preserve the improved colors, rail and utility treatment. `Primary Surface UX Review.md` supersedes the pane-allocation interpretations below where they conflict. Plan approval was not acceptance of that implementation. Revise the primary-surface/inspection behavior within stage A before expanding feature work.
+
 ## 1. Intended outcome
 
 Deliver a web workstation for people and agents working privately and together. The user can converse, inspect the knowledge graph and work in an open resource module at the same time. Layout is bounded, snapping and non-overlapping. Useful utility modules coexist on the right. Context is maintained automatically and actions respect actual account/resource permissions.

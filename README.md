@@ -2,7 +2,7 @@
 
 A general-purpose workstation for people and agents, with private and collaborative work, bounded snapping modules and a graph of permitted context.
 
-**Current work:** the user approved the researched rebuild plan on October 28, 2026. A separate stage A material/layout proof is ready for design review in `workstation/`. The rejected `prototype/` remains preserved. This is not a completed MVP or accepted new visual design. Real accounts, messaging delivery, collaboration, authoritative permissions, Office engines, browser sessions, retrieval and running agents remain unimplemented.
+**Current work:** the user approved the researched rebuild plan on October 28, 2026, then rejected the stage A interaction structure in `workstation/`. Colors, rail usefulness and utility treatment improved, but the tiled windows, small Graph pane, rail-created modules and oversized utilities require correction. Read [Primary Surface UX Review.md](Primary%20Surface%20UX%20Review.md) before continuing. This is not a completed MVP or accepted design. Real accounts, messaging delivery, collaboration, authoritative permissions, Office engines, browser sessions, retrieval and running agents remain unimplemented.
 
 ## Handoff
 

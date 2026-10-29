@@ -2,6 +2,8 @@
 
 This is the new review artifact, separate from the rejected `../prototype/`. It is a browser-local interaction proof, not the MVP. Read `../Stage A Review.md` and the approved plan before continuing implementation.
 
+**Subsequent review:** this artifact's interaction structure was rejected. The generic tile layout, graph-as-window, rail-driven pane creation and stretched utilities are not the target experience. Read `../Primary Surface UX Review.md` and the latest handoff. The flows below describe the reviewed implementation; they are not approved acceptance criteria for its replacement.
+
 ## Run
 
 Node 22.12+ and npm are required:
