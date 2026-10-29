@@ -1,0 +1,16 @@
+{
+  "closedPinSearch": {
+    "buttons": 0,
+    "text": "No matching work or actions."
+  },
+  "captionSearch": {
+    "buttons": 0,
+    "text": "No matching work or actions."
+  },
+  "sourceToSteps": {
+    "before": 4,
+    "after": 4,
+    "linkedToRecord1": 1
+  },
+  "lifecycleControls": 0
+}

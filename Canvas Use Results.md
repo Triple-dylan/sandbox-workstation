@@ -2,6 +2,8 @@
 
 October 28, 2026. Implemented in response to the user's request for distinct canvas uses: pinned messages, visuals and planning directly on the canvas. `Canvas Use Plan.md` records the researched direction. This is a local interaction implementation, not a completed collaboration/context service or visual acceptance.
 
+**Subsequent review — October 29:** [Workstation Review 2026-10-29.md](Workstation%20Review%202026-10-29.md) qualifies the recovery, search and evidence-to-action behavior below. Controlled metadata-save failure during image replacement can leave old metadata pointing to new pixels. Opening utilities can hide the actively edited plan and focus an unrelated image. Closed pin search uses only a 65-character prefix, and visual captions are not searched. One source cannot intentionally produce multiple steps. Earlier passing checks did not cover these cases. The cycle records evidence and proposed repairs; no application changes or fixes were made.
+
 ## Useful actions now available
 
 - **Pin a message:** use the pin action on a message in a conversation/thread. Its canvas object resolves the original message ID and shows author/conversation. Open original returns to that discussion. Pinning again reuses the object; changing the original is reflected after reload. Closing the view retains the reference for reopening through work search.

@@ -2,6 +2,8 @@
 
 A general-purpose workstation for people and agents, with private and collaborative work, bounded snapping modules and a graph of permitted context.
 
+**Latest review — October 29:** [Workstation Review 2026-10-29.md](Workstation%20Review%202026-10-29.md) records the new source/browser audit, primary research and second reflection. It reproduces an image replacement/save inconsistency, active-work hiding when utilities open, and incomplete reference search. It ranks repairs and the remaining canonical context-service proof with concrete acceptance journeys. This cycle changes documentation/evidence only; the preview is unchanged and the findings are not fixed. Read this report before relying on older recovery claims or passing test counts.
+
 **Current work:** the user authorized the researched refinement plan. `workstation/` now has monochrome glass controls, a coherent composer, anchored work search, editable private local documents, improved conversation/thread continuity and an agent definition/version editor. Read [Maturity Refinement Results.md](Maturity%20Refinement%20Results.md) for evidence and limits, and [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for the researched proposal. This implementation is for review, not an accepted or completed MVP.
 
 Real accounts, contacts/delivery, collaboration, server authorization, Office/browser engines, retrieval, deployed/running agents and automatic context maintenance remain unimplemented. Local agent definitions and versions are not live deployments. The existing full-surface Graph/Canvas, bounded snapping, reusable document inspection and content-sized utilities are retained.
@@ -11,7 +13,7 @@ Real accounts, contacts/delivery, collaboration, server authorization, Office/br
 ## Handoff
 
 1. Read [AGENTS.md](AGENTS.md) and [Conversation Context.md](Conversation%20Context.md) in full. Apply later confirmed answers.
-2. Follow the approved [Rebuild Plan.md](Rebuild%20Plan.md) and its design-review gate. [Research Review.md](Research%20Review.md) records the evidence and proposals.
+2. Read [Workstation Review 2026-10-29.md](Workstation%20Review%202026-10-29.md) for current reproduced gaps and proposed priorities. Follow the approved [Rebuild Plan.md](Rebuild%20Plan.md) and its design-review gate. [Research Review.md](Research%20Review.md) records the historical evidence and proposals.
 3. Read [Maturity Refinement Results.md](Maturity%20Refinement%20Results.md) for the current implementation and [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for its researched direction. [Primary Surface Fix Plan.md](Primary%20Surface%20Fix%20Plan.md) and [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describe the current code. [Stage A Review.md](Stage%20A%20Review.md) describes its rejected predecessor.
 4. [Object and Access Model.md](Object%20and%20Access%20Model.md) remains a proposed record/access contract, not implemented server authorization.
 5. The older `Interaction Contract.md`, `Design Research and Revision Plan.md` and `prototype/` contain superseded/rejected implementation evidence. Do not use their camera/zoom behavior or old test count as the current acceptance contract.

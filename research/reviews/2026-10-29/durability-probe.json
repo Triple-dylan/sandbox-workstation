@@ -1,0 +1,46 @@
+{
+  "method": "Controlled localStorage quota fault during replacement; isolated context only",
+  "before": {
+    "visual": {
+      "id": "visual:c9a9b445-9ad9-400d-8c9d-008d7781ea88",
+      "imageKey": "d34c1c5a-1dc6-4082-8dbd-4e760fec8ebc",
+      "fileName": "codex-module-style.png",
+      "width": 630,
+      "height": 512
+    },
+    "rendered": {
+      "width": 630,
+      "height": 512
+    },
+    "notice": ""
+  },
+  "failed": {
+    "visual": {
+      "id": "visual:c9a9b445-9ad9-400d-8c9d-008d7781ea88",
+      "imageKey": "d34c1c5a-1dc6-4082-8dbd-4e760fec8ebc",
+      "fileName": "codex-module-style.png",
+      "width": 630,
+      "height": 512
+    },
+    "rendered": {
+      "width": 1914,
+      "height": 1346
+    },
+    "notice": "Local storage is full. These changes have not been saved."
+  },
+  "afterReload": {
+    "visual": {
+      "id": "visual:c9a9b445-9ad9-400d-8c9d-008d7781ea88",
+      "imageKey": "d34c1c5a-1dc6-4082-8dbd-4e760fec8ebc",
+      "fileName": "codex-module-style.png",
+      "width": 630,
+      "height": 512
+    },
+    "rendered": {
+      "width": 1914,
+      "height": 1346
+    },
+    "notice": ""
+  },
+  "errors": []
+}

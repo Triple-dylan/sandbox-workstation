@@ -1,0 +1,71 @@
+{
+  "initial": {
+    "savedObjects": 3,
+    "visibleObjects": 3,
+    "left": "chat",
+    "utilities": [],
+    "goals": 4
+  },
+  "withTools": {
+    "savedObjects": 3,
+    "visibleObjects": 1,
+    "focused": "visual:7b3ce9c2-da6b-454c-aa78-351d2620b158",
+    "left": "chat",
+    "utilities": [
+      "sources",
+      "agent",
+      "goals"
+    ],
+    "goals": 4
+  },
+  "narrow": {
+    "savedObjects": 3,
+    "visibleObjects": 1,
+    "focused": "visual:7b3ce9c2-da6b-454c-aa78-351d2620b158",
+    "left": "closed",
+    "utilities": [
+      "sources",
+      "agent",
+      "goals"
+    ],
+    "goals": 4
+  },
+  "returned": {
+    "savedObjects": 3,
+    "visibleObjects": 3,
+    "left": "closed",
+    "utilities": [
+      "sources",
+      "agent",
+      "goals"
+    ],
+    "goals": 4
+  },
+  "toolsClosed": {
+    "savedObjects": 3,
+    "visibleObjects": 3,
+    "left": "closed",
+    "utilities": [],
+    "goals": 4
+  },
+  "presetShape": {
+    "array": true,
+    "fields": [
+      "id",
+      "x",
+      "y",
+      "width",
+      "height"
+    ]
+  },
+  "graphAssetGap": {
+    "visualRecords": 1,
+    "graphHasPrivateFolder": false,
+    "sourceRows": 4,
+    "graphNodes": [
+      "root",
+      "direction",
+      "research-folder"
+    ]
+  }
+}

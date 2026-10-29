@@ -2,6 +2,8 @@
 
 The user authorized implementing the researched refinement plan. Read `../Maturity Refinement Plan.md`, `../Maturity Refinement Results.md`, `../AGENTS.md` and the conversation record before continuing. This is a local interaction/configuration proof, not an accepted or completed MVP.
 
+**Current known gaps:** read [the October 29 review](../Workstation%20Review%202026-10-29.md) before using the recovery/search claims below. Its isolated probes reproduce mismatched image pixels/metadata after an injected save failure, utility opening hiding active work, and full-text/caption search omissions. These remain unfixed. The review made no application changes.
+
 ## Run
 
 Requires Node 22.12+ and npm:
@@ -33,13 +35,13 @@ Agent editing supports local definitions, purpose/instructions, private/project 
 
 Pin a message from its conversation to keep source-linked evidence on Canvas. Open original returns to the source discussion. Add to plan creates/reuses a goal with its source link; private pins cannot enter the shared project plan without sharing. Open project plan from work search or the Goals module to edit, reorder, date and complete the same goal records used by the utility.
 
-Add visual reference opens the image chooser. Dropping or pasting images onto Canvas uses the same pipeline. PNG/JPEG/WebP/GIF up to 12 MiB remain private on this browser. Actual image Blobs persist in IndexedDB with editable title/caption metadata in local state. Replace/restore retains identity. Closed pins/images remain searchable; closing is not source deletion. Capacity/storage/decoding failures preserve current work. Read `../Canvas Use Results.md` for current evidence and limits.
+Add visual reference opens the image chooser. Dropping or pasting images onto Canvas uses the same pipeline. PNG/JPEG/WebP/GIF up to 12 MiB remain private on this browser. Actual image Blobs persist in IndexedDB with editable title/caption metadata in local state. Replace/restore retains identity, but replacement is not atomic with metadata saving. Closed pins/images can be reopened through work search; only the pin's first 65 characters and image title/filename are searched. Closing is not source deletion. Invalid image validation preserves existing work; metadata-save failure can still leave a mismatched replacement. Read `../Canvas Use Results.md` and the October 29 review for evidence and limits.
 
 ## Bounded work and recovery
 
 Browser and agent-editing objects retain separate roles from the single document viewer. Drag a header for a placement preview; only valid non-overlapping drops commit. Escape cancels. Drag near a neighboring edge to snap that pair; unrelated objects stay put. Corner handles and header/resize arrow keys support bounded resizing/movement. Focus/restore preserves the arrangement. Work below short utilities remains usable.
 
-Save/restore arrangement is browser-local. Lack of capacity retains existing work and explains the outcome. Narrow-window recovery preserves object positions and restores them when room returns. Navigation/inspection can hide to maintain readable minimums; drafts and records survive. Account does not cycle fake users.
+Save/restore arrangement is one browser-local geometry snapshot, not named working contexts. Lack of capacity retains records, but can automatically focus the last-added object and hide the active task. Narrow-window recovery restores object positions when room returns; navigation hidden by the responsive layout does not automatically reopen. Drafts and records survive the exercised resize flows. Account does not cycle fake users.
 
 ## Checks and limits
 
