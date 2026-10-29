@@ -8,6 +8,8 @@ Read the complete [conversation record](Conversation%20Context.md), current [han
 
 The user then explicitly authorized reviewing, planning and implementing the correction. `Primary Surface Fix Plan.md` defines that iteration and `Primary Surface Fix Results.md` records the implementation and evidence. The generic Graph-as-pane and rail-driven window creation below are superseded; they must not be reintroduced to satisfy a pane-count test.
 
+**Later refinement review:** the composer/focus treatment, creation catalog, conversation maturity, preferences-only agent destination and center glyph were subsequently rejected. The graph/rail/icons/right modules must now be monochrome. `Maturity Refinement Plan.md` records the refreshed research, concrete replacement proposals, service boundaries and second reflection. It supersedes conflicting color/control interpretations below without treating its new workflows as accepted or implemented. The design-review gate remains.
+
 ## 1. Intended outcome
 
 Deliver a web workstation for people and agents working privately and together. The user can converse, inspect the knowledge graph and work in an open resource module at the same time. Layout is bounded, snapping and non-overlapping. Useful utility modules coexist on the right. Context is maintained automatically and actions respect actual account/resource permissions.

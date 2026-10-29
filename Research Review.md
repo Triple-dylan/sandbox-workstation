@@ -2,6 +2,8 @@
 
 October 28, 2026. This records the research/interview process that preceded the rebuild plan. **The user subsequently approved `Rebuild Plan.md`; stage A is authorized, with a design-review gate before broader implementation.** The statements below about the earlier interview/implementation pause are historical. Findings remain distinct from selected production services or accepted visuals. The existing prototype remains rejected.
 
+**Latest review:** `Maturity Refinement Plan.md` adds the 8:58–8:59 PM screenshot/source audit, refreshed research and a second reflection on composer/actions, mature conversations and agent build/deployment. The user now specifically requires monochrome graph/rail/icons/right modules and removal of the center glyph. That supersedes blue control accents and the earlier monochrome-superseded wording below. The current preview is not accepted; the new proposal is not yet implemented.
+
 ## Latest confirmed direction
 
 The user chose desktop-style snap regions with placement feedback and neighboring modules resizing. Working modules must never overlap; the workspace is bounded rather than an infinite pan/zoom surface. No application-level zoom controls belong in the composer. The graph has an anchored central node with limited displacement and a restoring force; other nodes have more movement. Physics stays enabled.

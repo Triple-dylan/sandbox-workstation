@@ -2,13 +2,15 @@
 
 A general-purpose workstation for people and agents, with private and collaborative work, bounded snapping modules and a graph of permitted context.
 
-**Current work:** the user rejected the tiled stage A structure, then explicitly authorized reviewing, planning and implementing its correction. `workstation/` now has full-surface Graph/Canvas navigation, a left conversation/resource extension, reusable inspection, content-sized utilities and deliberate bounded canvas tools. Read [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md). This is an implementation for review, not a completed or accepted MVP. Real accounts, delivery, collaboration, server permissions, Office editing, browser sessions, retrieval and running agents remain unimplemented.
+**Current work:** after the primary-surface correction, the user rejected the composer/focus treatment, creation menus, immature conversations, preferences-only agent page and graph-center glyph, and required monochrome interface chrome. [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) records the refreshed research, source/screenshot audit, proposed workflows and second reflection. This latest cycle changed documentation/evidence, not the preview. The proposed replacement is not yet accepted.
+
+`workstation/` contains the existing full-surface Graph/Canvas proof, left conversation/resource extension, reusable inspection, content-sized utilities and deliberate bounded canvas tools. [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describes those exercised behaviors; it is not acceptance of the current UI or a completed MVP. Real accounts, delivery, collaboration, server permissions, Office editing, browser sessions, retrieval and running agents remain unimplemented.
 
 ## Handoff
 
 1. Read [AGENTS.md](AGENTS.md) and [Conversation Context.md](Conversation%20Context.md) in full. Apply later confirmed answers.
 2. Follow the approved [Rebuild Plan.md](Rebuild%20Plan.md) and its design-review gate. [Research Review.md](Research%20Review.md) records the evidence and proposals.
-3. Read [Primary Surface Fix Plan.md](Primary%20Surface%20Fix%20Plan.md) and [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) for the current correction. [Stage A Review.md](Stage%20A%20Review.md) describes the rejected predecessor.
+3. Read [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for the latest review and proposed next slices. [Primary Surface Fix Plan.md](Primary%20Surface%20Fix%20Plan.md) and [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describe the current code. [Stage A Review.md](Stage%20A%20Review.md) describes its rejected predecessor.
 4. [Object and Access Model.md](Object%20and%20Access%20Model.md) remains a proposed record/access contract, not implemented server authorization.
 5. The older `Interaction Contract.md`, `Design Research and Revision Plan.md` and `prototype/` contain superseded/rejected implementation evidence. Do not use their camera/zoom behavior or old test count as the current acceptance contract.
 

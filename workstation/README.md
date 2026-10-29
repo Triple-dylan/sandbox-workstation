@@ -2,6 +2,8 @@
 
 The user explicitly authorized this implementation after rejecting the six-box stage A layout. Read `../Primary Surface Fix Plan.md`, `../Primary Surface Fix Results.md` and the latest handoff before continuing. This revision still requires user review. It is not a completed MVP.
 
+**Latest status:** the subsequent review rejects the composer/focus treatment, creation menus, conversation maturity, preferences-only agent page and decorative graph-center glyph. The graph/rail/icons/right modules must be monochrome. Read `../Maturity Refinement Plan.md` for the source/screenshot audit, refreshed research and proposed next slices. This research cycle did not change the preview; the controls documented below describe current code, not accepted design.
+
 ## Run
 
 Requires Node 22.12+ and npm:
