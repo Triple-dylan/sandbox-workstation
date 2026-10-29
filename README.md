@@ -2,15 +2,15 @@
 
 A general-purpose workstation for people and agents, with private and collaborative work, bounded snapping modules and a graph of permitted context.
 
-**Current work:** after the primary-surface correction, the user rejected the composer/focus treatment, creation menus, immature conversations, preferences-only agent page and graph-center glyph, and required monochrome interface chrome. [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) records the refreshed research, source/screenshot audit, proposed workflows and second reflection. This latest cycle changed documentation/evidence, not the preview. The proposed replacement is not yet accepted.
+**Current work:** the user authorized the researched refinement plan. `workstation/` now has monochrome glass controls, a coherent composer, anchored work search, editable private local documents, improved conversation/thread continuity and an agent definition/version editor. Read [Maturity Refinement Results.md](Maturity%20Refinement%20Results.md) for evidence and limits, and [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for the researched proposal. This implementation is for review, not an accepted or completed MVP.
 
-`workstation/` contains the existing full-surface Graph/Canvas proof, left conversation/resource extension, reusable inspection, content-sized utilities and deliberate bounded canvas tools. [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describes those exercised behaviors; it is not acceptance of the current UI or a completed MVP. Real accounts, delivery, collaboration, server permissions, Office editing, browser sessions, retrieval and running agents remain unimplemented.
+Real accounts, contacts/delivery, collaboration, server authorization, Office/browser engines, retrieval, deployed/running agents and automatic context maintenance remain unimplemented. Local agent definitions and versions are not live deployments. The existing full-surface Graph/Canvas, bounded snapping, reusable document inspection and content-sized utilities are retained.
 
 ## Handoff
 
 1. Read [AGENTS.md](AGENTS.md) and [Conversation Context.md](Conversation%20Context.md) in full. Apply later confirmed answers.
 2. Follow the approved [Rebuild Plan.md](Rebuild%20Plan.md) and its design-review gate. [Research Review.md](Research%20Review.md) records the evidence and proposals.
-3. Read [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for the latest review and proposed next slices. [Primary Surface Fix Plan.md](Primary%20Surface%20Fix%20Plan.md) and [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describe the current code. [Stage A Review.md](Stage%20A%20Review.md) describes its rejected predecessor.
+3. Read [Maturity Refinement Results.md](Maturity%20Refinement%20Results.md) for the current implementation and [Maturity Refinement Plan.md](Maturity%20Refinement%20Plan.md) for its researched direction. [Primary Surface Fix Plan.md](Primary%20Surface%20Fix%20Plan.md) and [Primary Surface Fix Results.md](Primary%20Surface%20Fix%20Results.md) describe the current code. [Stage A Review.md](Stage%20A%20Review.md) describes its rejected predecessor.
 4. [Object and Access Model.md](Object%20and%20Access%20Model.md) remains a proposed record/access contract, not implemented server authorization.
 5. The older `Interaction Contract.md`, `Design Research and Revision Plan.md` and `prototype/` contain superseded/rejected implementation evidence. Do not use their camera/zoom behavior or old test count as the current acceptance contract.
 
@@ -48,7 +48,10 @@ Browser checks use separate temporary contexts. They do not overwrite the user's
 
 | Path | Responsibility |
 | --- | --- |
-| `workstation/src/main.tsx` | Primary navigation, conversation/resource extensions, inspection, compact utilities and explicit canvas tools |
+| `workstation/src/main.tsx` | Primary navigation, record updates, inspection, utilities and work-command routing |
+| `workstation/src/Composer.tsx`, `Conversation.tsx` | Message composition, attachment handling, transcript/thread/search and reading continuity |
+| `workstation/src/WorkActions.tsx` | Anchored resource/command search and keyboard cancellation |
+| `workstation/src/AgentEditor.tsx`, `agents.ts` | Local agent definitions, immutable versions, restore/export and runtime readiness |
 | `workstation/src/Graph.tsx` | Actual source/folder graph, subject focus, bounded drag and spring return |
 | `workstation/src/canvas-layout.ts` | Bounded object sizing, collision checks and snap placement |
 | `workstation/src/state.ts` | Versioned local records and legacy-layout migration |

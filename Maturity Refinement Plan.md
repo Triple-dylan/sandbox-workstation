@@ -1,8 +1,8 @@
 # Maturity refinement: research, interaction decisions and implementation plan
 
-October 28, 2026. **Research and planning artifact; not a new accepted design or an implementation report.** Responds to the user's 8:58–8:59 PM screenshots and subsequent instruction to continue. Read alongside `Conversation Context.md`, `Research Review.md` and the current primary-surface results. Later user decisions supersede proposals here.
+October 28, 2026. **The user subsequently authorized implementing this plan by saying “proceed.” See `Maturity Refinement Results.md` for the implemented interaction revision and remaining service boundaries. This document preserves the researched proposal; implementation approval is not visual acceptance or a completed MVP.** Responds to the user's 8:58–8:59 PM screenshots and subsequent instruction to continue. Read alongside `Conversation Context.md`, `Research Review.md` and the current primary-surface results. Later user decisions supersede proposals here.
 
-The current preview has not changed during this cycle. Its source and the supplied screenshots establish the defects below. No new live-browser inspection or visual acceptance is claimed. The existing design-review gate remains: broader application implementation follows review of concrete interaction/material results, not a passing build or another assertion count.
+At the time this research proposal was written, the preview had not changed; subsequent implementation is recorded in `Maturity Refinement Results.md`. Its source and the supplied screenshots establish the defects below. No new live-browser inspection or visual acceptance is claimed. The existing design-review gate remains: broader application implementation follows review of concrete interaction/material results, not a passing build or another assertion count.
 
 ## 1. What this review changes
 
@@ -176,4 +176,4 @@ Optional innovation remains subordinate to these foundations: precise selection-
 
 No more generic discovery is needed. Exact approval routing by shared action, in-flight job behavior on retirement, message retention/edit policy and the production runtime/identity/storage/file/browser integrations remain open. Resolve these with concrete implementation scenarios and evidence before their service work; do not ask again whether the app is general purpose, whether private/shared work differs, whether agents need context, or whether the graph is actionable.
 
-The next review should assess the replacement composer/actions and the complete conversation/agent journeys against this plan. The current preview still contains the rejected treatment. This document and the updated handoff prevent another agent from treating it as accepted or replacing missing lifecycle behavior with more disconnected controls.
+The next review should assess the replacement composer/actions and the complete conversation/agent journeys against this plan. The preview at the time of this proposal still contained the rejected treatment; consult the subsequent results for current behavior. This document and the updated handoff prevent another agent from treating it as accepted or replacing missing lifecycle behavior with more disconnected controls.

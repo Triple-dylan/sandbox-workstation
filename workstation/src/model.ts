@@ -8,6 +8,8 @@ export type Message = {
   at: string;
   replyTo?: string;
   sources?: string[];
+  createdAt?: string;
+  delivery?: 'local';
 };
 export type Conversation = {
   id: string;
@@ -15,6 +17,7 @@ export type Conversation = {
   kind: 'private' | 'channel' | 'dm';
   recipient?: string;
   messages: Message[];
+  pinned?: boolean;
 };
 export type Goal = { id: string; title: string; done: boolean; due: string };
 export type Resource = {
@@ -22,7 +25,9 @@ export type Resource = {
   title: string;
   file: string;
   summary: string;
-  folder: 'direction' | 'research';
+  folder: 'direction' | 'research' | 'private';
+  body?: string;
+  updatedAt?: string;
 };
 export const resources: Resource[] = [
   {

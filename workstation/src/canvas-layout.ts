@@ -33,7 +33,7 @@ export function initialObject(
       ? { width: 560, height: 520 }
       : id === 'browser'
         ? { width: 520, height: 340 }
-        : { width: 350, height: 360 };
+        : { width: 480, height: 580 };
   const width = Math.min(preferred.width, bounds.width),
     height = Math.min(preferred.height, bounds.height);
   for (const size of [

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
   forceSimulation,
   forceLink,
@@ -10,28 +10,15 @@ import {
   type SimulationLinkDatum,
 } from 'd3-force';
 import { ArrowLeft, ChevronRight, FileText, FolderOpen, Network } from 'lucide-react';
-import { resources } from './model';
+import type { Resource } from './model';
 type Node = SimulationNodeDatum & {
   id: string;
   title: string;
   kind: 'project' | 'folder' | 'document';
 };
 type Edge = SimulationLinkDatum<Node>;
-const all: Node[] = [
-  { id: 'root', title: 'Workstation', kind: 'project' },
-  { id: 'direction', title: 'Direction', kind: 'folder' },
-  { id: 'research-folder', title: 'Research', kind: 'folder' },
-  ...resources.map((r) => ({ id: r.id, title: r.title, kind: 'document' as const })),
-];
-const parent = (id: string) =>
-  id === 'root'
-    ? ''
-    : id === 'direction' || id === 'research-folder'
-      ? 'root'
-      : resources.find((r) => r.id === id)?.folder === 'research'
-        ? 'research-folder'
-        : 'direction';
 export function Graph({
+  resources,
   subject,
   setSubject,
   onResource,
@@ -40,6 +27,7 @@ export function Graph({
   setExpanded,
   exclusion,
 }: {
+  resources: Resource[];
   expanded: boolean;
   setExpanded: (value: boolean) => void;
   subject: string;
@@ -48,6 +36,32 @@ export function Graph({
   onFolder: (id: string) => void;
   exclusion?: { x: number; y: number; width: number; height: number } | null;
 }) {
+  const graphIdentity = resources.map((r) => `${r.id}:${r.title}:${r.folder}`).join('|');
+  const all = useMemo<Node[]>(
+    () => [
+      { id: 'root', title: 'Workstation', kind: 'project' },
+      { id: 'direction', title: 'Direction', kind: 'folder' },
+      { id: 'research-folder', title: 'Research', kind: 'folder' },
+      ...(resources.some((r) => r.folder === 'private')
+        ? [{ id: 'private-folder', title: 'Private documents', kind: 'folder' as const }]
+        : []),
+      ...resources.map((r) => ({ id: r.id, title: r.title, kind: 'document' as const })),
+    ],
+    [graphIdentity],
+  );
+  const parent = useCallback(
+    (id: string) =>
+      id === 'root'
+        ? ''
+        : ['direction', 'research-folder', 'private-folder'].includes(id)
+          ? 'root'
+          : resources.find((r) => r.id === id)?.folder === 'private'
+            ? 'private-folder'
+            : resources.find((r) => r.id === id)?.folder === 'research'
+              ? 'research-folder'
+              : 'direction',
+    [graphIdentity],
+  );
   const host = useRef<HTMLDivElement>(null),
     svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ width: 500, height: 500 });
@@ -58,6 +72,7 @@ export function Graph({
     nodes: Node[];
     simulation: ReturnType<typeof forceSimulation<Node>>;
   } | null>(null);
+  const rememberedPositions = useRef<Map<string, Node>>(new Map());
   const drag = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null),
     suppress = useRef(false);
   const current = all.find((n) => n.id === subject) || all[0];
@@ -88,10 +103,18 @@ export function Graph({
           n.id === parent(subject) ||
           (n.kind === 'document' && parent(n.id) === parent(subject)),
       );
+    const priorPositions = rememberedPositions.current;
     const nodes = visible.map((n, i) => ({
       ...n,
-      x: n.id === subject ? cx : cx + Math.cos(i * 2.399) * Math.min(width * 0.3, 190),
-      y: n.id === subject ? cy : cy + Math.sin(i * 2.399) * Math.min(height * 0.28, 150),
+      x:
+        n.id === subject
+          ? cx
+          : (priorPositions.get(n.id)?.x ?? cx + Math.cos(i * 2.399) * Math.min(width * 0.3, 190)),
+      y:
+        n.id === subject
+          ? cy
+          : (priorPositions.get(n.id)?.y ??
+            cy + Math.sin(i * 2.399) * Math.min(height * 0.28, 150)),
     }));
     const ids = new Set(nodes.map((n) => n.id));
     const links: Edge[] = nodes
@@ -150,9 +173,10 @@ export function Graph({
     runtime.current = { nodes, simulation: sim };
     return () => {
       sim.stop();
+      rememberedPositions.current = new Map(nodes.map((n) => [n.id, { ...n }]));
       runtime.current = null;
     };
-  }, [size, subject, expanded, exclusion]);
+  }, [size, subject, expanded, exclusion, all, parent]);
   const begin = (e: React.PointerEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -235,12 +259,6 @@ export function Graph({
           onPointerUp={end}
           onPointerCancel={end}
         >
-          <defs>
-            <radialGradient id="hub-material">
-              <stop offset="0" stopColor="var(--hub-inner)" />
-              <stop offset="1" stopColor="var(--accent)" />
-            </radialGradient>
-          </defs>
           <g className="graph-links">
             {edges.map((l, i) => {
               const a = l.source as Node,
@@ -270,16 +288,15 @@ export function Graph({
               <circle className="node-hit" r="36" />
               {n.kind === 'project' ? (
                 <>
-                  <circle className="hub-halo" r="32" />
-                  <circle fill="url(#hub-material)" r="21" />
-                  <path className="hub-glyph" d="M-8 2L0-7 8 2M0-7V9M-8-2V8M8-2V8" />
+                  <circle className="hub-halo" r="23" />
+                  <circle className="subject-anchor" r="8" />
                 </>
               ) : n.kind === 'folder' ? (
                 <FolderOpen className="node-folder" x={-14} y={-13} size={28} strokeWidth={1.35} />
               ) : (
                 <FileText className="node-file" x={-11} y={-13} size={23} strokeWidth={1.35} />
               )}
-              <text textAnchor="middle" y={n.kind === 'project' ? 47 : 34}>
+              <text textAnchor="middle" y={n.kind === 'project' ? 38 : 34}>
                 {n.title}
               </text>
               {n.kind === 'folder' && (

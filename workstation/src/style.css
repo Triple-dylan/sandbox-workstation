@@ -10,45 +10,45 @@
   font-size: 14px;
   font-weight: 450;
   color-scheme: light;
-  --background: #eaf2f7;
-  --ambient: #d1e4f1;
-  --glass: rgba(247, 252, 255, 0.71);
-  --glass-strong: rgba(250, 253, 255, 0.94);
-  --content: #fcfdff;
-  --inset: #f2f6fa;
-  --text: #172f45;
-  --secondary: #526a7e;
-  --muted: #5b7386;
-  --line: rgba(48, 93, 128, 0.14);
-  --edge: rgba(255, 255, 255, 0.94);
-  --accent: #236eac;
-  --accent-wash: rgba(48, 129, 191, 0.12);
-  --hub-inner: #6aa8d4;
-  --shadow: 0 12px 38px -22px #28527166, 0 2px 7px -4px #13314922;
-  --error: #aa3f35;
-  --warning: #a26c14;
-  --focus: #137bbf;
+  --background: #f0f0f0;
+  --ambient: #dddddd;
+  --glass: rgba(255, 255, 255, 0.67);
+  --glass-strong: rgba(255, 255, 255, 0.95);
+  --content: #fdfdfd;
+  --inset: #f5f5f5;
+  --text: #202020;
+  --secondary: #535353;
+  --muted: #6b6b6b;
+  --line: rgba(0, 0, 0, 0.11);
+  --edge: rgba(255, 255, 255, 0.92);
+  --accent: #303030;
+  --accent-wash: rgba(0, 0, 0, 0.055);
+  --shadow: 0 12px 36px -22px #00000040, 0 1px 4px -2px #00000024;
+  --error: #454545;
+  --warning: #595959;
+  --focus: #454545;
+  --selection: #d7d7d7;
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --background: #0d1c2c;
-  --ambient: #173c56;
-  --glass: rgba(25, 47, 67, 0.72);
-  --glass-strong: rgba(25, 45, 63, 0.97);
-  --content: #142638;
-  --inset: #102133;
-  --text: #e2eff8;
-  --secondary: #abc1d2;
-  --muted: #8da8bb;
-  --line: rgba(173, 208, 231, 0.15);
-  --edge: rgba(203, 229, 247, 0.18);
-  --accent: #7abce9;
-  --accent-wash: rgba(120, 190, 238, 0.13);
-  --hub-inner: #c0e3fa;
-  --shadow: 0 14px 38px -17px #020a13aa, 0 2px 7px -4px #0008;
-  --error: #f1a397;
-  --warning: #e9bc72;
-  --focus: #84cbfa;
+  --background: #161616;
+  --ambient: #272727;
+  --glass: rgba(39, 39, 39, 0.75);
+  --glass-strong: rgba(40, 40, 40, 0.97);
+  --content: #202020;
+  --inset: #191919;
+  --text: #ededed;
+  --secondary: #c0c0c0;
+  --muted: #a3a3a3;
+  --line: rgba(255, 255, 255, 0.12);
+  --edge: rgba(255, 255, 255, 0.15);
+  --accent: #e0e0e0;
+  --accent-wash: rgba(255, 255, 255, 0.075);
+  --shadow: 0 14px 38px -17px #000000aa, 0 2px 7px -4px #0008;
+  --error: #dedede;
+  --warning: #bcbcbc;
+  --focus: #d4d4d4;
+  --selection: #505050;
 }
 * {
   box-sizing: border-box;
@@ -123,7 +123,7 @@ small {
   font-size: 12px;
 }
 ::selection {
-  background: var(--accent-wash);
+  background: var(--selection);
 }
 .sr-only {
   position: absolute;
@@ -1042,12 +1042,8 @@ legend {
 .hub-halo {
   fill: var(--accent-wash);
 }
-.hub-glyph {
-  fill: none;
-  stroke: var(--content);
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.subject-anchor {
+  fill: var(--text);
 }
 .node-folder {
   color: var(--accent);
@@ -1096,7 +1092,7 @@ legend {
   color: var(--text);
   background: var(--glass-strong);
   text-align: left;
-  box-shadow: 0 16px 55px -15px #091f4066;
+  box-shadow: 0 16px 55px -15px #00000040;
 }
 .popover > button,
 .popover > a {
@@ -1183,7 +1179,7 @@ legend {
   position: fixed;
   inset: 0;
   z-index: 80;
-  background: rgba(7, 23, 39, 0.12);
+  background: rgba(0, 0, 0, 0.12);
   display: grid;
   place-items: center;
 }

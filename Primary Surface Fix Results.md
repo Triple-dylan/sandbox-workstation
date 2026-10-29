@@ -2,7 +2,7 @@
 
 This revision follows the user's explicit instruction to review, plan and implement the correction. It preserves the improved color/rail/material direction. It is ready for review; implementation and automated checks are not user acceptance.
 
-**Subsequent review:** the user rejected several remaining controls and workflows and required monochrome graph/rail/icons/right modules. See `Maturity Refinement Plan.md` for the latest audit and proposed refinements. The behaviors measured below remain implementation evidence, not acceptance of the composer, creation menus, conversation maturity or agent preferences page. The preview has not yet been updated for that new plan.
+**Subsequent review:** the user rejected several remaining controls and workflows and required monochrome graph/rail/icons/right modules. See `Maturity Refinement Plan.md` for the latest audit and proposed refinements. The behaviors measured below remain implementation evidence, not acceptance of the composer, creation menus, conversation maturity or agent preferences page. The user subsequently authorized the new iteration; see `Maturity Refinement Results.md` for the now-implemented refinement and current service limits.
 
 ## Actual behavior
 

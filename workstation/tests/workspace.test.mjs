@@ -23,8 +23,21 @@ async function project(page) {
   await page.getByRole('button', { name: '# product-direction', exact: true }).click();
 }
 async function openTool(page, name) {
-  await page.getByRole('button', { name: 'Add a canvas tool', exact: true }).click();
-  await page.getByRole('button', { name, exact: true }).click();
+  await page.getByRole('button', { name: 'Open work', exact: true }).click();
+  const command =
+    name === 'Browser'
+      ? 'Browser connection'
+      : name === 'Agent settings'
+        ? 'Edit project agent'
+        : name;
+  if (name === 'Browser')
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('Browser');
+  await page
+    .locator('.work-results')
+    .getByRole('button', { name: new RegExp('^' + command) })
+    .click();
 }
 async function graphFillsSurface(page) {
   await page.getByRole('main', { name: 'Graph canvas', exact: true }).waitFor({ state: 'visible' });
@@ -81,10 +94,7 @@ test('fresh Canvas remains open space and starts in a private conversation', asy
   try {
     assert.equal(await page.locator('[data-object]').count(), 0);
     assert.equal(await page.locator('h1').count(), 0);
-    assert.equal(
-      await page.getByRole('button', { name: 'Add a canvas tool', exact: true }).count(),
-      1,
-    );
+    assert.equal(await page.getByRole('button', { name: 'Open work', exact: true }).count(), 1);
     assert.equal(await page.getByRole('complementary').count(), 0);
     assert.equal(await page.locator('#composer').getAttribute('placeholder'), 'Message…');
     assert.equal(await page.getByRole('button', { name: /zoom|physics|^agent$/i }).count(), 0);
@@ -223,7 +233,7 @@ test('reader reuses one viewer, preserves main/thread/DM drafts and recipient', 
     await page.getByRole('button', { name: 'Graph', exact: true }).click();
     await project(page);
     await page.locator('#composer').fill('Main draft');
-    await page.getByRole('button', { name: 'Reply', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Reply in thread', exact: true }).first().click();
     assert.equal(await page.locator('#composer').inputValue(), '');
     await page.locator('#composer').fill('Thread draft');
     await page.getByRole('button', { name: 'Exit thread reply', exact: true }).click();
@@ -231,7 +241,7 @@ test('reader reuses one viewer, preserves main/thread/DM drafts and recipient', 
     await page.getByRole('button', { name: 'Files', exact: true }).click();
     await page.getByRole('button', { name: 'Research review', exact: true }).click();
     assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
-    assert.match(await page.locator('#composer').getAttribute('placeholder'), /product-direction/);
+    assert.match(await page.locator('#composer').getAttribute('aria-label'), /product-direction/);
     await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
     assert.equal(await page.locator('.document-view').count(), 1);
     await page.getByRole('button', { name: 'Conversations', exact: true }).click();
@@ -241,10 +251,10 @@ test('reader reuses one viewer, preserves main/thread/DM drafts and recipient', 
     await page.getByRole('button', { name: 'Back to conversations', exact: true }).click();
     await page.getByRole('button', { name: '# product-direction', exact: true }).click();
     assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
-    await page.getByRole('button', { name: 'Reply', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Reply in thread', exact: true }).first().click();
     assert.equal(await page.locator('#composer').inputValue(), 'Thread draft');
     await page.reload();
-    assert.equal(await page.locator('#composer').inputValue(), 'Main draft');
+    assert.equal(await page.locator('#composer').inputValue(), 'Thread draft');
   } finally {
     await context.close();
   }
@@ -325,11 +335,12 @@ test('canvas keyboard move/resize and personal preset preserve records', async (
     assert((await objects(page))[0].rect.x > start.rect.x);
     await page.getByRole('button', { name: 'Resize browser', exact: true }).press('ArrowDown');
     await validObjects(page);
-    await page.getByLabel('Canvas actions', { exact: true }).click();
-    await page.getByRole('button', { name: 'Save arrangement', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page.getByRole('button', { name: /^Save arrangement/ }).click();
     const saved = (await stored(page)).objects;
     await page.getByRole('button', { name: 'Close browser', exact: true }).click();
-    await page.getByRole('button', { name: 'Restore arrangement', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page.getByRole('button', { name: /^Restore arrangement/ }).click();
     assert.deepEqual((await stored(page)).objects, saved);
     await validObjects(page);
   } finally {
@@ -383,27 +394,48 @@ test('subject node remains centered after a bounded drag', async () => {
   }
 });
 
-test('direct messages need no project and attachment selection cannot send accidentally', async () => {
+test('unconnected people search is honest and existing DM drafts retain context', async () => {
   const { context, page } = await session();
   try {
+    await page.evaluate(() => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.conversations.push({
+        id: 'legacy-dm',
+        kind: 'dm',
+        title: 'Existing teammate draft',
+        recipient: 'teammate@example.com',
+        messages: [],
+      });
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    });
+    await page.reload();
     await page.getByRole('button', { name: 'Conversations', exact: true }).click();
     await page.getByRole('button', { name: 'Start a direct message', exact: true }).click();
-    await page.getByPlaceholder('Name or email').fill('teammate@example.com');
-    await page.getByRole('button', { name: 'Open draft', exact: true }).click();
+    assert.match(
+      await page.locator('.contact-picker').innerText(),
+      /No workspace identity is connected/,
+    );
+    assert.equal(await page.getByPlaceholder('Name or email').count(), 0);
+    await page
+      .locator('.contact-picker')
+      .getByRole('button', { name: 'Conversations', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Existing teammate draft', exact: true }).click();
     await page.locator('#composer').fill('Hello');
     await page.getByRole('button', { name: 'Attach context', exact: true }).click();
-    await page.getByRole('button', { name: 'Rebuild plan', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: 'Attach a document' })
+      .getByRole('button', { name: 'Rebuild plan', exact: true })
+      .click();
     assert.equal(await page.locator('#composer').inputValue(), 'Hello');
     assert.doesNotMatch(await page.locator('.transcript').innerText(), /Hello/);
     assert.equal(await page.locator('[data-object]').count(), 0);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    assert.match(await page.getByRole('status').innerText(), /No message was delivered/);
+    assert.match(await page.getByRole('status').innerText(), /Delivery is not connected/);
     assert.match(await page.locator('.transcript').innerText(), /Hello/);
-    assert.equal(
-      (await stored(page)).conversations.find((c) => c.recipient === 'teammate@example.com')
-        .messages[0].sources[0],
-      'plan',
-    );
+    const m = (await stored(page)).conversations.find((c) => c.id === 'legacy-dm').messages[0];
+    assert.equal(m.sources[0], 'plan');
+    assert.equal(m.delivery, 'local');
   } finally {
     await context.close();
   }
@@ -522,7 +554,6 @@ test('Graph keeps its width and nodes remain accessible beside compact utilities
     await page.getByRole('button', { name: 'Graph', exact: true }).click();
     const before = await graphFillsSurface(page);
     await page.getByRole('button', { name: 'Project tools', exact: true }).click();
-    await page.getByRole('button', { name: 'Project agent details', exact: true }).click();
     assert.equal(
       await page.getByRole('complementary', { name: 'Resource inspection', exact: true }).count(),
       0,
@@ -607,6 +638,225 @@ test('the canvas below a compact utility stays usable without an invisible colum
     assert(actual.right > goal.x + 100);
     assert(actual.y >= goal.y + goal.height + 15);
     assert(actual.right <= area.x + area.width + 1);
+  } finally {
+    await context.close();
+  }
+});
+
+test('composer has one neutral focus boundary and respects IME and send preferences', async () => {
+  const { context, page, errors } = await session();
+  try {
+    const input = page.locator('#composer');
+    await input.fill('Keep this while composing');
+    await input.evaluate((el) =>
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          bubbles: true,
+          cancelable: true,
+          isComposing: true,
+        }),
+      ),
+    );
+    assert.equal(
+      (await stored(page)).conversations.find((c) => c.id === 'notes').messages.length,
+      0,
+    );
+    assert.equal(await input.inputValue(), 'Keep this while composing');
+    const focus = await input.evaluate((el) => ({
+      outline: getComputedStyle(el).outlineStyle,
+      boundary: getComputedStyle(el.closest('form')).boxShadow,
+    }));
+    assert.equal(focus.outline, 'none');
+    assert.notEqual(focus.boundary, 'none');
+    await page.getByRole('button', { name: 'Account and appearance', exact: true }).click();
+    await page.getByLabel('Send shortcut', { exact: true }).selectOption('modifier');
+    await page.getByRole('button', { name: 'Account and appearance', exact: true }).click();
+    await input.focus();
+    await input.press('Enter');
+    assert.equal(
+      (await stored(page)).conversations.find((c) => c.id === 'notes').messages.length,
+      0,
+    );
+    assert.match(await input.inputValue(), /\n/);
+    await input.press('Control+Enter');
+    assert.equal(
+      (await stored(page)).conversations.find((c) => c.id === 'notes').messages.length,
+      1,
+    );
+    assert.equal(await input.inputValue(), '');
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('work search is nonmodal, cancels cleanly and restores keyboard focus', async () => {
+  const { context, page } = await session();
+  try {
+    await page.locator('#composer').fill('Unsent text');
+    await page.locator('#composer').press('Control+k');
+    const search = page.getByRole('textbox', { name: 'Find work or an action', exact: true });
+    await search.fill('Research');
+    assert.equal(await page.locator('.work-results').getByRole('button').count(), 1);
+    await search.press('Escape');
+    assert.equal(await page.getByRole('dialog', { name: 'Open work', exact: true }).count(), 0);
+    assert.equal(
+      await page.locator('#composer').evaluate((el) => document.activeElement === el),
+      true,
+    );
+    assert.equal(await page.locator('#composer').inputValue(), 'Unsent text');
+    assert.equal(await page.locator('[data-object]').count(), 0);
+    assert.equal((await stored(page)).inspector, null);
+  } finally {
+    await context.close();
+  }
+});
+
+test('new documents retain canonical local identity, content and graph folder after reload', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .locator('.work-results')
+      .getByRole('button', { name: /^New document/ })
+      .click();
+    await page.getByLabel('Document title', { exact: true }).fill('Private reference');
+    await page
+      .getByLabel('Document content', { exact: true })
+      .fill('Original context with a stable identity.');
+    const id = (await stored(page)).localResources[0].id;
+    await page.reload();
+    assert.equal(
+      await page.getByLabel('Document content', { exact: true }).inputValue(),
+      'Original context with a stable identity.',
+    );
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.locator('[data-node="private-folder"]').press('Enter');
+    await page.locator(`[data-node="${id}"]`).press('Enter');
+    assert.equal(await page.locator('.document-view').count(), 1);
+    assert.equal((await stored(page)).document, id);
+    assert.equal((await stored(page)).localResources.length, 1);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('private references cannot silently enter shared conversation attachments', async () => {
+  const { context, page } = await session();
+  try {
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .locator('.work-results')
+      .getByRole('button', { name: /^New document/ })
+      .click();
+    await page.getByLabel('Document title', { exact: true }).fill('Private reference');
+    const id = (await stored(page)).localResources[0].id;
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    await project(page);
+    await page.locator('#composer').fill('Keep my shared draft');
+    await page.getByRole('button', { name: 'Attach context', exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole('dialog', { name: 'Attach a document' })
+        .getByRole('button', { name: 'Private reference', exact: true })
+        .isDisabled(),
+      true,
+    );
+    await page.locator('#composer').press('Escape');
+    await page.evaluate((id) => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.attachments.direction = [id];
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    }, id);
+    await page.reload();
+    await page.getByRole('button', { name: 'Send message', exact: true }).click();
+    assert.match(await page.getByRole('status').innerText(), /Share private documents/);
+    assert.equal(await page.locator('#composer').inputValue(), 'Keep my shared draft');
+    assert.equal(
+      (await stored(page)).conversations.find((c) => c.id === 'direction').messages.length,
+      3,
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+test('agent definitions and immutable versions persist without claiming execution', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .locator('.work-results')
+      .getByRole('button', { name: /^New agent/ })
+      .click();
+    const editor = page.locator('.agent-editor');
+    await editor.getByLabel('Name', { exact: true }).fill('Research partner');
+    await editor.getByLabel('Purpose', { exact: true }).fill('Trace claims to their sources.');
+    await editor
+      .getByLabel('Instructions', { exact: true })
+      .fill('Cite accessible sources and preserve uncertainty.');
+    await editor.getByRole('button', { name: 'Save version', exact: true }).click();
+    await editor.getByLabel('Instructions', { exact: true }).fill('A revised instruction.');
+    await editor.getByRole('button', { name: 'Save version', exact: true }).click();
+    const agents = (await stored(page)).agents;
+    const agent = agents.find((a) => a.draft.name === 'Research partner');
+    assert.equal(agent.versions.length, 2);
+    assert.equal(
+      agent.versions[0].config.instructions,
+      'Cite accessible sources and preserve uncertainty.',
+    );
+    assert.equal(agent.versions[1].config.instructions, 'A revised instruction.');
+    assert.equal(
+      await editor.getByRole('button', { name: 'Test agent', exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await editor.getByRole('button', { name: 'Deploy agent', exact: true }).isDisabled(),
+      true,
+    );
+    await editor.getByRole('button', { name: /^Version history/ }).click();
+    await editor.locator('summary').filter({ hasText: 'Version 1' }).click();
+    await editor
+      .locator('details')
+      .filter({ hasText: 'Version 1' })
+      .getByRole('button', { name: 'Restore into draft', exact: true })
+      .click();
+    assert.equal((await stored(page)).agents.find((a) => a.id === agent.id).versions.length, 2);
+    await page.reload();
+    assert.equal(
+      await page.locator('.agent-editor').getByLabel('Instructions', { exact: true }).inputValue(),
+      'Cite accessible sources and preserve uncertainty.',
+    );
+    await page.getByLabel('Agent definition', { exact: true }).selectOption('project-agent');
+    assert.equal(await page.getByLabel('Private', { exact: true }).isDisabled(), true);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('conversation search returns to a source message and thread drafts survive navigation', async () => {
+  const { context, page } = await session();
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Reply in thread', exact: true }).first().click();
+    await page.locator('#composer').fill('Thread draft retained');
+    await page.getByRole('button', { name: 'Back to conversations', exact: true }).click();
+    await page.getByRole('button', { name: 'Personal notes', exact: true }).click();
+    await page.locator('#composer').fill('Private draft retained');
+    await page.getByRole('button', { name: 'Back to conversations', exact: true }).click();
+    await page.getByRole('button', { name: '# product-direction', exact: true }).click();
+    assert.equal(await page.locator('#composer').inputValue(), 'Thread draft retained');
+    await page.getByRole('button', { name: 'Search this conversation', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Search messages', exact: true })
+      .fill('sources/context');
+    await page.locator('.message-search-results').getByRole('button').click();
+    assert.equal(await page.locator('.message-search-results').count(), 0);
+    assert.equal(await page.locator('#composer').inputValue(), '');
+    assert.match(await page.locator('.transcript').innerText(), /Sources\/context/);
   } finally {
     await context.close();
   }

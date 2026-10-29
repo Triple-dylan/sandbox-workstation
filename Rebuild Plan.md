@@ -8,7 +8,7 @@ Read the complete [conversation record](Conversation%20Context.md), current [han
 
 The user then explicitly authorized reviewing, planning and implementing the correction. `Primary Surface Fix Plan.md` defines that iteration and `Primary Surface Fix Results.md` records the implementation and evidence. The generic Graph-as-pane and rail-driven window creation below are superseded; they must not be reintroduced to satisfy a pane-count test.
 
-**Later refinement review:** the composer/focus treatment, creation catalog, conversation maturity, preferences-only agent destination and center glyph were subsequently rejected. The graph/rail/icons/right modules must now be monochrome. `Maturity Refinement Plan.md` records the refreshed research, concrete replacement proposals, service boundaries and second reflection. It supersedes conflicting color/control interpretations below without treating its new workflows as accepted or implemented. The design-review gate remains.
+**Later refinement review:** the composer/focus treatment, creation catalog, conversation maturity, preferences-only agent destination and center glyph were subsequently rejected. The graph/rail/icons/right modules must now be monochrome. `Maturity Refinement Plan.md` records the refreshed research, concrete replacement proposals, service boundaries and second reflection. The user subsequently said “proceed”; `Maturity Refinement Results.md` records its implemented local workflows and remaining service boundaries. It supersedes conflicting color/control interpretations below without implying visual acceptance or a completed production system.
 
 ## 1. Intended outcome
 

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
-  ArrowLeft,
   ArrowDown,
   Plus,
   MessageSquare,
@@ -10,7 +9,6 @@ import {
   FileText,
   BookOpen,
   Lock,
-  Users,
   Globe,
   Ellipsis,
   ShieldCheck,
@@ -25,7 +23,14 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { resources, initialConversations, type Conversation, type Theme } from './model';
+import {
+  resources,
+  initialConversations,
+  type Conversation,
+  type Theme,
+  type Resource,
+} from './model';
+import type { AgentDefinition } from './agents';
 export type WorkspaceContext = {
   selected: string;
   conversations: Conversation[];
@@ -37,6 +42,12 @@ export type WorkspaceContext = {
   setSubject: (id: string) => void;
   autonomy: string;
   setAutonomy: (mode: string) => void;
+  resources: Resource[];
+  updateResource: (id: string, body: string, title?: string) => void;
+  agents: AgentDefinition[];
+  selectedAgent: string;
+  selectAgent: (id: string) => void;
+  updateAgents: (agents: AgentDefinition[]) => void;
 };
 export const Workspace = createContext<WorkspaceContext>(null!);
 const readingPositions: Record<string, number> = {};
@@ -81,95 +92,26 @@ export function useTheme(theme: Theme) {
   }, [theme]);
 }
 
-export function ConversationView() {
-  const w = useContext(Workspace);
-  const conversation = w.conversations.find((c) => c.id === w.selected)!;
-  const bottom = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'nearest' });
-  }, [conversation?.id, conversation?.messages.length]);
-  if (!conversation) return null;
-  const roots = conversation.messages.filter((m) => !m.replyTo);
-  const replies = conversation.messages.filter((m) => m.replyTo === w.reply);
-  const root = conversation.messages.find((m) => m.id === w.reply);
-  return (
-    <div className="conversation-view">
-      <div className="conversation-scope">
-        {conversation.kind === 'channel' ? <Users size={14} /> : <Lock size={14} />}
-        <span>
-          {conversation.kind === 'channel'
-            ? 'Recorded project discussion'
-            : conversation.kind === 'dm'
-              ? `Only you and ${conversation.recipient} when connected`
-              : 'Private conversation'}
-          {conversation.kind === 'channel' && ' · imported excerpts'}
-        </span>
-      </div>
-      <div className="transcript">
-        {root ? (
-          <>
-            <button className="text-button thread-back" onClick={() => w.setReply(null)}>
-              <ArrowLeft size={14} />
-              Back to conversation
-            </button>
-            <MessageItem message={root} />
-            <div className="thread-divider">Thread</div>
-            {replies.map((m) => (
-              <MessageItem key={m.id} message={m} />
-            ))}
-          </>
-        ) : roots.length ? (
-          roots.map((m) => (
-            <div key={m.id}>
-              <MessageItem message={m} />
-              <button className="reply-button" onClick={() => w.setReply(m.id)}>
-                <MessageSquare size={13} />
-                {conversation.messages.filter((r) => r.replyTo === m.id).length || 'Reply'}
-                {conversation.messages.some((r) => r.replyTo === m.id) ? ' replies' : ''}
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="conversation-empty">
-            <MessageSquare size={26} strokeWidth={1.2} />
-            <strong>
-              {conversation.kind === 'dm'
-                ? 'Start a direct message'
-                : 'Your conversation starts here'}
-            </strong>
-            <p>
-              {conversation.kind === 'dm'
-                ? 'No project is required. This draft stays in your personal conversations.'
-                : 'Write in the floating composer. Your draft stays with this conversation.'}
-            </p>
-          </div>
-        )}
-        <div ref={bottom} />
-      </div>
-      <div className="local-footnote">
-        Messages are stored locally · no delivery or agent connected
-      </div>
-    </div>
-  );
-}
-
 export function MessageItem({ message }: { message: Conversation['messages'][number] }) {
   const w = useContext(Workspace);
   return (
     <article className="message">
-      <div className="message-avatar">{message.author === 'You' ? 'D' : 'D'}</div>
+      <div className="message-avatar">
+        {message.author === 'You' ? 'Y' : message.author.slice(0, 1)}
+      </div>
       <div>
         <div className="message-meta">
-          <strong>{message.author}</strong>
+          <strong>{message.author.replace(' · recorded feedback', '')}</strong>
           <time>{message.at}</time>
         </div>
         <p>{message.text}</p>
+        {message.delivery === 'local' && <small className="message-delivery">Local only</small>}
         {Array.isArray(message.sources) && message.sources.length > 0 && (
           <div className="message-sources">
             {message.sources.map((id) => (
               <button key={id} onClick={() => w?.openResource(id)}>
                 <FileText size={13} />
-                {resources.find((r) => r.id === id)?.title}
+                {(w?.resources || resources).find((r) => r.id === id)?.title}
               </button>
             ))}
           </div>
@@ -181,7 +123,7 @@ export function MessageItem({ message }: { message: Conversation['messages'][num
 
 export function DocumentView() {
   const w = useContext(Workspace),
-    r = resources.find((r) => r.id === w.doc)!;
+    r = w.resources.find((r) => r.id === w.doc)!;
   const [text, setText] = useState(''),
     [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -191,6 +133,10 @@ export function DocumentView() {
     let active = true;
     setText('');
     setError(false);
+    if (r.body !== undefined) {
+      setText(r.body);
+      return;
+    }
     fetch(`/resources/${encodeURIComponent(r.file)}`)
       .then((r) => {
         if (!r.ok) throw Error();
@@ -208,16 +154,20 @@ export function DocumentView() {
     return () => {
       active = false;
     };
-  }, [r.id, retry]);
+  }, [r.id, retry, r.body]);
   return (
     <div className="document-view">
       <div className="document-toolbar">
         <span>
           <FileText size={14} />
-          Markdown source
+          {r.body !== undefined ? 'Private document' : 'Markdown source'}
         </span>
         <a
-          href={`/resources/${encodeURIComponent(r.file)}`}
+          href={
+            r.body !== undefined
+              ? `data:text/markdown;charset=utf-8,${encodeURIComponent(r.body)}`
+              : `/resources/${encodeURIComponent(r.file)}`
+          }
           download={r.file}
           title="Download Markdown source"
         >
@@ -230,7 +180,22 @@ export function DocumentView() {
         className="document-scroll"
         onScroll={(e) => (positions.current[r.id] = e.currentTarget.scrollTop)}
       >
-        {error ? (
+        {r.body !== undefined ? (
+          <div className="local-document-editor">
+            <input
+              aria-label="Document title"
+              value={r.title}
+              onChange={(e) => w.updateResource(r.id, r.body!, e.target.value)}
+            />
+            <textarea
+              autoFocus
+              aria-label="Document content"
+              placeholder="Start writing…"
+              value={r.body}
+              onChange={(e) => w.updateResource(r.id, e.target.value)}
+            />
+          </div>
+        ) : error ? (
           <div className="error-state">
             <AlertCircle size={20} />
             <strong>Document could not be loaded</strong>
@@ -280,53 +245,10 @@ export function DocumentView() {
       </div>
       <div className="document-footer">
         <span className="status-dot" />
-        Repository source snapshot · read only <span>Identity: {r.id}</span>
-      </div>
-    </div>
-  );
-}
-
-export function AgentSettings() {
-  const w = useContext(Workspace);
-  return (
-    <div className="settings-content">
-      <div className="status-line">
-        <span className="status-dot offline" />
-        Runtime not connected
-      </div>
-      <h2>Personal agent preferences</h2>
-      <p>These preferences are saved locally. They do not start an agent.</p>
-      <fieldset>
-        <legend>Before changing private work</legend>
-        {[
-          ['ask', 'Ask before applying changes'],
-          ['autonomous', 'Allow autonomous changes'],
-        ].map(([value, label]) => (
-          <label className="radio-row" key={value}>
-            <input
-              type="radio"
-              name="autonomy"
-              value={value}
-              checked={w.autonomy === value}
-              onChange={() => w.setAutonomy(value)}
-            />
-            <span>{label}</span>
-          </label>
-        ))}
-      </fieldset>
-      <div className="context-callout">
-        <ShieldCheck size={19} />
-        <p>
-          Shared work follows the project’s approval policy. Personal preferences cannot override
-          it.
-        </p>
-      </div>
-      <div className="integration-state">
-        <strong>Project agent</strong>
-        <p>
-          Assignment, routine execution and source-linked context maintenance require the agent
-          service. No agent is running in this proof.
-        </p>
+        {r.body !== undefined
+          ? 'Private · saved locally'
+          : 'Repository source snapshot · read only'}{' '}
+        <span>Identity: {r.id}</span>
       </div>
     </div>
   );

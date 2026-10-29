@@ -1,16 +1,21 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, {
+  useContext,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useMemo,
+} from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  ArrowUp,
   ArrowLeft,
-  ArrowRight,
   ArrowUpRight,
   Plus,
   X,
   Check,
   ChevronDown,
   ChevronRight,
-  MessageSquare,
   MessagesSquare,
   Network,
   PanelsTopLeft,
@@ -21,7 +26,6 @@ import {
   UserRound,
   Layers,
   Globe,
-  Ellipsis,
   Maximize2,
   Minimize2,
   ShieldCheck,
@@ -31,12 +35,9 @@ import {
   Moon,
   Monitor,
   Info,
-  RotateCcw,
-  Bookmark,
   SlidersHorizontal,
   Workflow,
   BookOpen,
-  Settings2,
   PanelLeftClose,
   Pin,
 } from 'lucide-react';
@@ -44,15 +45,18 @@ import {
   IconButton,
   useTheme,
   Workspace,
-  ConversationView,
   DocumentView,
-  AgentSettings,
   BrowserProof,
   Materials,
   WidthDivider,
 } from './components';
 import { Graph } from './Graph';
-import { resources, storageKey, type Utility, type Goal } from './model';
+import { ConversationView } from './Conversation';
+import { Composer } from './Composer';
+import { WorkActions, type WorkCommand } from './WorkActions';
+import { AgentEditor } from './AgentEditor';
+import { newAgent } from './agents';
+import { resources as repositoryResources, storageKey, type Utility, type Goal } from './model';
 import { loadState, type State, type LeftMode } from './state';
 import {
   initialObject,
@@ -71,7 +75,7 @@ import './workspace.css';
 const toolNames: Record<Tool, string> = {
   document: 'Document',
   browser: 'Browser',
-  'agent-settings': 'Agent settings',
+  'agent-settings': 'Agent builder',
 };
 const toolIcons = { document: FileText, browser: Globe, 'agent-settings': SlidersHorizontal };
 function App() {
@@ -80,12 +84,19 @@ function App() {
     (value: Partial<State>) => setState((old) => ({ ...old, ...value })),
     [],
   );
-  const [reply, setReply] = useState<string | null>(null),
-    [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState('');
+  const resources = useMemo(
+    () => [...repositoryResources, ...s.localResources],
+    [s.localResources],
+  );
+  const reply = s.threadByConversation[s.selected] || null;
+  const setReply = (id: string | null) =>
+    setState((old) => ({
+      ...old,
+      threadByConversation: { ...old.threadByConversation, [old.selected]: id || '' },
+    }));
   const [account, setAccount] = useState(false),
-    [attachmentsOpen, setAttachmentsOpen] = useState(false),
-    [picker, setPicker] = useState(false),
-    [dm, setDm] = useState(false);
+    [picker, setPicker] = useState(false);
   const [search, setSearch] = useState(''),
     [focus, setFocus] = useState<Tool | null>(null);
   const [utilityCollapsed, setUtilityCollapsed] = useState<Utility[]>([]);
@@ -146,13 +157,6 @@ function App() {
     return () => clearTimeout(timer);
   }, [notice]);
   useLayoutEffect(() => {
-    const el = composer.current;
-    if (el) {
-      el.style.height = 'auto';
-      el.style.height = `${Math.min(140, Math.max(31, el.scrollHeight))}px`;
-    }
-  }, [s.drafts, draftKey]);
-  useLayoutEffect(() => {
     if (!stage.current) return;
     const observer = new ResizeObserver(([entry]) =>
       setBounds({ width: entry.contentRect.width, height: entry.contentRect.height }),
@@ -168,9 +172,7 @@ function App() {
       }
       if (e.key === 'Escape') {
         setAccount(false);
-        setAttachmentsOpen(false);
         setPicker(false);
-        setDm(false);
       }
     };
     window.addEventListener('keydown', key);
@@ -178,7 +180,7 @@ function App() {
   }, []);
   const roomFor = (left: LeftMode, inspection: boolean) =>
     window.innerWidth -
-      (left === 'closed' ? 0 : left === 'chat' ? 300 : 244) -
+      (left === 'closed' ? 0 : left === 'chat' ? 360 : 260) -
       (inspection ? readerWidth : s.utilities.length ? 260 : 0) -
       100 >=
     320;
@@ -267,7 +269,6 @@ function App() {
     setPicker(false);
   };
   const select = (id: string) => {
-    setReply(null);
     patch({ selected: id });
     revealLeft('chat');
   };
@@ -277,7 +278,8 @@ function App() {
         c.kind === 'private' &&
         c.title === 'New chat' &&
         !c.messages.length &&
-        !s.drafts[c.id]?.trim(),
+        !s.drafts[c.id]?.trim() &&
+        !s.attachments[c.id]?.length,
     );
     const id = empty?.id || crypto.randomUUID();
     setState((old) => ({
@@ -289,12 +291,22 @@ function App() {
       left: 'chat',
       ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
     }));
-    setReply(null);
     setTimeout(() => composer.current?.focus(), 0);
   };
   const send = () => {
     const text = (s.drafts[draftKey] || '').trim();
     if (!text) return;
+    if (
+      current.kind !== 'private' &&
+      (s.attachments[draftKey] || []).some(
+        (id) => resources.find((r) => r.id === id)?.folder === 'private',
+      )
+    ) {
+      setNotice(
+        'Share private documents before attaching them to a channel or direct message. Your draft is retained.',
+      );
+      return;
+    }
     setState((old) => ({
       ...old,
       conversations: old.conversations.map((c) =>
@@ -308,6 +320,8 @@ function App() {
                   id: crypto.randomUUID(),
                   text,
                   author: 'You',
+                  createdAt: new Date().toISOString(),
+                  delivery: 'local' as const,
                   at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   ...(reply ? { replyTo: reply } : {}),
                   sources: old.attachments[draftKey] || [],
@@ -321,7 +335,7 @@ function App() {
       left: 'chat',
       ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
     }));
-    setNotice('Saved in this browser. No message was delivered to a person or agent.');
+    setNotice('Saved on this browser. Delivery is not connected.');
   };
   const openTool = (id: Tool) => {
     if (s.objects.some((o) => o.id === id)) {
@@ -459,7 +473,69 @@ function App() {
     window.addEventListener('pointercancel', cancel);
     window.addEventListener('keydown', escape);
   };
+  const openAgent = () => {
+    if (s.surface === 'graph')
+      patch({
+        inspector: { kind: 'agent-settings', id: 'agent' },
+        ...(!roomFor(s.left, true) ? { left: 'closed' as const } : {}),
+      });
+    else openTool('agent-settings');
+  };
+  const runCommand = (id: WorkCommand) => {
+    if (id === 'new-document') {
+      const resource = {
+        id: crypto.randomUUID(),
+        title: 'Untitled document',
+        file: 'Untitled document.md',
+        summary: 'Private local document',
+        folder: 'private' as const,
+        body: '',
+        updatedAt: new Date().toISOString(),
+      };
+      setState((old) => ({ ...old, localResources: [...old.localResources, resource] }));
+      inspect(resource.id);
+    } else if (id === 'new-agent') {
+      const a = newAgent();
+      setState((old) => ({ ...old, agents: [...old.agents, a], selectedAgent: a.id }));
+      openAgent();
+    } else if (id === 'browser-connection') {
+      openTool('browser');
+    } else if (id === 'edit-agent') {
+      patch({
+        selectedAgent: s.agents.find((a) => a.id === 'project-agent')?.id || s.selectedAgent,
+      });
+      openAgent();
+    } else if (id === 'save-layout') {
+      patch({ preset: s.objects.map((o) => ({ ...o })) });
+      setNotice('Canvas arrangement saved locally.');
+    } else if (s.preset) {
+      patch({ surface: 'canvas', objects: s.preset });
+      recovery.current = null;
+      setFocus(null);
+    }
+  };
   const context = {
+    resources,
+    updateResource: (id: string, body: string, title?: string) =>
+      setState((old) => ({
+        ...old,
+        localResources: old.localResources.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                body,
+                ...(title !== undefined
+                  ? { title, file: `${title || 'Untitled document'}.md` }
+                  : {}),
+                updatedAt: new Date().toISOString(),
+              }
+            : r,
+        ),
+      })),
+    agents: s.agents,
+    selectedAgent: s.selectedAgent,
+    selectAgent: (id: string) => patch({ selectedAgent: id }),
+    updateAgents: (agents: State['agents']) => patch({ agents }),
     selected: s.selected,
     conversations: s.conversations,
     reply,
@@ -546,6 +622,19 @@ function App() {
                       />
                     ))}
                   </div>
+                  <label className="send-preference">
+                    Send message with
+                    <select
+                      aria-label="Send shortcut"
+                      value={s.sendShortcut}
+                      onChange={(e) =>
+                        patch({ sendShortcut: e.target.value as State['sendShortcut'] })
+                      }
+                    >
+                      <option value="enter">Enter</option>
+                      <option value="modifier">⌘ / Ctrl + Enter</option>
+                    </select>
+                  </label>
                   <a href="/materials" target="_blank" rel="noreferrer">
                     Component proof <ArrowUpRight size={14} />
                   </a>
@@ -578,9 +667,11 @@ function App() {
                   ? current.kind === 'channel'
                     ? `# ${current.title}`
                     : current.title
-                  : s.left === 'files'
-                    ? 'Files'
-                    : 'Conversations'}
+                  : s.left === 'people'
+                    ? 'New message'
+                    : s.left === 'files'
+                      ? 'Files'
+                      : 'Conversations'}
               </strong>
               {s.left === 'list' && (
                 <IconButton icon={Plus} label="New private chat" onClick={newChat} />
@@ -597,6 +688,22 @@ function App() {
               <div className="navigation-content">
                 <ResourceRows onOpen={(id) => inspect(id)} />
               </div>
+            ) : s.left === 'people' ? (
+              <div className="contact-picker">
+                <button className="text-button" onClick={() => revealLeft('list')}>
+                  <ArrowLeft size={14} />
+                  Conversations
+                </button>
+                <h3>Find a person</h3>
+                <p>
+                  No workspace identity is connected. People search and direct-message delivery
+                  become available when accounts are connected.
+                </p>
+                <small>
+                  Your existing local DM drafts are retained. Entering a name alone cannot establish
+                  a recipient’s identity or access.
+                </small>
+              </div>
             ) : (
               <>
                 <label className="search-field">
@@ -612,7 +719,10 @@ function App() {
                   <div className="section-label">
                     <Lock size={13} />
                     Personal
-                    <button aria-label="Start a direct message" onClick={() => setDm(true)}>
+                    <button
+                      aria-label="Start a direct message"
+                      onClick={() => revealLeft('people')}
+                    >
                       <Plus size={15} />
                     </button>
                   </div>
@@ -629,9 +739,9 @@ function App() {
                         aria-label={c.title}
                         onClick={() => select(c.id)}
                       >
-                        {c.kind === 'dm' ? <UserRound size={15} /> : <MessageSquare size={15} />}
+                        {c.kind === 'dm' ? <UserRound size={15} /> : <Lock size={14} />}
                         <span>{c.title}</span>
-                        {!!s.drafts[c.id] && <i aria-label="Has draft" />}
+                        {!!s.drafts[c.id] && <small className="draft-label">Draft</small>}
                       </button>
                     ))}
                   <div className="project-label">
@@ -686,6 +796,7 @@ function App() {
             >
               {s.surface === 'graph' ? (
                 <Graph
+                  resources={resources}
                   subject={s.graphSubject}
                   exclusion={graphExclusion}
                   setSubject={(id) => patch({ graphSubject: id })}
@@ -787,7 +898,7 @@ function App() {
                             ) : object.id === 'browser' ? (
                               <BrowserProof />
                             ) : (
-                              <AgentSettings />
+                              <AgentEditor />
                             )}
                           </div>
                           {!focus && (
@@ -833,54 +944,30 @@ function App() {
                       ))}
                     </div>
                   )}
-                  <div className="canvas-actions">
-                    <IconButton
-                      className="canvas-add glass"
-                      icon={Plus}
-                      label="Add a canvas tool"
-                      onClick={() => setPicker(true)}
-                    />
-                    <details>
-                      <summary aria-label="Canvas actions" title="Canvas actions">
-                        <Ellipsis size={18} />
-                      </summary>
-                      <div className="popover canvas-menu glass">
-                        <button
-                          onClick={(e) => {
-                            (e.currentTarget.closest('details') as HTMLDetailsElement).open = false;
-                            setPicker(true);
-                          }}
-                        >
-                          <Plus size={16} />
-                          Add a tool <kbd>⌘K</kbd>
-                        </button>
-                        <button
-                          onClick={() => {
-                            patch({ preset: s.objects.map((o) => ({ ...o })) });
-                            setNotice('Canvas arrangement saved locally.');
-                          }}
-                        >
-                          <Bookmark size={16} />
-                          Save arrangement
-                        </button>
-                        <button
-                          disabled={!s.preset}
-                          onClick={() => {
-                            if (s.preset) {
-                              patch({ objects: s.preset });
-                              recovery.current = null;
-                              setFocus(null);
-                            }
-                          }}
-                        >
-                          <RotateCcw size={16} />
-                          Restore arrangement
-                        </button>
-                      </div>
-                    </details>
-                  </div>
                 </>
               )}
+              <div className="work-action-anchor">
+                <button
+                  className="open-work-button glass"
+                  aria-label="Open work"
+                  aria-expanded={picker}
+                  onClick={() => setPicker((v) => !v)}
+                >
+                  <FolderOpen size={16} />
+                  <span>Open…</span>
+                  <kbd>⌘K</kbd>
+                </button>
+                {picker && (
+                  <WorkActions
+                    resources={resources}
+                    canRestore={!!s.preset}
+                    canSave={s.objects.length > 0}
+                    onOpen={(id) => inspect(id)}
+                    onCommand={runCommand}
+                    onClose={() => setPicker(false)}
+                  />
+                )}
+              </div>
             </main>
             {s.inspector ? (
               <>
@@ -914,11 +1001,13 @@ function App() {
                       {s.inspector.kind === 'folder'
                         ? s.inspector.id === 'research-folder'
                           ? 'Research'
-                          : s.inspector.id === 'direction'
-                            ? 'Direction'
-                            : 'Resources'
+                          : s.inspector.id === 'private-folder'
+                            ? 'Private documents'
+                            : s.inspector.id === 'direction'
+                              ? 'Direction'
+                              : 'Resources'
                         : s.inspector.kind === 'agent-settings'
-                          ? 'Agent preferences'
+                          ? 'Agent builder'
                           : resources.find((r) => r.id === s.document)!.title}
                     </strong>
                     {s.inspector.kind === 'document' && (
@@ -941,7 +1030,7 @@ function App() {
                         onOpen={(id) => inspect(id, 'document', s.inspector!.id)}
                       />
                     ) : s.inspector.kind === 'agent-settings' ? (
-                      <AgentSettings />
+                      <AgentEditor />
                     ) : (
                       <DocumentView />
                     )}
@@ -965,125 +1054,42 @@ function App() {
                       }
                       onClose={() => patch({ utilities: s.utilities.filter((u) => u !== kind) })}
                       onSource={(id) => inspect(id)}
+                      onAgent={() => runCommand('edit-agent')}
                     />
                   ))}
                 </aside>
               )
             )}
           </div>
-          <form
-            className="composer glass"
-            onSubmit={(e) => {
-              e.preventDefault();
-              send();
-            }}
-          >
-            {reply && (
-              <div className="reply-target">
-                <MessageSquare size={13} />
-                Replying in thread
-                <IconButton icon={X} label="Exit thread reply" onClick={() => setReply(null)} />
-              </div>
-            )}
-            {!!s.attachments[draftKey]?.length && (
-              <div className="draft-sources">
-                {s.attachments[draftKey].map((id) => (
-                  <span key={id}>
-                    <FileText size={13} />
-                    {resources.find((r) => r.id === id)?.title}
-                    <IconButton
-                      icon={X}
-                      label={`Remove ${resources.find((r) => r.id === id)?.title} attachment`}
-                      onClick={() =>
-                        patch({
-                          attachments: {
-                            ...s.attachments,
-                            [draftKey]: s.attachments[draftKey].filter((x) => x !== id),
-                          },
-                        })
-                      }
-                    />
-                  </span>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={composer}
-              id="composer"
-              aria-label={
-                current.kind === 'channel'
-                  ? `Message #${current.title}`
-                  : current.kind === 'dm'
-                    ? `Message ${current.recipient}`
-                    : 'Message in private chat'
-              }
-              placeholder={
-                current.kind === 'channel'
-                  ? `Message #${current.title}…`
-                  : current.kind === 'dm'
-                    ? `Message ${current.recipient}…`
-                    : 'Message…'
-              }
-              rows={1}
-              value={s.drafts[draftKey] || ''}
-              onChange={(e) => patch({ drafts: { ...s.drafts, [draftKey]: e.target.value } })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-            />
-            <div className="composer-actions">
-              <div className="add-anchor">
-                <IconButton
-                  icon={Plus}
-                  label="Attach context"
-                  active={attachmentsOpen}
-                  onClick={() => setAttachmentsOpen((v) => !v)}
-                />
-                {attachmentsOpen && (
-                  <div className="popover add-pop glass">
-                    <span className="field-label">Attach a repository source</span>
-                    {resources.map((r) => (
-                      <button
-                        type="button"
-                        key={r.id}
-                        onClick={() => {
-                          patch({
-                            attachments: {
-                              ...s.attachments,
-                              [draftKey]: [...new Set([...(s.attachments[draftKey] || []), r.id])],
-                            },
-                          });
-                          setAttachmentsOpen(false);
-                        }}
-                      >
-                        <FileText size={15} />
-                        {r.title}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <span className="composer-audience">
-                <span className="status-dot" />
-                {current.kind === 'channel'
-                  ? 'Project channel'
-                  : current.kind === 'dm'
-                    ? 'Direct message draft'
-                    : 'Private chat'}
-              </span>
-              <button
-                className="send-button"
-                aria-label="Send message"
-                type="submit"
-                disabled={!s.drafts[draftKey]?.trim()}
-              >
-                <ArrowUp size={20} />
-              </button>
-            </div>
-          </form>
+          <Composer
+            current={current}
+            draft={s.drafts[draftKey] || ''}
+            attachments={s.attachments[draftKey] || []}
+            resources={resources}
+            reply={current.messages.find((m) => m.id === reply)}
+            shortcut={s.sendShortcut}
+            inputRef={composer}
+            onExitReply={() => setReply(null)}
+            onChange={(text) => patch({ drafts: { ...s.drafts, [draftKey]: text } })}
+            onSend={send}
+            onAttach={(id) =>
+              patch({
+                attachments: {
+                  ...s.attachments,
+                  [draftKey]: [...new Set([...(s.attachments[draftKey] || []), id])],
+                },
+              })
+            }
+            onRemove={(id) =>
+              patch({
+                attachments: {
+                  ...s.attachments,
+                  [draftKey]: (s.attachments[draftKey] || []).filter((x) => x !== id),
+                },
+              })
+            }
+            onOpen={(id) => inspect(id)}
+          />
         </div>
         {notice && (
           <div className="notice glass" role="status">
@@ -1092,98 +1098,21 @@ function App() {
             <IconButton icon={X} label="Dismiss notification" onClick={() => setNotice('')} />
           </div>
         )}
-        {picker && (
-          <div className="menu-backdrop" onPointerDown={() => setPicker(false)}>
-            <div className="tool-picker glass" onPointerDown={(e) => e.stopPropagation()}>
-              <div className="list-heading">
-                <strong>Tools for the canvas</strong>
-                <IconButton icon={X} label="Close tool picker" onClick={() => setPicker(false)} />
-              </div>
-              {(['document', 'browser', 'agent-settings'] as Tool[]).map((id) => {
-                const Icon = toolIcons[id];
-                return (
-                  <button key={id} aria-label={toolNames[id]} onClick={() => openTool(id)}>
-                    <Icon size={19} />
-                    <span>
-                      {toolNames[id]}
-                      <small>
-                        {id === 'document'
-                          ? 'Place the selected source'
-                          : id === 'browser'
-                            ? 'Independent browser surface'
-                            : 'Personal autonomy preferences'}
-                      </small>
-                    </span>
-                    <Plus size={15} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {dm && (
-          <div className="menu-backdrop" onPointerDown={() => setDm(false)}>
-            <form
-              className="dm-pop glass"
-              onPointerDown={(e) => e.stopPropagation()}
-              onSubmit={(e) => {
-                e.preventDefault();
-                const recipient = String(
-                  new FormData(e.currentTarget).get('recipient') || '',
-                ).trim();
-                if (!recipient) return;
-                const existing = s.conversations.find(
-                  (c) => c.kind === 'dm' && c.recipient?.toLowerCase() === recipient.toLowerCase(),
-                );
-                const id = existing?.id || crypto.randomUUID();
-                patch({
-                  selected: id,
-                  conversations: existing
-                    ? s.conversations
-                    : [
-                        ...s.conversations,
-                        { id, title: recipient, recipient, kind: 'dm', messages: [] },
-                      ],
-                  left: 'chat',
-                  ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
-                });
-                setReply(null);
-                setDm(false);
-              }}
-            >
-              <div className="list-heading">
-                <strong>Direct message</strong>
-                <IconButton
-                  icon={X}
-                  label="Close direct message form"
-                  onClick={() => setDm(false)}
-                />
-              </div>
-              <label>
-                Person or email
-                <input
-                  name="recipient"
-                  autoFocus
-                  required
-                  maxLength={200}
-                  placeholder="Name or email"
-                />
-              </label>
-              <p>Opens a local draft. Contact lookup and delivery require the identity service.</p>
-              <button className="primary">
-                Open draft <ArrowRight size={15} />
-              </button>
-            </form>
-          </div>
-        )}
       </div>
     </Workspace.Provider>
   );
 }
 function ResourceRows({ folder, onOpen }: { folder?: string; onOpen: (id: string) => void }) {
+  const { resources } = useContext(Workspace);
   const [query, setQuery] = useState('');
   const group =
-    folder === 'direction' ? 'direction' : folder === 'research-folder' ? 'research' : null;
+    folder === 'direction'
+      ? 'direction'
+      : folder === 'research-folder'
+        ? 'research'
+        : folder === 'private-folder'
+          ? 'private'
+          : null;
   return (
     <div className="resource-navigation">
       <label className="search-field">
@@ -1224,6 +1153,7 @@ function UtilityCard({
   onCollapse,
   onClose,
   onSource,
+  onAgent,
 }: {
   kind: Utility;
   goals: Goal[];
@@ -1232,10 +1162,12 @@ function UtilityCard({
   onCollapse: () => void;
   onClose: () => void;
   onSource: (id: string) => void;
+  onAgent: () => void;
 }) {
   const [adding, setAdding] = useState(false),
     [dateFor, setDateFor] = useState<string | null>(null);
-  const [agentDetails, setAgentDetails] = useState(false);
+  const w = useContext(Workspace);
+  const resources = w.resources.filter((r) => r.folder !== 'private');
   const Icon = kind === 'sources' ? BookOpen : kind === 'agent' ? Workflow : Target;
   return (
     <section
@@ -1276,22 +1208,19 @@ function UtilityCard({
             </>
           ) : kind === 'agent' ? (
             <>
-              <div className="compact-agent">
-                <span className="status-dot offline" />
-                <span>Runtime not connected</span>
-                <IconButton
-                  icon={Settings2}
-                  label="Project agent details"
-                  active={agentDetails}
-                  onClick={() => setAgentDetails((v) => !v)}
-                />
-              </div>
-              {agentDetails && (
-                <p className="agent-details">
-                  Shared changes require approval. Automatic context maintenance and persistent
-                  project assignment need the agent service; no agent is running.
-                </p>
-              )}
+              <button className="agent-summary" onClick={onAgent}>
+                <Workflow size={17} />
+                <span>
+                  <strong>
+                    {w.agents.find((a) => a.id === 'project-agent')?.draft.name || 'Project agent'}
+                  </strong>
+                  <small>Local definition · runtime not connected</small>
+                </span>
+                <ChevronRight size={14} />
+              </button>
+              <button className="text-button" onClick={onAgent}>
+                Edit agent <ArrowUpRight size={12} />
+              </button>
             </>
           ) : (
             <>

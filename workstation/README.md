@@ -1,8 +1,6 @@
-# Workstation primary-surface correction
+# Workstation refinement revision
 
-The user explicitly authorized this implementation after rejecting the six-box stage A layout. Read `../Primary Surface Fix Plan.md`, `../Primary Surface Fix Results.md` and the latest handoff before continuing. This revision still requires user review. It is not a completed MVP.
-
-**Latest status:** the subsequent review rejects the composer/focus treatment, creation menus, conversation maturity, preferences-only agent page and decorative graph-center glyph. The graph/rail/icons/right modules must be monochrome. Read `../Maturity Refinement Plan.md` for the source/screenshot audit, refreshed research and proposed next slices. This research cycle did not change the preview; the controls documented below describe current code, not accepted design.
+The user authorized implementing the researched refinement plan. Read `../Maturity Refinement Plan.md`, `../Maturity Refinement Results.md`, `../AGENTS.md` and the conversation record before continuing. This is a local interaction/configuration proof, not an accepted or completed MVP.
 
 ## Run
 
@@ -13,28 +11,31 @@ npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:4174/>. The existing loopback server can be reused. Predev/prebuild prepare four actual project Markdown snapshots and a content-hash manifest. Generated files retain their source IDs; they are not private/shared copies. This preview has no authentication and is not a production shared service.
+Open <http://127.0.0.1:4174/>. Reuse the existing loopback server. Predev/prebuild snapshot four actual repository Markdown sources with content hashes; their generated copies retain stable source identities. The preview has no authentication and is not a production shared service.
 
-## Navigation and work
+## Navigation, composition and work
 
-- **Canvas** and **Graph** are primary rail destinations. Neither becomes a window. Graph fills the working surface; full graph returns to its centered project subject.
-- **Conversations** reveals the left navigation extension. Select a conversation to show its history there; Back returns to the list. New private chat opens an identified draft, without a naming form. Personal plus opens a human-DM draft without a project.
-- **Files** reveals resource navigation on the left. It creates no canvas objects. A folder/file selection opens one supporting inspection area. A file replaces the folder in that area; it does not add another explorer window. Close inspection restores the preceding utilities.
-- **Project tools** reveals independent Sources/context, Agent and Goals. Each fits its content and collapses/closes independently. These tools anchor on both working surfaces without taking an empty column. Graph nodes and canvas objects avoid their occupied area; the space beneath a short tool remains usable. A lone Goals module does not fill the screen. Optional due dates appear through each goal's calendar action.
-- The floating composer keeps its selected conversation/thread and draft. Its plus attaches a source. Opening a file never changes the recipient. Sending saves locally and explains that no message was delivered.
-- Account opens local status and System/Light/Dark appearance. It never cycles fake users.
+- **Canvas/Graph** are primary rail destinations, never generic windows. Fresh Canvas is blank working space. Graph retains anchored physics and full-surface rendering without the decorative center glyph or application zoom.
+- **Conversations** reveals left navigation/history. Back returns to the list. Channels, private conversations and retained unverified DM drafts have distinct audiences. New private chat opens an identified draft without naming paperwork. People search explains the missing identity service; it does not pretend an arbitrary name is a verified contact.
+- Message search finds actual local transcript content and returns to its parent discussion. Replying retains parent context; main/thread drafts and attachments stay separate across navigation/reload. Reading offsets survive navigation within the browser session. A jump to new content avoids automatic scroll takeover when reading older messages.
+- The floating composer uses one neutral focus boundary. The paperclip attaches accessible source references; a reference can be inspected without sending. A private local document cannot be attached to a channel/DM draft without sharing first. Opening content never retargets messages. Sending records a local-only message; no person/agent receives it. Account includes the Enter versus Command/Control+Enter preference and appearance. IME composition is respected.
+- **Files** reveals navigation without creating work. Selecting a folder/file reuses one inspector; closing it restores prior utilities. Place document on canvas deliberately moves the single reader to a bounded work object.
+- **Project tools** reveals independent content-sized Sources/context, Project agent and Goals. They can be visible concurrently. There is no empty full-height utility column. Goals retain completion and optional simple dates.
+- **Open…**, Command/Control+K or empty-Canvas context menu open the same anchored resource/action search. Search existing resources or choose New document/New agent/Edit project agent directly. Escape cancels and restores focus. Applicable canvas arrangement actions use the same command routing. Browser connection is a searchable diagnostic for the unavailable service, not a working authenticated browser.
 
-## Canvas tools
+## Documents and agents
 
-Use the small Add a canvas tool action on Canvas. Command/Ctrl+K and right-click on empty Canvas are supplemental routes. Document, Browser and Agent settings are distinct tools. Selecting a source inspects it; Place document on canvas deliberately moves the one reader into a work object. A second document viewer is never created.
+New document creates a private local record with stable ID, editable body/title and Markdown download. It appears under Private documents in the local graph. Repository sources remain read-only Markdown snapshots. They are not duplicated when opened. These surfaces are not full-fidelity Word/Sheets/Slides engines.
 
-Working objects are purpose-sized, not stretched into a wall of tiles. Drag a header to preview a snapped position; release only commits a valid collision-free position. Escape cancels. Drag close to another object's edge to snap that pair together; other objects remain unchanged. Use the corner handle to resize. Header/corner arrow keys offer keyboard movement/resizing. Focus/restore retains the arrangement.
+Agent editing supports local definitions, purpose/instructions, private/project scope, inherited context preference and private autonomy. The dedicated project definition retains project scope. Save version preserves an immutable configuration snapshot; Version history can restore an older version into the editable draft without changing that history. Export downloads the definition/version record. Test/deploy controls explain the missing runtime and remain unavailable. Local saving is not publishing to a live runtime, deployment or execution.
 
-The Canvas actions menu saves/restores one local arrangement. It does not copy resources. Lack of room is explained without dropping existing objects. Narrow-window recovery retains object positions and restores them when room returns. Smaller graph/reader layouts may hide navigation to protect readable work; drafts and reading state remain intact.
+## Bounded work and recovery
 
-## Checks
+Browser and agent-editing objects retain separate roles from the single document viewer. Drag a header for a placement preview; only valid non-overlapping drops commit. Escape cancels. Drag near a neighboring edge to snap that pair; unrelated objects stay put. Corner handles and header/resize arrow keys support bounded resizing/movement. Focus/restore preserves the arrangement. Work below short utilities remains usable.
 
-With the server running and Google Chrome installed:
+Save/restore arrangement is browser-local. Lack of capacity retains existing work and explains the outcome. Narrow-window recovery preserves object positions and restores them when room returns. Navigation/inspection can hide to maintain readable minimums; drafts and records survive. Account does not cycle fake users.
+
+## Checks and limits
 
 ```sh
 npm run build
@@ -42,12 +43,10 @@ npm run format:check
 npm test
 ```
 
-The replacement browser suite checks the corrected navigation and ordinary task sequence, not a required count of generic panes. It covers full Graph bounds, no rail-driven work creation, content-sized utilities, inspection reuse, recipients/drafts, intentional placement, pointer/keyboard behavior, recovery, migration and failed source retry. Browser contexts are isolated from the user's preview records.
+Tests use isolated browser contexts and do not reset the user's preview. They cover full Graph bounds/anchor, no rail-driven work creation, content-sized utilities, viewer reuse, drafts/recipients, placement/cancel/recovery, source retry, IME/shortcut/focus, command cancellation, document persistence, private-reference handling, agent versions and conversation search. See the root results document for final outcomes and captures. Passing tests are not visual acceptance or server authorization.
 
-## State and limits
+The same `workstation-layout-proof-v1` key stores version-2 view state plus additive local documents, agent definitions/versions, thread selection and send preference. Existing conversation/message/draft/attachment/goal/appearance records and legacy layout data remain. Old split trees are never restored as windows. Reading positions are session-local, not server records.
 
-The same origin/key, `workstation-layout-proof-v1`, now stores version 2 view state alongside existing conversation/message/draft/attachment/goal/appearance records. The rejected split tree is retained as `legacyLayout` and never restored as windows. Canvas objects/preset and graph/navigation/inspection state persist locally. Reading offsets survive source switching within the loaded session; they are not cross-device or durable server state.
+No accounts/contact lookup/delivery, authoritative access enforcement, shared editing/presence, retrieval, approvals/jobs/schedules, executing agents, automatic context maintenance, browser session or native Office engine is connected. `/materials` remains a visual specimen; its static examples are not production workflows. No provider or paid deployment service was selected.
 
-The reader is read-only Markdown. Browser reports no session connected; Agent settings save preferences without running a model. No real accounts, message delivery, access enforcement, shared editing, presence, retrieval, approvals, jobs, schedules or automatic context maintenance are implemented. The material page at `/materials` contains visual state specimens, not connected approval/reconnect actions.
-
-Whole-workspace Dockview/Gridview and its adapter were removed. `main.tsx` owns primary navigation, `components.tsx` contains reused content components, `state.ts` migrates records and `canvas-layout.ts` constrains only deliberate work objects. The accepted color/material direction is retained separately from the revised structural layout. See the root results document for exact evidence and remaining technical gates.
+`main.tsx` owns navigation and command/record updates; `Composer.tsx`, `Conversation.tsx`, `WorkActions.tsx` and `AgentEditor.tsx` own their respective flows; `agents.ts` defines local definition/version records; `state.ts` migrates persistence; `canvas-layout.ts` constrains deliberate work objects. Whole-workspace Dockview/Gridview remains removed.
