@@ -9,7 +9,7 @@ import {
   Calendar,
   ListOrdered,
 } from 'lucide-react';
-import { Workspace, IconButton } from './components';
+import { Workspace, IconButton, ActorIdentity } from './components';
 import { getImage } from './image-store';
 import type { CanvasPin, CanvasVisual } from './canvas-content';
 import type { Goal } from './model';
@@ -21,8 +21,12 @@ export function PinnedMessage({
 }: {
   pin?: CanvasPin;
   onSource: (conversationId: string, messageId: string) => void;
-  onPlan: (pin: CanvasPin) => void;
+  onPlan: (pin: CanvasPin, title: string, actionId: string) => boolean;
 }) {
+  const [adding, setAdding] = useState(false);
+  const [action, setAction] = useState('');
+  const request = useRef('');
+  const submitted = useRef(false);
   const w = useContext(Workspace);
   const c = w.conversations.find((c) => c.id === pin?.conversationId);
   const m = c?.messages.find((m) => m.id === pin?.messageId);
@@ -35,7 +39,7 @@ export function PinnedMessage({
   return (
     <div className="pinned-message">
       <div className="pin-provenance">
-        <strong>{m.author.replace(' · recorded feedback', '')}</strong>
+        <ActorIdentity message={m} />
         <span>{c.kind === 'channel' ? `#${c.title}` : 'Private conversation'}</span>
       </div>
       <blockquote>{m.text}</blockquote>
@@ -45,7 +49,11 @@ export function PinnedMessage({
         </button>
         <button
           className="text-button"
-          onClick={() => onPlan(pin)}
+          onClick={() => {
+            request.current = crypto.randomUUID();
+            submitted.current = false;
+            setAdding(true);
+          }}
           disabled={c.kind !== 'channel'}
           title={
             c.kind !== 'channel'
@@ -57,6 +65,36 @@ export function PinnedMessage({
           Add to plan
         </button>
       </div>
+      {adding && (
+        <form
+          className="pin-next-action"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!action.trim() || submitted.current) return;
+            submitted.current = true;
+            if (onPlan(pin, action.trim(), request.current)) {
+              setAdding(false);
+              setAction('');
+            } else submitted.current = false;
+          }}
+        >
+          <input
+            autoFocus
+            aria-label="Next action from message"
+            placeholder="What is the next action?"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+          />
+          <div className="pin-actions">
+            <button className="text-button" type="submit" disabled={!action.trim()}>
+              Create step
+            </button>
+            <button className="text-button" type="button" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
       {c.kind !== 'channel' && (
         <small className="private-pin-note">
           Private pin · adding it to a shared plan requires sharing first.

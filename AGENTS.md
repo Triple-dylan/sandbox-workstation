@@ -2,7 +2,7 @@
 
 ## Read first and current work gate
 
-**Pending joint chat/canvas choice:** the user explicitly requested solutions to review together and then try one. The latest conversation section records two proposed layouts: Conversation beside work (recommended) and Conversation below work. Neither is selected/approved yet. `research/reviews/2026-10-29/chat-canvas-options.html` is the local-interaction comparison fragment, not app implementation or a production screen. Both couple native canvas composition with clear chat routing; choosing a layout does not complete identity, live agents or service integration. Do not silently pick a layout or mistake the study's recorded message/sample work for real collaboration or default canvas content.
+**Approved joint chat/canvas choice:** the user selected “beside work is goood.” The selected trial is implemented in `workstation/`; read `Beside Work Results.md` for behavior, evidence and limits. Chat history is resizable with its composer below. Native writing uses canonical private resources; pins, images and goals retain their record semantics. Search/account/attachments occupy allocated regions. Do not reopen the settled layout choice. This is not final visual acceptance or completion of identity, live agents, on-graph job telemetry or service integration. Never populate the user's preview with review fixtures.
 
 Read `Conversation Context.md` in full. Later confirmed clarifications supersede earlier exploration and earlier implementation plans. Read `Research Review.md` for the latest requirements, screenshot evidence, source-level T3 Code review and research beyond harnesses.
 

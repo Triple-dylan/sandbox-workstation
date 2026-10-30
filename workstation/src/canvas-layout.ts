@@ -1,5 +1,11 @@
 export type Tool =
-  'document' | 'browser' | 'agent-settings' | 'planning' | `pin:${string}` | `visual:${string}`;
+  | 'document'
+  | 'browser'
+  | 'agent-settings'
+  | 'planning'
+  | `pin:${string}`
+  | `visual:${string}`
+  | `writing:${string}`;
 export type Bounds = { width: number; height: number };
 export type CanvasObject = { id: Tool; x: number; y: number; width: number; height: number };
 export const minimum = { width: 300, height: 220 };
@@ -33,8 +39,9 @@ export function initialObject(
   others: CanvasObject[],
 ): CanvasObject | null {
   if (bounds.width < minimum.width || bounds.height < minimum.height) return null;
-  const preferred =
-    id === 'document'
+  const preferred = id.startsWith('writing:')
+    ? { width: 460, height: 360 }
+    : id === 'document'
       ? { width: 560, height: 520 }
       : id === 'browser'
         ? { width: 520, height: 340 }
@@ -60,12 +67,68 @@ export function initialObject(
   const item = { id, x: 0, y: 0, width, height };
   return fits(item, bounds, others) ? item : null;
 }
+// Keep valid positions first; repack only when a requested layout genuinely needs room.
+// Return null rather than silently hiding another piece of work.
+export function arrange(
+  objects: CanvasObject[],
+  bounds: Bounds,
+  reserved: CanvasObject[] = [],
+): CanvasObject[] | null {
+  if (objects.every((o) => fits(o, bounds, [...objects, ...reserved]))) return objects;
+  for (const compact of [false, true]) {
+    const placed: CanvasObject[] = [];
+    for (const object of objects) {
+      const min = minimumFor(object.id);
+      const sizes = compact
+        ? [min]
+        : [
+            {
+              width: Math.min(object.width, bounds.width),
+              height: Math.min(object.height, bounds.height),
+            },
+            {
+              width: Math.min(360, object.width),
+              height: Math.min(object.height, object.id === 'planning' ? 340 : 300),
+            },
+            min,
+          ];
+      let found: CanvasObject | undefined;
+      for (const size of sizes) {
+        for (let y = 0; y + size.height <= bounds.height && !found; y += 16)
+          for (let x = 0; x + size.width <= bounds.width && !found; x += 16) {
+            const candidate = { ...object, ...size, x, y };
+            if (fits(candidate, bounds, [...placed, ...reserved])) found = candidate;
+          }
+        if (found) break;
+      }
+      if (!found) break;
+      placed.push(found);
+    }
+    if (placed.length === objects.length) return placed;
+  }
+  return null;
+}
+
 export function snapped(item: CanvasObject, x: number, y: number, bounds: Bounds) {
   return {
     ...item,
     x: Math.max(0, Math.min(bounds.width - item.width, Math.round(x / 16) * 16)),
     y: Math.max(0, Math.min(bounds.height - item.height, Math.round(y / 16) * 16)),
   };
+}
+export function addNativeObject(
+  id: Tool,
+  bounds: Bounds,
+  objects: CanvasObject[],
+  reserved: CanvasObject[] = [],
+) {
+  const first = initialObject(id, bounds, [...objects, ...reserved]);
+  if (first) return [...objects, first];
+  // Native content can compose more tightly; never shrink a full tool to make an import fit.
+  if (objects.some((o) => !['planning'].includes(o.id) && !/^(pin|visual|writing):/.test(o.id)))
+    return null;
+  const candidate = initialObject(id, bounds, []);
+  return candidate ? arrange([...objects, candidate], bounds, reserved) : null;
 }
 export function pairSnap(
   moving: CanvasObject,

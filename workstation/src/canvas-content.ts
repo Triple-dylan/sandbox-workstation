@@ -14,6 +14,6 @@ export function isCanvasId(id: unknown): id is import('./canvas-layout').Tool {
   return (
     typeof id === 'string' &&
     (['document', 'browser', 'agent-settings', 'planning'].includes(id) ||
-      /^(pin|visual):.+/.test(id))
+      /^(pin|visual|writing):.+/.test(id))
   );
 }

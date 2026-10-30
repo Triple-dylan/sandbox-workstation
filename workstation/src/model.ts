@@ -4,12 +4,20 @@ export type Theme = 'system' | 'light' | 'dark';
 export type Message = {
   id: string;
   author: string;
+  authorId?: string;
   text: string;
   at: string;
   replyTo?: string;
   sources?: string[];
   createdAt?: string;
   delivery?: 'local';
+};
+export type Participant = { id: string; displayName: string; avatarUrl?: string };
+export type WritingBlock = {
+  id: string;
+  type: 'paragraph' | 'heading' | 'bullet' | 'check';
+  text: string;
+  done?: boolean;
 };
 export type Conversation = {
   id: string;
@@ -25,7 +33,7 @@ export type Goal = {
   done: boolean;
   due: string;
   owner?: string;
-  source?: { conversationId: string; messageId: string };
+  source?: { conversationId: string; messageId: string; actionId?: string };
 };
 export type Resource = {
   id: string;
@@ -35,6 +43,7 @@ export type Resource = {
   folder: 'direction' | 'research' | 'private';
   body?: string;
   updatedAt?: string;
+  blocks?: WritingBlock[];
 };
 export const resources: Resource[] = [
   {

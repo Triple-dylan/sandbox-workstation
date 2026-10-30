@@ -135,8 +135,8 @@ export function Composer({
           />
           {attaching && (
             <div
-              className="popover add-pop glass attachment-picker"
-              role="dialog"
+              className="inline-attachment-picker attachment-picker"
+              role="region"
               aria-label="Attach a document"
             >
               <label className="work-search">

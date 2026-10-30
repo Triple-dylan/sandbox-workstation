@@ -42,6 +42,7 @@ import {
   Pin,
   Image as ImageIcon,
   ListOrdered,
+  PenLine,
 } from 'lucide-react';
 import {
   IconButton,
@@ -54,6 +55,8 @@ import {
 } from './components';
 import { Graph } from './Graph';
 import { PinnedMessage, VisualReference, CanvasPlan } from './CanvasContent';
+import { CanvasWriting, newBlock, writingMarkdown } from './CanvasWriting';
+import type { WritingBlock } from './model';
 import type { CanvasPin, CanvasVisual } from './canvas-content';
 import { inspectImage, saveImage } from './image-store';
 import { ConversationView } from './Conversation';
@@ -65,6 +68,8 @@ import { resources as repositoryResources, storageKey, type Utility, type Goal }
 import { loadState, type State, type LeftMode } from './state';
 import {
   initialObject,
+  arrange,
+  addNativeObject,
   fits,
   snapped,
   pairSnap,
@@ -76,6 +81,7 @@ import {
 import '@fontsource-variable/dm-sans/index.css';
 import './style.css';
 import './workspace.css';
+import './beside.css';
 
 const toolNames: Record<string, string> = {
   document: 'Document',
@@ -94,13 +100,17 @@ const toolName = (id: Tool) =>
     ? 'Pinned message'
     : id.startsWith('visual:')
       ? 'Visual reference'
-      : toolNames[id];
+      : id.startsWith('writing:')
+        ? 'Writing'
+        : toolNames[id];
 const toolIcon = (id: Tool) =>
   id.startsWith('pin:')
     ? Pin
     : id.startsWith('visual:')
       ? ImageIcon
-      : toolIcons[id as keyof typeof toolIcons];
+      : id.startsWith('writing:')
+        ? PenLine
+        : toolIcons[id as keyof typeof toolIcons];
 function App() {
   const [s, setState] = useState<State>(loadState);
   const patch = useCallback(
@@ -123,6 +133,14 @@ function App() {
   const [search, setSearch] = useState(''),
     [focus, setFocus] = useState<Tool | null>(null);
   const [utilityCollapsed, setUtilityCollapsed] = useState<Utility[]>([]);
+  const activeTool = useRef<Tool | null>(null);
+  const suppressed = useRef<{
+    left: LeftMode;
+    utilities: Utility[];
+    inspector: State['inspector'];
+    width: number;
+  } | null>(null);
+  const previousViewport = useRef(window.innerWidth);
   const [preview, setPreview] = useState<{ objects: CanvasObject[]; valid: boolean } | null>(null);
   const [bounds, setBounds] = useState<Bounds>({ width: 0, height: 0 });
   const stage = useRef<HTMLDivElement>(null),
@@ -152,12 +170,12 @@ function App() {
   } | null>(null);
   const lastUtilityHeight = useRef(540);
   const reserved: CanvasObject[] =
-    !s.inspector && s.utilities.length && graphExclusion
+    s.utilities.length && graphExclusion
       ? [{ id: 'reserved-tools' as Tool, ...graphExclusion }]
       : [];
   const blockers = [...s.objects, ...reserved];
   useLayoutEffect(() => {
-    if (s.inspector || !utilitiesHost.current) {
+    if (!utilitiesHost.current) {
       setGraphExclusion(null);
       return;
     }
@@ -206,6 +224,7 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !e.isComposing) {
         e.preventDefault();
         setPicker((v) => !v);
+        setAccount(false);
       }
       if (e.key === 'Escape') {
         setAccount(false);
@@ -217,19 +236,76 @@ function App() {
   }, []);
   const roomFor = (left: LeftMode, inspection: boolean) =>
     window.innerWidth -
-      (left === 'closed' ? 0 : left === 'chat' ? 360 : 260) -
-      (inspection ? readerWidth : s.utilities.length ? 260 : 0) -
+      (left === 'closed' ? 0 : left === 'chat' ? s.chatWidth : 260) -
+      (inspection ? readerWidth + 12 : 0) -
+      (s.utilities.length ? 260 : 0) -
       100 >=
-    320;
+    300;
+  const resizeChat = (value: number) => {
+    const projected = { ...bounds, width: bounds.width + s.chatWidth - value };
+    const exclusion = s.utilities.length
+      ? [
+          {
+            id: 'reserved-tools' as Tool,
+            x: projected.width - 260,
+            y: 0,
+            width: 260,
+            height: lastUtilityHeight.current,
+          },
+        ]
+      : [];
+    const objects = arrange(s.objects, projected, exclusion);
+    if (s.surface === 'canvas' && !objects) {
+      setNotice(
+        'The conversation cannot grow further without hiding work. Close or rearrange a canvas item first.',
+      );
+      return;
+    }
+    patch({ chatWidth: value, ...(s.surface === 'canvas' && objects ? { objects } : {}) });
+  };
+  const toggleUtilities = () => {
+    if (s.utilities.length) {
+      patch({ utilities: [] });
+      return;
+    }
+    const exclusion = [
+      {
+        id: 'reserved-tools' as Tool,
+        x: bounds.width - 260,
+        y: 0,
+        width: 260,
+        height: Math.min(bounds.height, lastUtilityHeight.current),
+      },
+    ];
+    const objects = arrange(s.objects, bounds, exclusion);
+    if ((s.surface === 'canvas' && !objects) || bounds.width < 580) {
+      setNotice(
+        'Project tools need more room. Close or rearrange a canvas item, or narrow the conversation. Your current work stays visible.',
+      );
+      return;
+    }
+    patch({
+      utilities: ['sources', 'agent', 'goals'],
+      ...(s.surface === 'canvas' && objects ? { objects } : {}),
+    });
+    setFocus(null);
+  };
   const revealLeft = (left: LeftMode) => {
     if (left !== 'closed' && !roomFor(left, !!s.inspector) && s.inspector) {
-      patch({ left, inspector: null });
       setNotice(
-        'Reader closed to keep the conversation and working surface usable at this width. Its reading position is retained.',
+        'Close the reader or project tools before opening this conversation. Your draft and current work are retained.',
       );
+      return false;
     } else patch({ left });
+    return true;
   };
   const inspect = (id: string, kind: 'document' | 'folder' = 'document', from?: string) => {
+    if (!roomFor(s.left, true)) {
+      setNotice(
+        'The reader needs more room. Close project tools or conversation history to open it without covering work.',
+      );
+      return;
+    }
     const changes: Partial<State> = {
       inspector: kind === 'document' ? { kind, id, from } : { kind, id },
     };
@@ -238,24 +314,63 @@ function App() {
       changes.objects = s.objects.filter((o) => o.id !== 'document');
       if (focus === 'document') setFocus(null);
     }
-    if (!roomFor(s.left, true) && s.left !== 'closed') {
-      changes.left = 'closed';
-      setNotice(
-        'Conversation navigation hidden to keep the graph and reader usable. Your draft is retained.',
+    if (s.surface === 'canvas') {
+      const nextBounds = { ...bounds, width: bounds.width - (s.inspector ? 0 : readerWidth + 12) };
+      const next = arrange(
+        changes.objects || s.objects,
+        nextBounds,
+        s.utilities.length
+          ? [
+              {
+                id: 'reserved-tools' as Tool,
+                x: nextBounds.width - 260,
+                y: 0,
+                width: 260,
+                height: lastUtilityHeight.current,
+              },
+            ]
+          : [],
       );
+      if (!next) {
+        setNotice('Make room before opening the reader. Your canvas work is retained.');
+        return;
+      }
+      changes.objects = next;
     }
     patch(changes);
   };
   useEffect(() => {
     const measured = stage.current?.getBoundingClientRect();
     if (measured && Math.abs(measured.width - bounds.width) > 1) return;
+    const restoreWidth = previousViewport.current;
+    previousViewport.current = window.innerWidth;
+    if (suppressed.current && window.innerWidth >= suppressed.current.width) {
+      const previous = suppressed.current;
+      suppressed.current = null;
+      patch({ left: previous.left, utilities: previous.utilities, inspector: previous.inspector });
+      return;
+    }
     if (!s.inspector && s.utilities.length && bounds.width && bounds.width < 650) {
+      if (restoreWidth > window.innerWidth)
+        suppressed.current ||= {
+          left: s.left,
+          utilities: s.utilities,
+          inspector: s.inspector,
+          width: Math.max(restoreWidth, window.innerWidth),
+        };
       if (s.left !== 'closed') patch({ left: 'closed' });
       else patch({ utilities: [] });
       setNotice('Navigation or tools hidden to keep the working surface usable at this width.');
       return;
     }
     if (bounds.width && bounds.width < 310 && s.left !== 'closed') {
+      if (restoreWidth > window.innerWidth)
+        suppressed.current ||= {
+          left: s.left,
+          utilities: s.utilities,
+          inspector: s.inspector,
+          width: Math.max(restoreWidth, window.innerWidth),
+        };
       patch({ left: 'closed' });
       setNotice('Conversation navigation hidden to keep the working surface readable.');
       return;
@@ -282,10 +397,16 @@ function App() {
       return;
     }
     if (!s.objects.every((o) => fits(o, bounds, blockers)) && !focus) {
+      const reflowed = arrange(s.objects, bounds, reserved);
+      if (reflowed) {
+        recovery.current ||= s.objects;
+        patch({ objects: reflowed });
+        return;
+      }
       recovery.current = s.objects;
-      setFocus(s.objects.at(-1)!.id);
+      setFocus(s.objects.find((o) => o.id === activeTool.current)?.id || s.objects[0].id);
       setNotice(
-        'This arrangement needs more room. The selected tool is focused; the other tools and their positions are retained.',
+        'This window is too small for the full arrangement. Active work is temporarily focused; other views return when room is available.',
       );
     }
   }, [
@@ -306,10 +427,13 @@ function App() {
     setPicker(false);
   };
   const select = (id: string) => {
-    patch({ selected: id });
-    revealLeft('chat');
+    if (revealLeft('chat')) patch({ selected: id });
   };
   const newChat = () => {
+    if (s.inspector && !roomFor('chat', true)) {
+      setNotice('Close the reader or project tools before starting another conversation.');
+      return;
+    }
     const empty = s.conversations.find(
       (c) =>
         c.kind === 'private' &&
@@ -326,7 +450,6 @@ function App() {
         ? old.conversations
         : [...old.conversations, { id, title: 'New chat', kind: 'private', messages: [] }],
       left: 'chat',
-      ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
     }));
     setTimeout(() => composer.current?.focus(), 0);
   };
@@ -370,7 +493,6 @@ function App() {
       drafts: { ...old.drafts, [draftKey]: '' },
       attachments: { ...old.attachments, [draftKey]: [] },
       left: 'chat',
-      ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
     }));
     setNotice('Saved on this browser. Delivery is not connected.');
   };
@@ -402,14 +524,14 @@ function App() {
       setNotice('Already on your canvas.');
       return true;
     }
-    const object = initialObject(id, bounds, blockers);
-    if (!object) {
+    const objects = addNativeObject(id, bounds, s.objects, reserved);
+    if (!objects) {
       setNotice(
         'There is no free space for this object. Close or move some work; your existing content is retained.',
       );
       return false;
     }
-    patch({ surface: 'canvas', objects: [...s.objects, object], ...add });
+    patch({ surface: 'canvas', objects, ...add });
     setFocus(null);
     setPicker(false);
     return true;
@@ -429,6 +551,10 @@ function App() {
     });
   };
   const openMessage = (conversationId: string, messageId: string) => {
+    if (s.inspector && !roomFor('chat', true)) {
+      setNotice('Close the reader or project tools to view this source conversation.');
+      return;
+    }
     const c = s.conversations.find((c) => c.id === conversationId),
       m = c?.messages.find((m) => m.id === messageId);
     if (!c || !m) {
@@ -439,7 +565,6 @@ function App() {
       selected: c.id,
       left: 'chat',
       threadByConversation: { ...s.threadByConversation, [c.id]: m.replyTo || '' },
-      ...(!roomFor('chat', !!s.inspector) ? { inspector: null } : {}),
     });
     requestAnimationFrame(() =>
       requestAnimationFrame(() =>
@@ -449,24 +574,22 @@ function App() {
       ),
     );
   };
-  const addPinToPlan = (pin: CanvasPin) => {
+  const addPinToPlan = (pin: CanvasPin, title: string, actionId: string) => {
     const c = s.conversations.find((c) => c.id === pin.conversationId),
       m = c?.messages.find((m) => m.id === pin.messageId);
     if (!m || c?.kind !== 'channel') {
       setNotice('Share private messages before adding them to the project plan.');
-      return;
+      return false;
     }
-    const exists = s.goals.some(
-      (g) => g.source?.conversationId === c.id && g.source?.messageId === m.id,
-    );
+    const exists = latest.current.goals.some((g) => g.source?.actionId === actionId);
     const goal: Goal = {
       id: crypto.randomUUID(),
-      title: m.text.replace(/\s+/g, ' ').slice(0, 160),
+      title,
       done: false,
       due: '',
-      source: { conversationId: c.id, messageId: m.id },
+      source: { conversationId: c.id, messageId: m.id, actionId },
     };
-    placeCanvasContent('planning', { goals: exists ? s.goals : [...s.goals, goal] });
+    return placeCanvasContent('planning', { goals: exists ? s.goals : [...s.goals, goal] });
   };
   const chooseVisual = (id?: string) => {
     replacingVisual.current = id || null;
@@ -480,7 +603,8 @@ function App() {
         const dimensions = await inspectImage(file);
         const previous = latest.current.visuals.find((v) => v.id === replacement);
         const id: CanvasVisual['id'] = previous?.id || `visual:${crypto.randomUUID()}`;
-        const imageKey = previous?.imageKey || crypto.randomUUID();
+        // Publish a new immutable binary revision. Failed metadata saves keep the old pixels intact.
+        const imageKey = crypto.randomUUID();
         await saveImage(imageKey, file);
         const visual: CanvasVisual = {
           id,
@@ -505,25 +629,26 @@ function App() {
             }
           : null;
         setState((old) => {
-          const occupied = [
-            ...old.objects,
-            ...(!old.inspector && old.utilities.length && excluded
+          const excludedObjects = [
+            ...(old.utilities.length && excluded
               ? [{ id: 'reserved-tools' as Tool, ...excluded }]
               : []),
           ];
-          const object =
-            old.objects.find((o) => o.id === id) ||
-            initialObject(id, { width: rect.width, height: rect.height }, occupied);
+          const objects = old.objects.some((o) => o.id === id)
+            ? old.objects
+            : addNativeObject(
+                id,
+                { width: rect.width, height: rect.height },
+                old.objects,
+                excludedObjects,
+              );
           return {
             ...old,
             surface: 'canvas',
             visuals: previous
               ? old.visuals.map((v) => (v.id === id ? visual : v))
               : [...old.visuals, visual],
-            objects:
-              old.objects.some((o) => o.id === id) || !object
-                ? old.objects
-                : [...old.objects, object],
+            objects: objects || old.objects,
           };
         });
       } catch (error) {
@@ -651,15 +776,37 @@ function App() {
     window.addEventListener('keydown', escape);
   };
   const openAgent = () => {
+    if (s.surface === 'graph' && !roomFor(s.left, true)) {
+      setNotice('Close a supporting view to make room for the agent builder.');
+      return;
+    }
     if (s.surface === 'graph')
       patch({
         inspector: { kind: 'agent-settings', id: 'agent' },
-        ...(!roomFor(s.left, true) ? { left: 'closed' as const } : {}),
       });
     else openTool('agent-settings');
   };
   const runCommand = (id: WorkCommand) => {
-    if (id === 'open-plan') {
+    if (id === 'new-writing') {
+      const id = crypto.randomUUID(),
+        blocks = [newBlock()];
+      const resource = {
+        id,
+        title: 'Untitled writing',
+        file: 'Untitled writing.md',
+        summary: 'Private canvas writing',
+        folder: 'private' as const,
+        body: '',
+        blocks,
+        updatedAt: new Date().toISOString(),
+      };
+      if (placeCanvasContent(`writing:${id}`, { localResources: [...s.localResources, resource] }))
+        requestAnimationFrame(() =>
+          document
+            .querySelector<HTMLTextAreaElement>(`[data-object="writing:${id}"] textarea`)
+            ?.focus(),
+        );
+    } else if (id === 'open-plan') {
       placeCanvasContent('planning');
     } else if (id === 'add-visual') {
       chooseVisual();
@@ -700,6 +847,31 @@ function App() {
   const context = {
     pinMessage,
     resources,
+    participants: s.participants,
+    updateWriting: (id: string, blocks: WritingBlock[]) => {
+      const title = (
+        blocks.find((b) => b.type === 'heading' && b.text.trim())?.text ||
+        blocks.find((b) => b.text.trim())?.text ||
+        'Untitled writing'
+      )
+        .split('\n')[0]
+        .slice(0, 64);
+      setState((old) => ({
+        ...old,
+        localResources: old.localResources.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                title,
+                file: `${title}.md`,
+                body: writingMarkdown(blocks),
+                blocks,
+                updatedAt: new Date().toISOString(),
+              }
+            : r,
+        ),
+      }));
+    },
     updateResource: (id: string, body: string, title?: string) =>
       setState((old) => ({
         ...old,
@@ -732,6 +904,107 @@ function App() {
     autonomy: s.autonomy,
     setAutonomy: (autonomy: string) => patch({ autonomy }),
   };
+  const visibleLeft = picker || account ? (s.left === 'chat' ? 'chat' : 'list') : s.left;
+  const composerView = (
+    <Composer
+      current={current}
+      draft={s.drafts[draftKey] || ''}
+      attachments={s.attachments[draftKey] || []}
+      resources={resources}
+      reply={current.messages.find((m) => m.id === reply)}
+      shortcut={s.sendShortcut}
+      inputRef={composer}
+      onExitReply={() => setReply(null)}
+      onChange={(text) => patch({ drafts: { ...s.drafts, [draftKey]: text } })}
+      onSend={send}
+      onAttach={(id) =>
+        patch({
+          attachments: {
+            ...s.attachments,
+            [draftKey]: [...new Set([...(s.attachments[draftKey] || []), id])],
+          },
+        })
+      }
+      onRemove={(id) =>
+        patch({
+          attachments: {
+            ...s.attachments,
+            [draftKey]: (s.attachments[draftKey] || []).filter((x) => x !== id),
+          },
+        })
+      }
+      onOpen={(id) => inspect(id)}
+    />
+  );
+  const workView = (
+    <WorkActions
+      resources={resources}
+      canRestore={!!s.preset}
+      canSave={s.objects.length > 0}
+      canvasItems={[
+        ...s.canvasPins.map((p) => {
+          const c = s.conversations.find((c) => c.id === p.conversationId),
+            m = c?.messages.find((m) => m.id === p.messageId);
+          return {
+            id: p.id,
+            title: m?.text.slice(0, 65) || 'Unavailable message',
+            searchText: m?.text || '',
+            detail:
+              c?.kind === 'channel' ? `Pinned · #${c.title}` : 'Pinned · private conversation',
+          };
+        }),
+        ...s.visuals.map((v) => ({
+          id: v.id,
+          title: v.title,
+          detail: `Visual · ${v.fileName}`,
+          searchText: v.caption,
+        })),
+      ]}
+      onOpen={(id) =>
+        resources.find((r) => r.id === id)?.blocks
+          ? placeCanvasContent(`writing:${id}`)
+          : inspect(id)
+      }
+      onCommand={runCommand}
+      onClose={() => setPicker(false)}
+    />
+  );
+  const accountView = (
+    <div className="account-settings">
+      <strong>Local preview</strong>
+      <p>
+        Saved on this browser.
+        <br />
+        No account is connected.
+      </p>
+      <span className="field-label">Appearance</span>
+      <div className="theme-options">
+        {(['system', 'light', 'dark'] as const).map((theme, i) => (
+          <IconButton
+            key={theme}
+            icon={[Monitor, Sun, Moon][i]}
+            label={theme[0].toUpperCase() + theme.slice(1)}
+            active={s.theme === theme}
+            onClick={() => patch({ theme })}
+          />
+        ))}
+      </div>
+      <label className="send-preference">
+        Send message with
+        <select
+          aria-label="Send shortcut"
+          value={s.sendShortcut}
+          onChange={(e) => patch({ sendShortcut: e.target.value as State['sendShortcut'] })}
+        >
+          <option value="enter">Enter</option>
+          <option value="modifier">⌘ / Ctrl + Enter</option>
+        </select>
+      </label>
+      <a href="/materials" target="_blank" rel="noreferrer">
+        Component proof <ArrowUpRight size={14} />
+      </a>
+    </div>
+  );
   return (
     <Workspace.Provider value={context}>
       <div className="app-shell revised-shell">
@@ -780,198 +1053,184 @@ function App() {
             <IconButton
               icon={Layers}
               label="Project tools"
-              active={s.utilities.length > 0 && !s.inspector}
-              onClick={() =>
-                patch({
-                  inspector: null,
-                  utilities:
-                    s.utilities.length && !s.inspector ? [] : ['sources', 'agent', 'goals'],
-                })
-              }
+              active={s.utilities.length > 0}
+              onClick={toggleUtilities}
             />
             <div className="account-anchor">
               <button
                 className="account-button"
                 aria-label="Account and appearance"
                 title="Account and appearance"
-                onClick={() => setAccount((v) => !v)}
+                onClick={() => {
+                  setAccount((v) => !v);
+                  setPicker(false);
+                }}
               >
                 D
               </button>
-              {account && (
-                <div className="popover account-pop glass">
-                  <strong>Local preview</strong>
-                  <p>
-                    Saved on this browser.
-                    <br />
-                    No account is connected.
-                  </p>
-                  <span className="field-label">Appearance</span>
-                  <div className="theme-options">
-                    {(['system', 'light', 'dark'] as const).map((theme, i) => (
-                      <IconButton
-                        key={theme}
-                        icon={[Monitor, Sun, Moon][i]}
-                        label={theme[0].toUpperCase() + theme.slice(1)}
-                        active={s.theme === theme}
-                        onClick={() => patch({ theme })}
-                      />
-                    ))}
-                  </div>
-                  <label className="send-preference">
-                    Send message with
-                    <select
-                      aria-label="Send shortcut"
-                      value={s.sendShortcut}
-                      onChange={(e) =>
-                        patch({ sendShortcut: e.target.value as State['sendShortcut'] })
-                      }
-                    >
-                      <option value="enter">Enter</option>
-                      <option value="modifier">⌘ / Ctrl + Enter</option>
-                    </select>
-                  </label>
-                  <a href="/materials" target="_blank" rel="noreferrer">
-                    Component proof <ArrowUpRight size={14} />
-                  </a>
-                </div>
-              )}
             </div>
           </div>
         </nav>
-        {s.left !== 'closed' && (
-          <aside
-            className={`left-extension glass left-${s.left}`}
-            aria-label={
-              s.left === 'chat'
-                ? 'Conversation history'
-                : s.left === 'files'
-                  ? 'Resource navigation'
-                  : 'Conversation navigation'
-            }
-          >
-            <div className="extension-header">
-              {s.left === 'chat' && (
-                <IconButton
-                  icon={ArrowLeft}
-                  label="Back to conversations"
-                  onClick={() => patch({ left: 'list' })}
-                />
-              )}
-              <strong>
-                {s.left === 'chat'
-                  ? current.kind === 'channel'
-                    ? `# ${current.title}`
-                    : current.title
-                  : s.left === 'people'
-                    ? 'New message'
-                    : s.left === 'files'
-                      ? 'Files'
-                      : 'Conversations'}
-              </strong>
-              {s.left === 'list' && (
-                <IconButton icon={Plus} label="New private chat" onClick={newChat} />
-              )}
-              <IconButton
-                icon={PanelLeftClose}
-                label="Hide left navigation"
-                onClick={() => patch({ left: 'closed' })}
-              />
-            </div>
-            {s.left === 'chat' ? (
-              <ConversationView />
-            ) : s.left === 'files' ? (
-              <div className="navigation-content">
-                <ResourceRows onOpen={(id) => inspect(id)} />
-              </div>
-            ) : s.left === 'people' ? (
-              <div className="contact-picker">
-                <button className="text-button" onClick={() => revealLeft('list')}>
-                  <ArrowLeft size={14} />
-                  Conversations
-                </button>
-                <h3>Find a person</h3>
-                <p>
-                  No workspace identity is connected. People search and direct-message delivery
-                  become available when accounts are connected.
-                </p>
-                <small>
-                  Your existing local DM drafts are retained. Entering a name alone cannot establish
-                  a recipient’s identity or access.
-                </small>
-              </div>
-            ) : (
-              <>
-                <label className="search-field">
-                  <Search size={15} />
-                  <input
-                    aria-label="Find a conversation"
-                    placeholder="Find a conversation"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+        {visibleLeft !== 'closed' && (
+          <>
+            <aside
+              className={`left-extension glass left-${visibleLeft}`}
+              style={
+                visibleLeft === 'chat' ? { width: s.chatWidth, flexBasis: s.chatWidth } : undefined
+              }
+              aria-label={
+                s.left === 'chat'
+                  ? 'Conversation history'
+                  : s.left === 'files'
+                    ? 'Resource navigation'
+                    : 'Conversation navigation'
+              }
+            >
+              <div className="extension-header">
+                {s.left === 'chat' && !picker && !account && (
+                  <IconButton
+                    icon={ArrowLeft}
+                    label="Back to conversations"
+                    onClick={() => patch({ left: 'list' })}
                   />
-                </label>
-                <div className="conversation-groups">
-                  <div className="section-label">
-                    <Lock size={13} />
-                    Personal
-                    <button
-                      aria-label="Start a direct message"
-                      onClick={() => revealLeft('people')}
-                    >
-                      <Plus size={15} />
-                    </button>
-                  </div>
-                  {s.conversations
-                    .filter(
-                      (c) =>
-                        c.kind !== 'channel' &&
-                        c.title.toLowerCase().includes(search.toLowerCase()),
-                    )
-                    .map((c) => (
+                )}
+                <strong>
+                  {picker
+                    ? 'Open work'
+                    : account
+                      ? 'Account'
+                      : s.left === 'chat'
+                        ? current.kind === 'channel'
+                          ? `# ${current.title}`
+                          : current.title
+                        : s.left === 'people'
+                          ? 'New message'
+                          : s.left === 'files'
+                            ? 'Files'
+                            : 'Conversations'}
+                </strong>
+                {s.left === 'list' && !picker && !account && (
+                  <IconButton icon={Plus} label="New private chat" onClick={newChat} />
+                )}
+                <IconButton
+                  icon={PanelLeftClose}
+                  label={picker || account ? 'Close disclosure' : 'Hide left navigation'}
+                  onClick={() =>
+                    picker || account
+                      ? (setPicker(false), setAccount(false))
+                      : patch({ left: 'closed' })
+                  }
+                />
+              </div>
+              {picker ? (
+                workView
+              ) : account ? (
+                accountView
+              ) : s.left === 'chat' ? (
+                <ConversationView />
+              ) : s.left === 'files' ? (
+                <div className="navigation-content">
+                  <ResourceRows onOpen={(id) => inspect(id)} />
+                </div>
+              ) : s.left === 'people' ? (
+                <div className="contact-picker">
+                  <button className="text-button" onClick={() => revealLeft('list')}>
+                    <ArrowLeft size={14} />
+                    Conversations
+                  </button>
+                  <h3>Find a person</h3>
+                  <p>
+                    No workspace identity is connected. People search and direct-message delivery
+                    become available when accounts are connected.
+                  </p>
+                  <small>
+                    Your existing local DM drafts are retained. Entering a name alone cannot
+                    establish a recipient’s identity or access.
+                  </small>
+                </div>
+              ) : (
+                <>
+                  <label className="search-field">
+                    <Search size={15} />
+                    <input
+                      aria-label="Find a conversation"
+                      placeholder="Find a conversation"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </label>
+                  <div className="conversation-groups">
+                    <div className="section-label">
+                      <Lock size={13} />
+                      Personal
                       <button
-                        className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
-                        key={c.id}
-                        aria-label={c.title}
-                        onClick={() => select(c.id)}
+                        aria-label="Start a direct message"
+                        onClick={() => revealLeft('people')}
                       >
-                        {c.kind === 'dm' ? <UserRound size={15} /> : <Lock size={14} />}
-                        <span>{c.title}</span>
-                        {!!s.drafts[c.id] && <small className="draft-label">Draft</small>}
+                        <Plus size={15} />
                       </button>
-                    ))}
-                  <div className="project-label">
-                    <span className="project-mark" />
-                    <div>
-                      <strong>Workstation</strong>
-                      <small>Recorded project discussion</small>
                     </div>
+                    {s.conversations
+                      .filter(
+                        (c) =>
+                          c.kind !== 'channel' &&
+                          c.title.toLowerCase().includes(search.toLowerCase()),
+                      )
+                      .map((c) => (
+                        <button
+                          className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
+                          key={c.id}
+                          aria-label={c.title}
+                          onClick={() => select(c.id)}
+                        >
+                          {c.kind === 'dm' ? <UserRound size={15} /> : <Lock size={14} />}
+                          <span>{c.title}</span>
+                          {!!s.drafts[c.id] && <small className="draft-label">Draft</small>}
+                        </button>
+                      ))}
+                    <div className="project-label">
+                      <span className="project-mark" />
+                      <div>
+                        <strong>Workstation</strong>
+                        <small>Recorded project discussion</small>
+                      </div>
+                    </div>
+                    {s.conversations
+                      .filter(
+                        (c) =>
+                          c.kind === 'channel' &&
+                          c.title.toLowerCase().includes(search.toLowerCase()),
+                      )
+                      .map((c) => (
+                        <button
+                          className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
+                          key={c.id}
+                          aria-label={`# ${c.title}`}
+                          onClick={() => select(c.id)}
+                        >
+                          <span className="hash">#</span>
+                          <span>{c.title}</span>
+                        </button>
+                      ))}
                   </div>
-                  {s.conversations
-                    .filter(
-                      (c) =>
-                        c.kind === 'channel' &&
-                        c.title.toLowerCase().includes(search.toLowerCase()),
-                    )
-                    .map((c) => (
-                      <button
-                        className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
-                        key={c.id}
-                        aria-label={`# ${c.title}`}
-                        onClick={() => select(c.id)}
-                      >
-                        <span className="hash">#</span>
-                        <span>{c.title}</span>
-                      </button>
-                    ))}
-                </div>
-                <div className="list-footer">
-                  <ShieldCheck size={13} />
-                  Local records · no live participants
-                </div>
-              </>
+                  <div className="list-footer">
+                    <ShieldCheck size={13} />
+                    Local records · no live participants
+                  </div>
+                </>
+              )}
+              {visibleLeft === 'chat' && composerView}
+            </aside>
+            {visibleLeft === 'chat' && (
+              <WidthDivider
+                label="Resize conversation"
+                value={s.chatWidth}
+                min={320}
+                max={Math.min(520, Math.max(320, window.innerWidth - 440))}
+                setValue={resizeChat}
+              />
             )}
-          </aside>
+          </>
         )}
         <div className="workspace-main">
           <div className="surface-row">
@@ -1055,18 +1314,21 @@ function App() {
                       return (
                         <section
                           key={object.id}
-                          className={`canvas-object ${focus === object.id ? 'object-focused' : ''}`}
+                          className={`canvas-object ${object.id === 'planning' || /^(writing|pin|visual):/.test(object.id) ? 'native-canvas-object' : ''} ${focus === object.id ? 'object-focused' : ''}`}
                           data-object={object.id}
+                          onFocusCapture={() => {
+                            activeTool.current = object.id;
+                          }}
+                          onPointerDownCapture={() => {
+                            activeTool.current = object.id;
+                          }}
                           aria-label={title}
                           style={
                             focus === object.id
                               ? {
                                   left: 0,
                                   top: 0,
-                                  width:
-                                    !s.inspector && s.utilities.length
-                                      ? 'calc(100% - 272px)'
-                                      : '100%',
+                                  width: s.utilities.length ? 'calc(100% - 272px)' : '100%',
                                   height: '100%',
                                 }
                               : {
@@ -1130,7 +1392,14 @@ function App() {
                             />
                           </header>
                           <div className="object-body">
-                            {object.id.startsWith('pin:') ? (
+                            {object.id.startsWith('writing:') ? (
+                              <CanvasWriting
+                                resource={resources.find((r) => r.id === object.id.slice(8))}
+                                onChange={(blocks) =>
+                                  context.updateWriting(object.id.slice(8), blocks)
+                                }
+                              />
+                            ) : object.id.startsWith('pin:') ? (
                               <PinnedMessage
                                 pin={s.canvasPins.find((p) => p.id === object.id)}
                                 onSource={openMessage}
@@ -1213,47 +1482,6 @@ function App() {
                   <span>Drop a visual reference</span>
                 </div>
               )}
-              <div className="work-action-anchor">
-                <button
-                  className="open-work-button glass"
-                  aria-label="Open work"
-                  aria-expanded={picker}
-                  onClick={() => setPicker((v) => !v)}
-                >
-                  <FolderOpen size={16} />
-                  <span>Open…</span>
-                  <kbd>⌘K</kbd>
-                </button>
-                {picker && (
-                  <WorkActions
-                    resources={resources}
-                    canRestore={!!s.preset}
-                    canSave={s.objects.length > 0}
-                    canvasItems={[
-                      ...s.canvasPins.map((p) => {
-                        const c = s.conversations.find((c) => c.id === p.conversationId),
-                          m = c?.messages.find((m) => m.id === p.messageId);
-                        return {
-                          id: p.id,
-                          title: m?.text.slice(0, 65) || 'Unavailable message',
-                          detail:
-                            c?.kind === 'channel'
-                              ? `Pinned · #${c.title}`
-                              : 'Pinned · private conversation',
-                        };
-                      }),
-                      ...s.visuals.map((v) => ({
-                        id: v.id,
-                        title: v.title,
-                        detail: `Visual · ${v.fileName}`,
-                      })),
-                    ]}
-                    onOpen={(id) => inspect(id)}
-                    onCommand={runCommand}
-                    onClose={() => setPicker(false)}
-                  />
-                )}
-              </div>
             </main>
             {s.inspector ? (
               <>
@@ -1323,68 +1551,65 @@ function App() {
                   </div>
                 </aside>
               </>
-            ) : (
-              s.utilities.length > 0 && (
-                <aside ref={utilitiesHost} className="utility-stack" aria-label="Project utilities">
-                  {s.utilities.map((kind) => (
-                    <UtilityCard
-                      key={kind}
-                      kind={kind}
-                      goals={s.goals}
-                      setGoals={(goals) => patch({ goals })}
-                      collapsed={utilityCollapsed.includes(kind)}
-                      onCollapse={() =>
-                        setUtilityCollapsed((v) =>
-                          v.includes(kind) ? v.filter((x) => x !== kind) : [...v, kind],
-                        )
-                      }
-                      onClose={() => patch({ utilities: s.utilities.filter((u) => u !== kind) })}
-                      onSource={(id) => inspect(id)}
-                      onAgent={() => runCommand('edit-agent')}
-                      onPlan={() => placeCanvasContent('planning')}
-                    />
-                  ))}
-                </aside>
-              )
+            ) : null}
+            {s.utilities.length > 0 && (
+              <aside
+                ref={utilitiesHost}
+                className="utility-stack"
+                aria-label="Project utilities"
+                style={s.inspector ? { right: readerWidth + 12 } : undefined}
+              >
+                {s.utilities.map((kind) => (
+                  <UtilityCard
+                    key={kind}
+                    kind={kind}
+                    goals={s.goals}
+                    setGoals={(goals) => patch({ goals })}
+                    collapsed={utilityCollapsed.includes(kind)}
+                    onCollapse={() =>
+                      setUtilityCollapsed((v) =>
+                        v.includes(kind) ? v.filter((x) => x !== kind) : [...v, kind],
+                      )
+                    }
+                    onClose={() => patch({ utilities: s.utilities.filter((u) => u !== kind) })}
+                    onSource={(id) => inspect(id)}
+                    onAgent={() => runCommand('edit-agent')}
+                    onPlan={() => placeCanvasContent('planning')}
+                  />
+                ))}
+              </aside>
             )}
           </div>
-          <Composer
-            current={current}
-            draft={s.drafts[draftKey] || ''}
-            attachments={s.attachments[draftKey] || []}
-            resources={resources}
-            reply={current.messages.find((m) => m.id === reply)}
-            shortcut={s.sendShortcut}
-            inputRef={composer}
-            onExitReply={() => setReply(null)}
-            onChange={(text) => patch({ drafts: { ...s.drafts, [draftKey]: text } })}
-            onSend={send}
-            onAttach={(id) =>
-              patch({
-                attachments: {
-                  ...s.attachments,
-                  [draftKey]: [...new Set([...(s.attachments[draftKey] || []), id])],
-                },
-              })
-            }
-            onRemove={(id) =>
-              patch({
-                attachments: {
-                  ...s.attachments,
-                  [draftKey]: (s.attachments[draftKey] || []).filter((x) => x !== id),
-                },
-              })
-            }
-            onOpen={(id) => inspect(id)}
-          />
-        </div>
-        {notice && (
-          <div className="notice glass" role="status">
-            <Info size={16} />
-            <span>{notice}</span>
-            <IconButton icon={X} label="Dismiss notification" onClick={() => setNotice('')} />
+          <div className="workspace-actions">
+            {s.surface === 'canvas' && (
+              <button className="open-work-button" onClick={() => runCommand('new-writing')}>
+                <PenLine size={15} />
+                <span>Write on canvas</span>
+              </button>
+            )}
+            <button
+              className="open-work-button glass"
+              aria-label="Open work"
+              aria-expanded={picker}
+              onClick={() => {
+                setPicker((v) => !v);
+                setAccount(false);
+              }}
+            >
+              <FolderOpen size={16} />
+              <span>Open…</span>
+              <kbd>⌘K</kbd>
+            </button>
           </div>
-        )}
+          {visibleLeft !== 'chat' && composerView}
+          {notice && (
+            <div className="notice glass" role="status">
+              <Info size={16} />
+              <span>{notice}</span>
+              <IconButton icon={X} label="Dismiss notification" onClick={() => setNotice('')} />
+            </div>
+          )}
+        </div>
       </div>
     </Workspace.Provider>
   );

@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 let browser;
 const base = process.env.WORKSTATION_URL || 'http://127.0.0.1:4174';
 before(async () => {
@@ -13,6 +14,7 @@ after(async () => {
 async function session(size = { width: 1440, height: 1000 }, options = {}) {
   const context = await browser.newContext({ viewport: size, ...options });
   const page = await context.newPage();
+  page.setDefaultTimeout(8000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
@@ -425,7 +427,7 @@ test('unconnected people search is honest and existing DM drafts retain context'
     await page.locator('#composer').fill('Hello');
     await page.getByRole('button', { name: 'Attach context', exact: true }).click();
     await page
-      .getByRole('dialog', { name: 'Attach a document' })
+      .getByRole('region', { name: 'Attach a document' })
       .getByRole('button', { name: 'Rebuild plan', exact: true })
       .click();
     assert.equal(await page.locator('#composer').inputValue(), 'Hello');
@@ -460,6 +462,7 @@ test('legacy records migrate without restoring rejected windows; OS appearance r
       );
   });
   const page = await context.newPage();
+  page.setDefaultTimeout(8000);
   try {
     await page.goto(base);
     await page.getByRole('button', { name: 'Canvas', exact: true }).waitFor();
@@ -468,7 +471,7 @@ test('legacy records migrate without restoring rejected windows; OS appearance r
     assert.equal(await page.locator('[data-object]').count(), 0);
     assert((await stored(page)).legacyLayout);
     await page.getByRole('button', { name: 'Account and appearance', exact: true }).click();
-    assert.match(await page.locator('.account-pop').innerText(), /No account is connected/);
+    assert.match(await page.locator('.account-settings').innerText(), /No account is connected/);
     await page.getByRole('button', { name: 'Light', exact: true }).click();
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
     await page.reload();
@@ -760,7 +763,7 @@ test('private references cannot silently enter shared conversation attachments',
     await page.getByRole('button', { name: 'Attach context', exact: true }).click();
     assert.equal(
       await page
-        .getByRole('dialog', { name: 'Attach a document' })
+        .getByRole('region', { name: 'Attach a document' })
         .getByRole('button', { name: 'Private reference', exact: true })
         .isDisabled(),
       true,
@@ -907,11 +910,12 @@ test('a pinned message becomes one sourced step and plan edits use the existing 
     await project(page);
     await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).first().click();
     await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
+    await page.getByLabel('Next action from message').fill('Keep working surfaces separate');
+    await page.getByRole('button', { name: 'Create step', exact: true }).click();
     await validObjects(page);
     const source = (await stored(page)).goals.at(-1);
     assert.equal(source.source.messageId, 'record-1');
     assert.equal(source.source.conversationId, 'direction');
-    await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
     assert.equal((await stored(page)).goals.length, 4);
     await page.getByLabel('Step 1 title', { exact: true }).fill('First next step');
     await page.getByLabel('Owner for step 1', { exact: true }).fill('Dylan');
@@ -1000,10 +1004,16 @@ test('visual references persist binary content, captions and identity through cl
     const chooserPromise = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Replace image', exact: true }).click();
     await (await chooserPromise).setFiles(visualFixture);
+    await page.waitForFunction(
+      (oldKey) =>
+        JSON.parse(localStorage.getItem('workstation-layout-proof-v1')).visuals[0].imageKey !==
+        oldKey,
+      first.imageKey,
+    );
     await loadedVisual(page);
     const current = (await stored(page)).visuals[0];
     assert.equal(current.id, first.id);
-    assert.equal(current.imageKey, first.imageKey);
+    assert.notEqual(current.imageKey, first.imageKey);
     assert.equal(current.caption, 'Clear sources and hierarchy.');
     assert.equal((await stored(page)).visuals.length, 1);
     const resize = page.getByRole('button', { name: 'Resize visual reference', exact: true });
@@ -1101,6 +1111,280 @@ test('image drop and paste add visual objects without intercepting text composit
     await page.locator('#composer').fill('Pasting text still belongs in the composer.');
     assert.equal((await stored(page)).visuals.length, 2);
     await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('approved beside layout keeps the one composer aligned to resizable history and preserves drafts', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await project(page);
+    await page.locator('#composer').fill('Keep this channel draft');
+    assert.equal(await page.locator('.left-chat #composer').count(), 1);
+    const before = await page.locator('.left-chat').boundingBox();
+    await page
+      .getByRole('separator', { name: 'Resize conversation', exact: true })
+      .press('ArrowRight');
+    const after = await page.locator('.left-chat').boundingBox();
+    assert(after.width > before.width);
+    const composer = await page.locator('.left-chat .composer').boundingBox();
+    const transcript = await page.locator('.transcript').boundingBox();
+    assert(composer.y >= transcript.y + transcript.height);
+    assert(composer.x >= after.x && composer.x + composer.width <= after.x + after.width);
+    await page.getByRole('button', { name: 'Reply in thread', exact: true }).first().click();
+    await page.locator('#composer').fill('Separate reply draft');
+    await page.getByRole('button', { name: 'Back to conversation', exact: true }).click();
+    assert.equal(await page.locator('#composer').inputValue(), 'Keep this channel draft');
+    await page.reload();
+    assert.equal(await page.locator('#composer').inputValue(), 'Keep this channel draft');
+    assert.equal((await stored(page)).chatWidth, 376);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await graphFillsSurface(page);
+    assert.equal(await page.locator('.left-chat #composer').count(), 1);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('native writing persists typed blocks as one private source across canvas, reader and graph', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1100 });
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Write on canvas', exact: true }).click();
+    await page.getByLabel('Writing block 1', { exact: true }).fill('A useful working draft');
+    await page.getByRole('button', { name: 'Heading', exact: true }).click();
+    await page.getByLabel('Writing block 2', { exact: true }).fill('Decisions');
+    await page.getByRole('button', { name: 'Checklist', exact: true }).click();
+    await page.getByLabel('Writing block 3', { exact: true }).fill('Keep evidence attached');
+    await page.getByRole('checkbox', { name: 'Complete writing item 3', exact: true }).check();
+    const initial = (await stored(page)).localResources[0];
+    assert.match(initial.body, /## Decisions/);
+    assert.match(initial.body, /- \[x\] Keep evidence attached/);
+    assert.equal(initial.folder, 'private');
+    await validObjects(page);
+    await page.reload();
+    assert.equal(
+      await page.getByLabel('Writing block 3', { exact: true }).inputValue(),
+      'Keep evidence attached',
+    );
+    await page.getByRole('button', { name: 'Close writing', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('Keep evidence attached');
+    await page.locator('.work-results').getByRole('button').click();
+    assert.equal(await page.locator(`[data-object="writing:${initial.id}"]`).count(), 1);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.locator('[data-node="private-folder"]').press('Enter');
+    await page.locator(`[data-node="${initial.id}"]`).press('Enter');
+    await page
+      .locator('.inspection-surface')
+      .getByLabel('Writing block 1', { exact: true })
+      .fill('Updated from the source reader');
+    assert.equal((await stored(page)).localResources.length, 1);
+    assert.match((await stored(page)).localResources[0].body, /Updated from the source reader/);
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    await page.getByRole('button', { name: 'Canvas', exact: true }).click();
+    assert.equal(
+      await page.getByLabel('Writing block 1', { exact: true }).inputValue(),
+      'Updated from the source reader',
+    );
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('work, attachment and account disclosures do not cover canvas or composer', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await project(page);
+    await openTool(page, 'Open project plan');
+    await page.getByRole('button', { name: 'Focus project plan', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    const noIntersection = async (selector, other) => {
+      const a = await page.locator(selector).boundingBox(),
+        b = await page.locator(other).boundingBox();
+      assert(a && b);
+      assert(
+        !(
+          Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x) + 1 &&
+          Math.min(a.y + a.height, b.y + b.height) > Math.max(a.y, b.y) + 1
+        ),
+        `${selector} overlaps ${other}`,
+      );
+    };
+    await noIntersection('.work-actions', '[data-object="planning"]');
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .press('Escape');
+    await page.getByRole('button', { name: 'Attach context', exact: true }).click();
+    await noIntersection('.attachment-picker', '[data-object="planning"]');
+    await noIntersection('.attachment-picker', '#composer');
+    await page
+      .getByRole('region', { name: 'Attach a document', exact: true })
+      .getByRole('button', { name: 'Rebuild plan', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Account and appearance', exact: true }).click();
+    await noIntersection('.account-settings', '[data-object="planning"]');
+    assert.equal(await page.locator('.popover').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('one message supports distinct sourced actions while preventing duplicate submit', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1100 });
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Pin message to canvas', exact: true }).first().click();
+    for (const title of ['Review arrangement', 'Verify no overlap']) {
+      await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
+      await page.getByLabel('Next action from message', { exact: true }).fill(title);
+      await page.getByRole('button', { name: 'Create step', exact: true }).dblclick();
+    }
+    const goals = (await stored(page)).goals.filter((g) => g.source?.messageId === 'record-1');
+    assert.equal(goals.length, 2);
+    assert.deepEqual(
+      goals.map((g) => g.title),
+      ['Review arrangement', 'Verify no overlap'],
+    );
+    assert.notEqual(goals[0].source.actionId, goals[1].source.actionId);
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('profile identities render photos and name colors without disappearing in narrow chat', async () => {
+  const { context, page, errors } = await session({ width: 960, height: 900 });
+  try {
+    const photo = 'data:image/png;base64,' + readFileSync(visualFixture).toString('base64');
+    await page.evaluate((photo) => {
+      const s = JSON.parse(localStorage.getItem('workstation-layout-proof-v1'));
+      s.participants = [
+        { id: 'profile-fixture', displayName: 'Profile fixture', avatarUrl: photo },
+      ];
+      s.conversations[0].messages[0].authorId = 'profile-fixture';
+      localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(s));
+    }, photo);
+    await page.reload();
+    await project(page);
+    const img = page.locator('.message-avatar img');
+    await img.waitFor();
+    assert.equal(await img.evaluate((e) => e.complete && e.naturalWidth > 0), true);
+    assert.equal(
+      await page.locator('.message-meta .actor-name').first().innerText(),
+      'Profile fixture',
+    );
+    assert.notEqual(
+      await page
+        .locator('.actor-name')
+        .first()
+        .evaluate((e) => getComputedStyle(e).color),
+      await page
+        .locator('.message-body p')
+        .first()
+        .evaluate((e) => getComputedStyle(e).color),
+    );
+    assert.equal(await img.isVisible(), true);
+    assert((await img.boundingBox()).width >= 20);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('image replacement preserves the prior complete version when metadata persistence fails', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page.getByLabel('Choose visual references', { exact: true }).setInputFiles(visualFixture);
+    await loadedVisual(page);
+    const first = (await stored(page)).visuals[0];
+    await page.evaluate(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'workstation-layout-proof-v1')
+          throw new DOMException('injected', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+    });
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Replace image', exact: true }).click();
+    await (
+      await chooser
+    ).setFiles(
+      fileURLToPath(
+        new URL('../../research/references/overlap-workbook-conversation.png', import.meta.url),
+      ),
+    );
+    await page.getByRole('status').filter({ hasText: 'Local storage is full' }).waitFor();
+    await page.reload();
+    await loadedVisual(page);
+    assert.equal((await stored(page)).visuals[0].imageKey, first.imageKey);
+    const dimensions = await page
+      .locator('.visual-image img')
+      .evaluate((e) => ({ width: e.naturalWidth, height: e.naturalHeight }));
+    assert.deepEqual(dimensions, { width: first.width, height: first.height });
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+for (const width of [1280, 1440])
+  test(`opening project tools preserves all native work at ${width}`, async () => {
+    const { context, page, errors } = await session({ width, height: 1000 });
+    try {
+      await project(page);
+      await page
+        .getByRole('button', { name: 'Pin message to canvas', exact: true })
+        .first()
+        .click();
+      await page.getByRole('button', { name: 'Add to plan', exact: true }).click();
+      await page.getByLabel('Next action from message').fill('Protect this active plan');
+      await page.getByRole('button', { name: 'Create step', exact: true }).click();
+      await page
+        .getByLabel('Choose visual references', { exact: true })
+        .setInputFiles(visualFixture);
+      await loadedVisual(page);
+      assert.equal((await stored(page)).objects.length, 3);
+      await page.getByLabel('Step 1 title', { exact: true }).fill('Actively editing the plan');
+      await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+      assert.equal(await page.locator('[data-object]').count(), 3);
+      assert.equal(
+        await page.getByLabel('Step 1 title', { exact: true }).inputValue(),
+        'Actively editing the plan',
+      );
+      await validObjects(page);
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.close();
+    }
+  });
+
+test('source inspection retains independent project utilities and the chat composer when there is room', async () => {
+  const { context, page, errors } = await session({ width: 1700, height: 1100 });
+  try {
+    await project(page);
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    await page
+      .getByRole('region', { name: 'Sources and context', exact: true })
+      .getByRole('button', { name: 'Research review', exact: true })
+      .click();
+    assert.equal(await page.locator('.inspection-surface').count(), 1);
+    assert.equal(await page.locator('.utility-card').count(), 3);
+    assert.equal(await page.locator('.left-chat #composer').count(), 1);
+    const utility = await page.locator('.utility-stack').boundingBox(),
+      reader = await page.locator('.inspection-surface').boundingBox();
+    assert(utility.x + utility.width <= reader.x);
+    await graphFillsSurface(page);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();

@@ -7,6 +7,7 @@ import {
   type Goal,
   type Theme,
   type Utility,
+  type Participant,
 } from './model';
 import type { CanvasObject } from './canvas-layout';
 import { projectAgent, validAgent, type AgentDefinition } from './agents';
@@ -42,6 +43,8 @@ export type State = {
   sendShortcut: 'enter' | 'modifier';
   canvasPins: CanvasPin[];
   visuals: CanvasVisual[];
+  chatWidth: number;
+  participants: Participant[];
   legacyLayout?: unknown;
 };
 export function loadState(): State {
@@ -87,17 +90,34 @@ export function loadState(): State {
       ? Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v === 'string'))
       : {};
   const localResources: Resource[] = Array.isArray(raw.localResources)
-    ? raw.localResources.filter(
-        (r: any) =>
-          r &&
-          typeof r.id === 'string' &&
-          !resources.some((x) => x.id === r.id) &&
-          typeof r.title === 'string' &&
-          typeof r.body === 'string' &&
-          r.folder === 'private' &&
-          typeof r.file === 'string' &&
-          typeof r.summary === 'string',
-      )
+    ? raw.localResources
+        .filter(
+          (r: any) =>
+            r &&
+            typeof r.id === 'string' &&
+            !resources.some((x) => x.id === r.id) &&
+            typeof r.title === 'string' &&
+            typeof r.body === 'string' &&
+            r.folder === 'private' &&
+            typeof r.file === 'string' &&
+            typeof r.summary === 'string',
+        )
+        .map((r: Resource) => {
+          if (
+            !r.blocks ||
+            (Array.isArray(r.blocks) &&
+              r.blocks.every(
+                (b) =>
+                  b &&
+                  typeof b.id === 'string' &&
+                  typeof b.text === 'string' &&
+                  ['paragraph', 'heading', 'bullet', 'check'].includes(b.type),
+              ))
+          )
+            return r;
+          const { blocks: invalid, ...record } = r;
+          return record;
+        })
     : [];
   const available = [...resources, ...localResources];
   const agents: AgentDefinition[] =
@@ -125,6 +145,12 @@ export function loadState(): State {
       : null;
   return {
     version: 2,
+    chatWidth: Number.isFinite(raw.chatWidth) ? Math.max(320, Math.min(520, raw.chatWidth)) : 360,
+    participants: Array.isArray(raw.participants)
+      ? raw.participants.filter(
+          (p: any) => p && typeof p.id === 'string' && typeof p.displayName === 'string',
+        )
+      : [],
     surface:
       raw.version === 2 && ['canvas', 'graph'].includes(raw.surface)
         ? raw.surface

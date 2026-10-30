@@ -30,8 +30,11 @@ import {
   type Conversation,
   type Theme,
   type Resource,
+  type Participant,
+  type WritingBlock,
 } from './model';
 import type { AgentDefinition } from './agents';
+import { CanvasWriting } from './CanvasWriting';
 export type WorkspaceContext = {
   selected: string;
   conversations: Conversation[];
@@ -50,6 +53,8 @@ export type WorkspaceContext = {
   selectAgent: (id: string) => void;
   updateAgents: (agents: AgentDefinition[]) => void;
   pinMessage: (conversationId: string, messageId: string) => void;
+  participants: Participant[];
+  updateWriting: (id: string, blocks: WritingBlock[]) => void;
 };
 export const Workspace = createContext<WorkspaceContext>(null!);
 const readingPositions: Record<string, number> = {};
@@ -94,16 +99,38 @@ export function useTheme(theme: Theme) {
   }, [theme]);
 }
 
+export function ActorIdentity({ message }: { message: Conversation['messages'][number] }) {
+  const w = useContext(Workspace);
+  const profile = w.participants.find((p) => p.id === message.authorId);
+  const name = profile?.displayName || message.author.replace(' · recorded feedback', '');
+  const identity = message.authorId || message.author;
+  const color = [...identity].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0) % 6;
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [profile?.avatarUrl]);
+  const photo = profile?.avatarUrl && /^(https?:|data:image\/)/.test(profile.avatarUrl) && !failed;
+  return (
+    <>
+      <span
+        className="message-avatar"
+        aria-label={photo ? undefined : `${name}, profile photo unavailable`}
+      >
+        {photo ? (
+          <img src={profile!.avatarUrl} alt="" onError={() => setFailed(true)} />
+        ) : (
+          name.slice(0, 1)
+        )}
+      </span>
+      <strong className={`actor-name actor-color-${color}`}>{name}</strong>
+    </>
+  );
+}
 export function MessageItem({ message }: { message: Conversation['messages'][number] }) {
   const w = useContext(Workspace);
   return (
     <article className="message" data-source-message={message.id}>
-      <div className="message-avatar">
-        {message.author === 'You' ? 'Y' : message.author.slice(0, 1)}
-      </div>
       <div className="message-body">
         <div className="message-meta">
-          <strong>{message.author.replace(' · recorded feedback', '')}</strong>
+          <ActorIdentity message={message} />
           <time>{message.at}</time>
         </div>
         <p>{message.text}</p>
@@ -192,7 +219,9 @@ export function DocumentView() {
         className="document-scroll"
         onScroll={(e) => (positions.current[r.id] = e.currentTarget.scrollTop)}
       >
-        {r.body !== undefined ? (
+        {r.blocks ? (
+          <CanvasWriting resource={r} onChange={(blocks) => w.updateWriting(r.id, blocks)} />
+        ) : r.body !== undefined ? (
           <div className="local-document-editor">
             <input
               aria-label="Document title"

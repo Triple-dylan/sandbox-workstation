@@ -1,6 +1,6 @@
 import { useContext, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowDown, Lock, Hash, Search, X } from 'lucide-react';
-import { Workspace, MessageItem, IconButton } from './components';
+import { Workspace, MessageItem, IconButton, ActorIdentity } from './components';
 const positionKey = 'workstation-conversation-positions-v1';
 function positions(): Record<string, number> {
   try {
@@ -90,7 +90,9 @@ export function ConversationView() {
           </small>
           {result.map((m) => (
             <button key={m.id} onClick={() => viewMessage(m.id, m.replyTo)}>
-              <strong>{m.author}</strong>
+              <span className="search-message-identity">
+                <ActorIdentity message={m} />
+              </span>
               <p>{m.text}</p>
               {m.replyTo && <small>In a thread</small>}
             </button>

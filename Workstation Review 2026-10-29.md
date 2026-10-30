@@ -1,5 +1,7 @@
 # Workstation review — October 29, 2026
 
+**Subsequent implementation:** the user selected Conversation beside work. [Beside Work Results.md](Beside%20Work%20Results.md) records actual application changes addressing the selected chat/canvas trial, popup placement, crowded native content, recall, action creation and image-save consistency. This report preserves the earlier observed failures at its stated source revision; do not read those historical findings as a claim that no implementation followed. Identity services, working-agent Graph telemetry and the real context loop remain open.
+
 **Outcome:** the next iteration should repair data consistency, visible-work continuity and retrieval before adding more canvas object types or applying another visual skin. Useful native canvas actions now exist, but several cross-surface contracts remain incomplete.
 
 **Follow-up scope correction:** the user then stressed working agents on the graph, profile photos/colored chat names, a broader module/chat audit, no overlapping popups, and useful content that feels native to the canvas, citing Notion. Section 8 records the additional live audit and research. The initial reliability findings remain; they are not a sufficient product-experience plan by themselves.

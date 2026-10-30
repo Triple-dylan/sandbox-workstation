@@ -9,6 +9,7 @@ import {
   Image,
   ListOrdered,
   Pin,
+  PenLine,
 } from 'lucide-react';
 import type { Resource } from './model';
 export type WorkCommand =
@@ -20,8 +21,10 @@ export type WorkCommand =
   | 'restore-layout'
   | 'open-plan'
   | 'add-visual'
+  | 'new-writing'
   | `pin:${string}`
   | `visual:${string}`;
+// Writing views refer to private canonical resources and appear in the document results.
 export function WorkActions({
   resources,
   onOpen,
@@ -37,7 +40,12 @@ export function WorkActions({
   onClose: () => void;
   canRestore: boolean;
   canSave: boolean;
-  canvasItems: { id: `pin:${string}` | `visual:${string}`; title: string; detail: string }[];
+  canvasItems: {
+    id: `pin:${string}` | `visual:${string}`;
+    title: string;
+    detail: string;
+    searchText?: string;
+  }[];
 }) {
   const [query, setQuery] = useState('');
   const host = useRef<HTMLDivElement>(null),
@@ -59,6 +67,12 @@ export function WorkActions({
     };
   }, []);
   const commands = [
+    {
+      id: 'new-writing',
+      label: 'Write on canvas',
+      hint: 'Text, headings, lists and checklists',
+      icon: PenLine,
+    },
     {
       id: 'open-plan',
       label: 'Open project plan',
@@ -94,10 +108,10 @@ export function WorkActions({
     },
   ] as const;
   const matches = resources.filter((r) =>
-    `${r.title} ${r.summary}`.toLowerCase().includes(query.toLowerCase()),
+    `${r.title} ${r.summary} ${r.body || ''}`.toLowerCase().includes(query.toLowerCase()),
   );
   const references = canvasItems.filter((r) =>
-    `${r.title} ${r.detail}`.toLowerCase().includes(query.toLowerCase()),
+    `${r.title} ${r.detail} ${r.searchText || ''}`.toLowerCase().includes(query.toLowerCase()),
   );
   const actions = commands.filter(
     (c) =>

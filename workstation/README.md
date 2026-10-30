@@ -1,5 +1,7 @@
 # Workstation refinement revision
 
+**Current trial:** the user selected Conversation beside work. Read [Beside Work Results.md](../Beside%20Work%20Results.md). The composer now lives beneath resizable conversation history; Write on canvas creates canonical private writing with paragraph/heading/list/checklist blocks. Native pins/images/planning retain source records. Add to plan asks for an action inline and allows distinct actions from one source. Open work/Account use allocated left-region space, attachments expand in the composer, and inspection can coexist with utilities when room permits. This supersedes the older popup and source-deduplication descriptions below. Live delivery, executing agents and on-graph job activity remain unbuilt.
+
 The user authorized implementing the researched refinement plan. Read `../Maturity Refinement Plan.md`, `../Maturity Refinement Results.md`, `../AGENTS.md` and the conversation record before continuing. This is a local interaction/configuration proof, not an accepted or completed MVP.
 
 **Current known gaps:** read [the October 29 review](../Workstation%20Review%202026-10-29.md) before using the recovery/search claims below. Its isolated probes reproduce mismatched image pixels/metadata after an injected save failure, utility opening hiding active work, and full-text/caption search omissions. These remain unfixed. The review made no application changes.
