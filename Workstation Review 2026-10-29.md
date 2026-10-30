@@ -215,3 +215,41 @@ Do not defer all visible collaboration work behind a long series of local polish
 - Show a real job progress through Graph, inspect its permitted target and result, then reconnect/stop/fail it. Another user cannot see private activity or infer its hidden target through aggregate labels or counts. Activity must not continuously rearrange the graph.
 
 The implementation still fails the experience bar. This expanded audit changes the next work specification; it does not declare the current preview accepted or any of these repairs implemented.
+
+## 9. Review after the beside-work implementation
+
+October 29, source revision `979a882`. The user supplied conversation-list and opened-conversation screenshots, rejected dragging/snapping quality, required work modules on Graph to look different from fixed right utilities, and explicitly prohibited scrolling those right utilities. They said the conversation text remains in a canvas-colored rail. They requested a thoughtful review, rather than another immediate coding pass. No application source changed during this review.
+
+### Finding: navigation, work and utilities still lack distinct contracts
+
+The screenshots' conversation is still inside `.left-extension`, the navigation container. The implementation moved its composer and stripped its background/radius; it did not make the conversation part of workspace placement. Selecting a conversation changes that container from a 260px rounded glass navigation panel to a 360px transparent square region. The live probe measures a **104px canvas shift**. Both states retain the same shadow despite different shape/material rules. That explains the conflicting visual language and why the opened text feels like a disguised sidebar.
+
+The approved beside-work direction remains valid. The next proposed correction is to keep the rail/navigation list responsible for selection, and render one retained conversation work surface in the workspace allocation beside other work. Its transcript, thread state and composer are one unit, with real placement/resize semantics and a clear work-surface boundary. Selecting another channel or DM reuses that surface; it must not manufacture more windows or change another conversation's draft. Navigation should not masquerade as content by changing background color. Exact placement behavior beyond the approved beside arrangement remains a design proposal, not a newly confirmed user instruction.
+
+### Finding: dragging currently moves an outline, not the work
+
+A real pointer probe moved 70px horizontally and 50px vertically. The writing object remained at `(463,25)` throughout the held gesture while its destination outline moved to `(527,73)`. Only release moved the object there. A separate outline can communicate a dock destination, but this implementation uses it as the sole motion feedback for ordinary dragging.
+
+The **visible grid is 24px**, while `snapped`, keyboard movement and placement use **16px**. Initial object positions can therefore miss the displayed dots. `pairSnap` also changes both objects' dimensions within a broad 42px edge vicinity, selecting the first qualifying target; the same movement conflates moving, aligning and splitting. The absence of pointer capture in this work-object path is a robustness gap to test, not proof that a lost-pointer failure was reproduced. The working implementation does have cancellation/listener cleanup.
+
+Proposed correction: one shared geometry definition for rendering, placement and keyboard movement; continuous content feedback within valid free space; clear collision feedback at the last valid position; and narrow, stable alignment guides. A separately indicated shared-edge drop may resize neighbors, with their exact resulting geometry previewed before commit. Nearness alone should not cause surprise size changes. Preserve non-overlap throughout the gesture, Escape/cancel and readable minimums. Tune acquisition/release distances with real pointer/touch trials rather than adopting another arbitrary constant.
+
+### Finding: fixed utilities have two independently scrolling layers
+
+Both `.utility-stack` and `.utility-card-body` have `overflow: auto`; bodies are capped at 300px and the stack at available height. In an isolated 60-goal stress fixture, the Goals body has 1,897px content inside a 300px viewport. A normal wheel gesture changes its scrollTop from 0 to 220, while the stack also changes from 0 to 23.5. This violates the new requirement and creates ambiguous nested scrolling. The fixture tests scale; it is not an assertion about the contents of the user's screenshots.
+
+The confirmed correction applies to **both fixed utility bodies and their stack**: neither may scroll. The proposed design is a bounded summary for each utility, prioritized to available space, with explicit access to a complete work view for longer sources, goals or activity. Do not hide a scrollbar, clip unreachable records or compress text to satisfy the rule. On small heights, use a deliberate compact/collapsed utility presentation while keeping the available utilities identifiable. Complete document/conversation/browser work content needs its own content behavior; do not silently ban all content scrolling throughout the harness from this right-utility instruction.
+
+### Finding: work tools and fixed utilities share nearly identical window styling
+
+The live inspector and Project agent utility both use 14px corners, the same shadow and similar neutral white/glass surfaces. Canvas full tools use the same rounded, bordered, shadowed vocabulary; native writing/pins received more differentiation, but the broader work-tool hierarchy did not. A small transparent exception for some content does not establish a coherent system.
+
+Proposed hierarchy: the rail/list is navigation; movable/snapped work surfaces have content-led dimensions, clear manipulation edges and readable work material; fixed right utilities are compact, stationary context instruments with shallow glass and bounded summaries. Graph remains the full primary surface. Its opened work inspectors must communicate their role clearly and preserve the graph, rather than visually impersonating another fixed utility. Use consistent typography/spacing/focus language across these roles, with deliberate differences in structure and material. No hero, top menu, decorative logo, zoom or default dashboard is added.
+
+### Review evidence and next acceptance bar
+
+[Measurements, retained probe source and review captures](research/reviews/2026-10-29/interaction-review/README.md) accompany the supplied screenshots. The browser probe completed without page errors and did not touch user preview storage. Source fixes are not claimed. The preceding 42 passing scenarios prove their recorded behavior, not natural dragging, correct grid semantics, zero utility scroll or appropriate visual hierarchy.
+
+Next proof must show: real content tracking valid movement; exact grid/guide agreement; no accidental resize or overlap; non-scrolling utilities with complete-record access; and rail navigation selecting a retained conversation work surface with its composer attached. Validate list → chat → thread → source → work → graph, keeping identity, draft and work state intact, at ordinary and constrained desktop sizes. Treat these as coupled acceptance journeys rather than independent screenshot checks.
+
+Relevant primary references: [MDN pointer capture](https://developer.mozilla.org/en-US/docs/Web/API/Element/setPointerCapture) explains retaining a pointer target across boundaries; [Notion placement guidance](https://www.notion.com/help/columns-headings-and-dividers) illustrates explicit drop guides and shared-edge resizing. These support engineering/design proposals; neither overrides this product's no-overlap, bounded-workspace or no-scroll utility requirements.

@@ -1,0 +1,175 @@
+{
+  "sourceRevision": "979a882",
+  "list": {
+    "x": 73,
+    "y": 9,
+    "width": 260,
+    "height": 982,
+    "background": "rgba(255, 255, 255, 0.67)",
+    "radius": "15px",
+    "shadow": "rgba(0, 0, 0, 0.25) 0px 12px 36px -22px, rgba(0, 0, 0, 0.14) 0px 1px 4px -2px",
+    "overflowY": "hidden",
+    "scrollTop": 0,
+    "scrollHeight": 980,
+    "clientHeight": 980
+  },
+  "chat": {
+    "x": 73,
+    "y": 9,
+    "width": 360,
+    "height": 982,
+    "background": "rgba(0, 0, 0, 0)",
+    "radius": "0px",
+    "shadow": "rgba(0, 0, 0, 0.25) 0px 12px 36px -22px, rgba(0, 0, 0, 0.14) 0px 1px 4px -2px",
+    "overflowY": "hidden",
+    "scrollTop": 0,
+    "scrollHeight": 982,
+    "clientHeight": 982
+  },
+  "canvasShift": 104,
+  "drag": {
+    "cursorDelta": {
+      "x": 70,
+      "y": 50
+    },
+    "before": {
+      "x": 463,
+      "y": 25,
+      "width": 460,
+      "height": 360,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "5px",
+      "shadow": "none",
+      "overflowY": "hidden",
+      "scrollTop": 0,
+      "scrollHeight": 358,
+      "clientHeight": 358
+    },
+    "during": {
+      "x": 463,
+      "y": 25,
+      "width": 460,
+      "height": 360,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "5px",
+      "shadow": "none",
+      "overflowY": "hidden",
+      "scrollTop": 0,
+      "scrollHeight": 358,
+      "clientHeight": 358
+    },
+    "preview": {
+      "x": 527,
+      "y": 73,
+      "width": 460,
+      "height": 360,
+      "background": "rgba(0, 0, 0, 0.055)",
+      "radius": "13px",
+      "shadow": "none",
+      "overflowY": "visible",
+      "scrollTop": 0,
+      "scrollHeight": 356,
+      "clientHeight": 356
+    },
+    "after": {
+      "x": 527,
+      "y": 73,
+      "width": 460,
+      "height": 360,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "5px",
+      "shadow": "none",
+      "overflowY": "hidden",
+      "scrollTop": 0,
+      "scrollHeight": 358,
+      "clientHeight": 358
+    },
+    "grid": "24px 24px"
+  },
+  "surfaces": {
+    "inspector": {
+      "x": 1191,
+      "y": 9,
+      "width": 400,
+      "height": 942,
+      "background": "rgb(253, 253, 253)",
+      "radius": "14px",
+      "shadow": "rgba(0, 0, 0, 0.25) 0px 12px 36px -22px, rgba(0, 0, 0, 0.14) 0px 1px 4px -2px",
+      "overflowY": "hidden",
+      "scrollTop": 0,
+      "scrollHeight": 940,
+      "clientHeight": 940
+    },
+    "utility": {
+      "x": 920,
+      "y": 224.5,
+      "width": 258,
+      "height": 147,
+      "background": "rgba(255, 255, 255, 0.67)",
+      "radius": "14px",
+      "shadow": "rgba(0, 0, 0, 0.25) 0px 12px 36px -22px, rgba(0, 0, 0, 0.14) 0px 1px 4px -2px",
+      "overflowY": "hidden",
+      "scrollTop": 0,
+      "scrollHeight": 145,
+      "clientHeight": 145
+    }
+  },
+  "overflowFixture": "60 local synthetic goals, isolated context only",
+  "overflowBefore": {
+    "body": {
+      "x": 921,
+      "y": 394.5,
+      "width": 256,
+      "height": 300,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "0px",
+      "shadow": "none",
+      "overflowY": "auto",
+      "scrollTop": 0,
+      "scrollHeight": 1897,
+      "clientHeight": 300
+    },
+    "stack": {
+      "x": 919,
+      "y": 9,
+      "width": 260,
+      "height": 662,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "0px",
+      "shadow": "none",
+      "overflowY": "auto",
+      "scrollTop": 0,
+      "scrollHeight": 699,
+      "clientHeight": 662
+    }
+  },
+  "overflowAfter": {
+    "body": {
+      "x": 921,
+      "y": 371,
+      "width": 256,
+      "height": 300,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "0px",
+      "shadow": "none",
+      "overflowY": "auto",
+      "scrollTop": 220,
+      "scrollHeight": 1897,
+      "clientHeight": 300
+    },
+    "stack": {
+      "x": 919,
+      "y": 9,
+      "width": 260,
+      "height": 662,
+      "background": "rgba(0, 0, 0, 0)",
+      "radius": "0px",
+      "shadow": "none",
+      "overflowY": "auto",
+      "scrollTop": 23.5,
+      "scrollHeight": 699,
+      "clientHeight": 662
+    }
+  },
+  "errors": []
+}
