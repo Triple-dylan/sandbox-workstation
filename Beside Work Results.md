@@ -1,5 +1,7 @@
 # Conversation beside work — implementation and review
 
+**Current implementation supersedes the writing launcher and spatial presentation below:** read [Direct Canvas Results.md](Direct%20Canvas%20Results.md). Empty-canvas click now starts direct text; fixed utilities do not scroll; drag feedback and conversation/work hierarchy were revised. This document preserves the preceding trial and its historical checks.
+
 **Subsequent user review:** the user rejected drag/snap quality, inconsistent rail/chat presentation, similarity between work modules and fixed utilities, and all scrolling of right-side utilities. Section 9 of [the review](Workstation%20Review%202026-10-29.md) records measured causes and proposed corrections. The implementation facts and 42-check result below remain historical evidence, not visual/interaction acceptance.
 
 October 29, 2026. The user selected “beside work is goood” after reviewing the joint chat/canvas alternatives. The application on port 4174 now implements that trial. Earlier statements that only audit documents changed are historical. This is not final visual acceptance, a selected production service or completion of the broader MVP.

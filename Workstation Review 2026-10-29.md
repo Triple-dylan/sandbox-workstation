@@ -1,5 +1,7 @@
 # Workstation review — October 29, 2026
 
+**Latest implementation:** [Direct Canvas Results.md](Direct%20Canvas%20Results.md) records the authorized follow-up to section 9 and the click-to-write clarification. Direct text, drag/grid feedback, non-scrolling summaries and work/utility hierarchy have changed. Preserve the revision-specific observations below; do not report all of them as current failures. Remaining production-service gaps are still open.
+
 **Subsequent implementation:** the user selected Conversation beside work. [Beside Work Results.md](Beside%20Work%20Results.md) records actual application changes addressing the selected chat/canvas trial, popup placement, crowded native content, recall, action creation and image-save consistency. This report preserves the earlier observed failures at its stated source revision; do not read those historical findings as a claim that no implementation followed. Identity services, working-agent Graph telemetry and the real context loop remain open.
 
 **Outcome:** the next iteration should repair data consistency, visible-work continuity and retrieval before adding more canvas object types or applying another visual skin. Useful native canvas actions now exist, but several cross-surface contracts remain incomplete.

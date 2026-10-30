@@ -29,7 +29,6 @@ import {
   Maximize2,
   Minimize2,
   ShieldCheck,
-  Calendar,
   Target,
   Sun,
   Moon,
@@ -55,7 +54,8 @@ import {
 } from './components';
 import { Graph } from './Graph';
 import { PinnedMessage, VisualReference, CanvasPlan } from './CanvasContent';
-import { CanvasWriting, newBlock, writingMarkdown } from './CanvasWriting';
+import { newBlock, writingMarkdown } from './CanvasWriting';
+import { CanvasText } from './CanvasText';
 import type { WritingBlock } from './model';
 import type { CanvasPin, CanvasVisual } from './canvas-content';
 import { inspectImage, saveImage } from './image-store';
@@ -68,6 +68,7 @@ import { resources as repositoryResources, storageKey, type Utility, type Goal }
 import { loadState, type State, type LeftMode } from './state';
 import {
   initialObject,
+  GRID,
   arrange,
   addNativeObject,
   fits,
@@ -82,6 +83,7 @@ import '@fontsource-variable/dm-sans/index.css';
 import './style.css';
 import './workspace.css';
 import './beside.css';
+import './direct.css';
 
 const toolNames: Record<string, string> = {
   document: 'Document',
@@ -118,6 +120,11 @@ function App() {
     [],
   );
   const [notice, setNotice] = useState('');
+  const [textDraft, setTextDraft] = useState<{
+    object: CanvasObject;
+    resource: import('./model').Resource;
+  } | null>(null);
+  const suppressCanvasClickUntil = useRef(0);
   const resources = useMemo(
     () => [...repositoryResources, ...s.localResources],
     [s.localResources],
@@ -141,7 +148,11 @@ function App() {
     width: number;
   } | null>(null);
   const previousViewport = useRef(window.innerWidth);
-  const [preview, setPreview] = useState<{ objects: CanvasObject[]; valid: boolean } | null>(null);
+  const [preview, setPreview] = useState<{
+    objects: CanvasObject[];
+    valid: boolean;
+    display?: CanvasObject[];
+  } | null>(null);
   const [bounds, setBounds] = useState<Bounds>({ width: 0, height: 0 });
   const stage = useRef<HTMLDivElement>(null),
     composer = useRef<HTMLTextAreaElement>(null),
@@ -236,7 +247,7 @@ function App() {
   }, []);
   const roomFor = (left: LeftMode, inspection: boolean) =>
     window.innerWidth -
-      (left === 'closed' ? 0 : left === 'chat' ? s.chatWidth : 260) -
+      (left === 'closed' ? 0 : ['chat', 'list'].includes(left) ? s.chatWidth : 260) -
       (inspection ? readerWidth + 12 : 0) -
       (s.utilities.length ? 260 : 0) -
       100 >=
@@ -698,41 +709,65 @@ function App() {
     recovery.current = null;
   };
   const beginGesture = (event: React.PointerEvent, item: CanvasObject, resize = false) => {
-    if (!resize && (event.target as HTMLElement).closest('button,summary')) return;
+    if (
+      event.button !== 0 ||
+      (!resize && (event.target as HTMLElement).closest('button:not([data-move-handle]),summary'))
+    )
+      return;
     if (focus) return;
     event.preventDefault();
+    const element = event.currentTarget as HTMLElement,
+      pointer = event.pointerId;
     const rect = stage.current!.getBoundingClientRect(),
       start = { x: event.clientX, y: event.clientY };
-    let candidate: CanvasObject[] | null = null,
-      valid = false,
-      moved = false;
+    let candidate: CanvasObject[] = [item],
+      lastValid = item,
+      lastDrop = item,
+      moved = false,
+      ended = false,
+      docking = false;
+    const cursor = document.body.style.cursor;
+    element.setPointerCapture(pointer);
+    document.body.style.cursor = resize ? 'nwse-resize' : 'grabbing';
+    const gridRect = (object: CanvasObject) =>
+      resize
+        ? {
+            ...object,
+            width: Math.max(minimumFor(item.id).width, Math.round(object.width / GRID) * GRID),
+            height: Math.max(minimumFor(item.id).height, Math.round(object.height / GRID) * GRID),
+          }
+        : snapped(object, object.x, object.y, bounds);
     const move = (e: PointerEvent) => {
-      if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) return;
+      if (e.pointerId !== pointer) return;
+      if (!moved && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 4) return;
       moved = true;
       const single = resize
         ? {
             ...item,
             width: Math.max(
               minimumFor(item.id).width,
-              Math.min(
-                bounds.width - item.x,
-                Math.round((item.width + e.clientX - start.x) / 16) * 16,
-              ),
+              Math.min(bounds.width - item.x, item.width + e.clientX - start.x),
             ),
             height: Math.max(
               minimumFor(item.id).height,
-              Math.min(
-                bounds.height - item.y,
-                Math.round((item.height + e.clientY - start.y) / 16) * 16,
-              ),
+              Math.min(bounds.height - item.y, item.height + e.clientY - start.y),
             ),
           }
-        : snapped(item, item.x + e.clientX - start.x, item.y + e.clientY - start.y, bounds);
-      candidate = [single];
-      valid = fits(single, bounds, blockers);
-      if (!resize) {
+        : {
+            ...item,
+            x: Math.max(0, Math.min(bounds.width - item.width, item.x + e.clientX - start.x)),
+            y: Math.max(0, Math.min(bounds.height - item.height, item.y + e.clientY - start.y)),
+          };
+      const valid = fits(single, bounds, blockers);
+      if (valid) lastValid = single;
+      const grid = gridRect(single);
+      const gridValid = fits(grid, bounds, blockers);
+      if (gridValid) lastDrop = grid;
+      candidate = [grid];
+      docking = false;
+      if (!resize && e.shiftKey)
         for (const target of s.objects.filter((o) => o.id !== item.id)) {
-          const pairing = pairSnap(
+          const pair = pairSnap(
             item,
             target,
             e.clientX - rect.x,
@@ -740,32 +775,48 @@ function App() {
             bounds,
             blockers,
           );
-          if (pairing) {
-            candidate = pairing;
-            valid = true;
+          if (pair) {
+            candidate = pair;
+            docking = true;
             break;
           }
         }
-      }
-      setPreview({ objects: candidate, valid });
+      setPreview({ objects: candidate, valid: gridValid || docking, display: [lastValid] });
     };
     const cleanup = () => {
+      if (ended) return;
+      ended = true;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', cancel);
-      window.removeEventListener('keydown', escape);
+      window.removeEventListener('keydown', escape, true);
+      window.removeEventListener('blur', cancel);
+      element.removeEventListener('lostpointercapture', cancel);
+      if (element.hasPointerCapture(pointer)) element.releasePointerCapture(pointer);
+      document.body.style.cursor = cursor;
+      if (moved) suppressCanvasClickUntil.current = performance.now() + 250;
       setPreview(null);
     };
-    const end = () => {
-      if (valid && candidate) {
-        const updates = candidate;
-        patch({ objects: s.objects.map((o) => updates.find((v) => v.id === o.id) || o) });
+    const end = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      if (moved) {
+        const updates = docking ? candidate : [lastDrop];
+        if (
+          updates.every((o) =>
+            fits(o, bounds, [
+              ...blockers.filter((b) => !updates.some((v) => v.id === b.id)),
+              ...updates,
+            ]),
+          )
+        )
+          patch({ objects: s.objects.map((o) => updates.find((v) => v.id === o.id) || o) });
       }
       cleanup();
     };
     const cancel = () => cleanup();
     const escape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         e.stopPropagation();
         cleanup();
       }
@@ -773,7 +824,9 @@ function App() {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', cancel);
-    window.addEventListener('keydown', escape);
+    window.addEventListener('keydown', escape, true);
+    window.addEventListener('blur', cancel);
+    element.addEventListener('lostpointercapture', cancel);
   };
   const openAgent = () => {
     if (s.surface === 'graph' && !roomFor(s.left, true)) {
@@ -787,26 +840,7 @@ function App() {
     else openTool('agent-settings');
   };
   const runCommand = (id: WorkCommand) => {
-    if (id === 'new-writing') {
-      const id = crypto.randomUUID(),
-        blocks = [newBlock()];
-      const resource = {
-        id,
-        title: 'Untitled writing',
-        file: 'Untitled writing.md',
-        summary: 'Private canvas writing',
-        folder: 'private' as const,
-        body: '',
-        blocks,
-        updatedAt: new Date().toISOString(),
-      };
-      if (placeCanvasContent(`writing:${id}`, { localResources: [...s.localResources, resource] }))
-        requestAnimationFrame(() =>
-          document
-            .querySelector<HTMLTextAreaElement>(`[data-object="writing:${id}"] textarea`)
-            ?.focus(),
-        );
-    } else if (id === 'open-plan') {
+    if (id === 'open-plan') {
       placeCanvasContent('planning');
     } else if (id === 'add-visual') {
       chooseVisual();
@@ -843,6 +877,104 @@ function App() {
       recovery.current = null;
       setFocus(null);
     }
+  };
+  const textHeight = (object: CanvasObject) => {
+    let limit = bounds.height - object.y;
+    for (const other of blockers)
+      if (
+        other.id !== object.id &&
+        other.y >= object.y &&
+        other.x < object.x + object.width + 16 &&
+        other.x + other.width + 16 > object.x
+      )
+        limit = Math.min(limit, other.y - object.y - 16);
+    return Math.max(56, limit);
+  };
+  const startText = (x: number, y: number) => {
+    if (s.surface !== 'canvas' || focus) return;
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    let width = Math.min(420, bounds.width - x),
+      height = bounds.height - y;
+    for (const other of blockers) {
+      if (
+        x >= other.x - 16 &&
+        x < other.x + other.width + 16 &&
+        y >= other.y - 16 &&
+        y < other.y + other.height + 16
+      )
+        return;
+      if (other.y < y + 56 && other.y + other.height + 16 > y && other.x > x)
+        width = Math.min(width, other.x - x - 16);
+    }
+    for (const other of blockers)
+      if (other.y > y && other.x < x + width + 16 && other.x + other.width + 16 > x)
+        height = Math.min(height, other.y - y - 16);
+    if (width < 96 || height < 56) {
+      setNotice('Choose a little more empty space to write here.');
+      return;
+    }
+    const id = crypto.randomUUID();
+    setTextDraft({
+      object: { id: `writing:${id}`, x, y, width, height: 56 },
+      resource: {
+        id,
+        title: 'Untitled writing',
+        file: 'Untitled writing.md',
+        folder: 'private',
+        summary: 'Private canvas writing',
+        body: '',
+        blocks: [newBlock()],
+      },
+    });
+  };
+  const changeText = (id: string, blocks: WritingBlock[]) => {
+    if (textDraft?.resource.id === id) {
+      if (!blocks.some((b) => b.text.trim())) {
+        setTextDraft((old) => (old ? { ...old, resource: { ...old.resource, blocks } } : null));
+        return;
+      }
+      const title = (
+        blocks.find((b) => b.type === 'heading' && b.text.trim())?.text ||
+        blocks.find((b) => b.text.trim())!.text
+      )
+        .split('\n')[0]
+        .slice(0, 64);
+      const resource = {
+        ...textDraft.resource,
+        blocks,
+        body: writingMarkdown(blocks),
+        title,
+        file: `${title}.md`,
+        updatedAt: new Date().toISOString(),
+      };
+      const object = textDraft.object;
+      setState((old) => ({
+        ...old,
+        localResources: [...old.localResources, resource],
+        objects: [...old.objects, object],
+      }));
+      setTextDraft(null);
+    } else context.updateWriting(id, blocks);
+  };
+  const measureText = (id: Tool, height: number) => {
+    const rounded = Math.ceil(height);
+    if (textDraft?.object.id === id) {
+      setTextDraft((old) =>
+        old && old.object.height !== rounded
+          ? { ...old, object: { ...old.object, height: rounded } }
+          : old,
+      );
+      return;
+    }
+    setState((old) => {
+      const object = old.objects.find((o) => o.id === id);
+      if (!object || object.height === rounded) return old;
+      const next = { ...object, height: rounded };
+      return fits(next, bounds, [...old.objects, ...reserved])
+        ? { ...old, objects: old.objects.map((o) => (o.id === id ? next : o)) }
+        : old;
+    });
   };
   const context = {
     pinMessage,
@@ -1005,6 +1137,153 @@ function App() {
       </a>
     </div>
   );
+  const leftContent = (
+    <aside
+      className={
+        visibleLeft === 'chat'
+          ? 'conversation-surface work-surface'
+          : `left-extension glass left-${visibleLeft}`
+      }
+      style={
+        visibleLeft === 'chat' || visibleLeft === 'list'
+          ? { width: s.chatWidth, flexBasis: s.chatWidth }
+          : undefined
+      }
+      aria-label={
+        s.left === 'chat'
+          ? 'Conversation history'
+          : s.left === 'files'
+            ? 'Resource navigation'
+            : 'Conversation navigation'
+      }
+    >
+      <div className="extension-header">
+        {s.left === 'chat' && !picker && !account && (
+          <IconButton
+            icon={ArrowLeft}
+            label="Back to conversations"
+            onClick={() => patch({ left: 'list' })}
+          />
+        )}
+        <strong>
+          {picker
+            ? 'Open work'
+            : account
+              ? 'Account'
+              : s.left === 'chat'
+                ? current.kind === 'channel'
+                  ? `# ${current.title}`
+                  : current.title
+                : s.left === 'people'
+                  ? 'New message'
+                  : s.left === 'files'
+                    ? 'Files'
+                    : 'Conversations'}
+        </strong>
+        {s.left === 'list' && !picker && !account && (
+          <IconButton icon={Plus} label="New private chat" onClick={newChat} />
+        )}
+        <IconButton
+          icon={PanelLeftClose}
+          label={picker || account ? 'Close disclosure' : 'Hide left navigation'}
+          onClick={() =>
+            picker || account ? (setPicker(false), setAccount(false)) : patch({ left: 'closed' })
+          }
+        />
+      </div>
+      {picker ? (
+        workView
+      ) : account ? (
+        accountView
+      ) : s.left === 'chat' ? (
+        <ConversationView />
+      ) : s.left === 'files' ? (
+        <div className="navigation-content">
+          <ResourceRows onOpen={(id) => inspect(id)} />
+        </div>
+      ) : s.left === 'people' ? (
+        <div className="contact-picker">
+          <button className="text-button" onClick={() => revealLeft('list')}>
+            <ArrowLeft size={14} />
+            Conversations
+          </button>
+          <h3>Find a person</h3>
+          <p>
+            No workspace identity is connected. People search and direct-message delivery become
+            available when accounts are connected.
+          </p>
+          <small>
+            Your existing local DM drafts are retained. Entering a name alone cannot establish a
+            recipient’s identity or access.
+          </small>
+        </div>
+      ) : (
+        <>
+          <label className="search-field">
+            <Search size={15} />
+            <input
+              aria-label="Find a conversation"
+              placeholder="Find a conversation"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+          <div className="conversation-groups">
+            <div className="section-label">
+              <Lock size={13} />
+              Personal
+              <button aria-label="Start a direct message" onClick={() => revealLeft('people')}>
+                <Plus size={15} />
+              </button>
+            </div>
+            {s.conversations
+              .filter(
+                (c) => c.kind !== 'channel' && c.title.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((c) => (
+                <button
+                  className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
+                  key={c.id}
+                  aria-label={c.title}
+                  onClick={() => select(c.id)}
+                >
+                  {c.kind === 'dm' ? <UserRound size={15} /> : <Lock size={14} />}
+                  <span>{c.title}</span>
+                  {!!s.drafts[c.id] && <small className="draft-label">Draft</small>}
+                </button>
+              ))}
+            <div className="project-label">
+              <span className="project-mark" />
+              <div>
+                <strong>Workstation</strong>
+                <small>Recorded project discussion</small>
+              </div>
+            </div>
+            {s.conversations
+              .filter(
+                (c) => c.kind === 'channel' && c.title.toLowerCase().includes(search.toLowerCase()),
+              )
+              .map((c) => (
+                <button
+                  className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
+                  key={c.id}
+                  aria-label={`# ${c.title}`}
+                  onClick={() => select(c.id)}
+                >
+                  <span className="hash">#</span>
+                  <span>{c.title}</span>
+                </button>
+              ))}
+          </div>
+          <div className="list-footer">
+            <ShieldCheck size={13} />
+            Local records · no live participants
+          </div>
+        </>
+      )}
+      {visibleLeft === 'chat' && composerView}
+    </aside>
+  );
   return (
     <Workspace.Provider value={context}>
       <div className="app-shell revised-shell">
@@ -1071,176 +1350,45 @@ function App() {
             </div>
           </div>
         </nav>
-        {visibleLeft !== 'closed' && (
-          <>
-            <aside
-              className={`left-extension glass left-${visibleLeft}`}
-              style={
-                visibleLeft === 'chat' ? { width: s.chatWidth, flexBasis: s.chatWidth } : undefined
-              }
-              aria-label={
-                s.left === 'chat'
-                  ? 'Conversation history'
-                  : s.left === 'files'
-                    ? 'Resource navigation'
-                    : 'Conversation navigation'
-              }
-            >
-              <div className="extension-header">
-                {s.left === 'chat' && !picker && !account && (
-                  <IconButton
-                    icon={ArrowLeft}
-                    label="Back to conversations"
-                    onClick={() => patch({ left: 'list' })}
-                  />
-                )}
-                <strong>
-                  {picker
-                    ? 'Open work'
-                    : account
-                      ? 'Account'
-                      : s.left === 'chat'
-                        ? current.kind === 'channel'
-                          ? `# ${current.title}`
-                          : current.title
-                        : s.left === 'people'
-                          ? 'New message'
-                          : s.left === 'files'
-                            ? 'Files'
-                            : 'Conversations'}
-                </strong>
-                {s.left === 'list' && !picker && !account && (
-                  <IconButton icon={Plus} label="New private chat" onClick={newChat} />
-                )}
-                <IconButton
-                  icon={PanelLeftClose}
-                  label={picker || account ? 'Close disclosure' : 'Hide left navigation'}
-                  onClick={() =>
-                    picker || account
-                      ? (setPicker(false), setAccount(false))
-                      : patch({ left: 'closed' })
-                  }
-                />
-              </div>
-              {picker ? (
-                workView
-              ) : account ? (
-                accountView
-              ) : s.left === 'chat' ? (
-                <ConversationView />
-              ) : s.left === 'files' ? (
-                <div className="navigation-content">
-                  <ResourceRows onOpen={(id) => inspect(id)} />
-                </div>
-              ) : s.left === 'people' ? (
-                <div className="contact-picker">
-                  <button className="text-button" onClick={() => revealLeft('list')}>
-                    <ArrowLeft size={14} />
-                    Conversations
-                  </button>
-                  <h3>Find a person</h3>
-                  <p>
-                    No workspace identity is connected. People search and direct-message delivery
-                    become available when accounts are connected.
-                  </p>
-                  <small>
-                    Your existing local DM drafts are retained. Entering a name alone cannot
-                    establish a recipient’s identity or access.
-                  </small>
-                </div>
-              ) : (
-                <>
-                  <label className="search-field">
-                    <Search size={15} />
-                    <input
-                      aria-label="Find a conversation"
-                      placeholder="Find a conversation"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </label>
-                  <div className="conversation-groups">
-                    <div className="section-label">
-                      <Lock size={13} />
-                      Personal
-                      <button
-                        aria-label="Start a direct message"
-                        onClick={() => revealLeft('people')}
-                      >
-                        <Plus size={15} />
-                      </button>
-                    </div>
-                    {s.conversations
-                      .filter(
-                        (c) =>
-                          c.kind !== 'channel' &&
-                          c.title.toLowerCase().includes(search.toLowerCase()),
-                      )
-                      .map((c) => (
-                        <button
-                          className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
-                          key={c.id}
-                          aria-label={c.title}
-                          onClick={() => select(c.id)}
-                        >
-                          {c.kind === 'dm' ? <UserRound size={15} /> : <Lock size={14} />}
-                          <span>{c.title}</span>
-                          {!!s.drafts[c.id] && <small className="draft-label">Draft</small>}
-                        </button>
-                      ))}
-                    <div className="project-label">
-                      <span className="project-mark" />
-                      <div>
-                        <strong>Workstation</strong>
-                        <small>Recorded project discussion</small>
-                      </div>
-                    </div>
-                    {s.conversations
-                      .filter(
-                        (c) =>
-                          c.kind === 'channel' &&
-                          c.title.toLowerCase().includes(search.toLowerCase()),
-                      )
-                      .map((c) => (
-                        <button
-                          className={`conversation-row ${c.id === s.selected ? 'selected' : ''}`}
-                          key={c.id}
-                          aria-label={`# ${c.title}`}
-                          onClick={() => select(c.id)}
-                        >
-                          <span className="hash">#</span>
-                          <span>{c.title}</span>
-                        </button>
-                      ))}
-                  </div>
-                  <div className="list-footer">
-                    <ShieldCheck size={13} />
-                    Local records · no live participants
-                  </div>
-                </>
-              )}
-              {visibleLeft === 'chat' && composerView}
-            </aside>
-            {visibleLeft === 'chat' && (
-              <WidthDivider
-                label="Resize conversation"
-                value={s.chatWidth}
-                min={320}
-                max={Math.min(520, Math.max(320, window.innerWidth - 440))}
-                setValue={resizeChat}
-              />
-            )}
-          </>
-        )}
+        {visibleLeft !== 'closed' && visibleLeft !== 'chat' && leftContent}
         <div className="workspace-main">
           <div className="surface-row">
+            {visibleLeft === 'chat' && (
+              <>
+                {leftContent}
+                <WidthDivider
+                  label="Resize conversation"
+                  value={s.chatWidth}
+                  min={320}
+                  max={Math.min(520, Math.max(320, window.innerWidth - 440))}
+                  setValue={resizeChat}
+                />
+              </>
+            )}
             <main
               ref={stage}
-              tabIndex={-1}
+              tabIndex={0}
+              aria-description="Click empty space to write. Press Enter to write at the center."
+              style={{ backgroundSize: `${GRID}px ${GRID}px` }}
+              onClick={(e) => {
+                if (performance.now() < suppressCanvasClickUntil.current) return;
+                if (s.surface === 'canvas' && e.target === e.currentTarget) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  startText(e.clientX - rect.x, e.clientY - rect.y);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && e.key === 'Enter') {
+                  e.preventDefault();
+                  startText(bounds.width / 3, bounds.height / 3);
+                }
+              }}
               onPointerDown={(e) => {
                 if (
                   s.surface === 'canvas' &&
-                  !(e.target as HTMLElement).closest('.canvas-object, .work-action-anchor')
+                  !(e.target as HTMLElement).closest(
+                    '.canvas-object, .canvas-text-object, .work-action-anchor',
+                  )
                 )
                   e.currentTarget.focus();
               }}
@@ -1270,7 +1418,7 @@ function App() {
                 if (
                   s.surface === 'canvas' &&
                   e.clipboardData.files.length &&
-                  !(e.target as HTMLElement).closest('input,textarea,[contenteditable="true"]')
+                  !(e.target as HTMLElement).closest('input,textarea,[contenteditable]')
                 ) {
                   e.preventDefault();
                   replacingVisual.current = null;
@@ -1283,7 +1431,7 @@ function App() {
               onContextMenu={(e) => {
                 if (
                   s.surface === 'canvas' &&
-                  !(e.target as HTMLElement).closest('.canvas-object')
+                  !(e.target as HTMLElement).closest('.canvas-object, .canvas-text-object')
                 ) {
                   e.preventDefault();
                   setPicker(true);
@@ -1303,9 +1451,66 @@ function App() {
                 />
               ) : (
                 <>
-                  {s.objects
+                  {[
+                    ...s.objects,
+                    ...(textDraft && !s.objects.some((o) => o.id === textDraft.object.id)
+                      ? [textDraft.object]
+                      : []),
+                  ]
                     .filter((o) => !focus || o.id === focus)
                     .map((object) => {
+                      const rendered = preview?.display?.find((o) => o.id === object.id) || object;
+                      if (object.id.startsWith('writing:')) {
+                        const resource =
+                          resources.find((r) => r.id === object.id.slice(8)) || textDraft?.resource;
+                        if (!resource) return null;
+                        return (
+                          <section
+                            key={object.id}
+                            className="canvas-text-object"
+                            data-object={object.id}
+                            aria-label="Writing"
+                            style={{
+                              left: rendered.x,
+                              top: rendered.y,
+                              width: rendered.width,
+                              height: rendered.height,
+                            }}
+                            onFocusCapture={() => {
+                              activeTool.current = object.id;
+                            }}
+                          >
+                            <CanvasText
+                              resource={resource}
+                              draft={textDraft?.object.id === object.id}
+                              maxHeight={textHeight(object)}
+                              onChange={(blocks) => changeText(resource.id, blocks)}
+                              onMeasure={(height) => measureText(object.id, height)}
+                              onAbandon={() =>
+                                setTextDraft((old) => (old?.object.id === object.id ? null : old))
+                              }
+                              onMove={(e) => beginGesture(e, object)}
+                              onResize={(e) => beginGesture(e, object, true)}
+                              onStep={(x, y) => {
+                                const next = snapped(
+                                  object,
+                                  object.x + x * GRID,
+                                  object.y + y * GRID,
+                                  bounds,
+                                );
+                                if (fits(next, bounds, blockers))
+                                  patch({
+                                    objects: s.objects.map((o) => (o.id === object.id ? next : o)),
+                                  });
+                              }}
+                              onClose={() => {
+                                setTextDraft(null);
+                                closeTool(object.id);
+                              }}
+                            />
+                          </section>
+                        );
+                      }
                       const Icon = toolIcon(object.id),
                         title =
                           object.id === 'document'
@@ -1332,10 +1537,10 @@ function App() {
                                   height: '100%',
                                 }
                               : {
-                                  left: object.x,
-                                  top: object.y,
-                                  width: object.width,
-                                  height: object.height,
+                                  left: rendered.x,
+                                  top: rendered.y,
+                                  width: rendered.width,
+                                  height: rendered.height,
                                 }
                           }
                         >
@@ -1343,14 +1548,15 @@ function App() {
                             className="object-header"
                             tabIndex={0}
                             aria-label={`Move ${toolName(object.id).toLowerCase()}`}
+                            title="Drag to move; Shift-drag to share an edge; arrow keys to move on the grid"
                             onPointerDown={(e) => beginGesture(e, object)}
                             onKeyDown={(e) => {
                               if ((e.target as HTMLElement).closest('button')) return;
                               const delta = {
-                                ArrowLeft: [-16, 0],
-                                ArrowRight: [16, 0],
-                                ArrowUp: [0, -16],
-                                ArrowDown: [0, 16],
+                                ArrowLeft: [-GRID, 0],
+                                ArrowRight: [GRID, 0],
+                                ArrowUp: [0, -GRID],
+                                ArrowDown: [0, GRID],
                               }[e.key];
                               if (delta && !focus) {
                                 e.preventDefault();
@@ -1392,14 +1598,7 @@ function App() {
                             />
                           </header>
                           <div className="object-body">
-                            {object.id.startsWith('writing:') ? (
-                              <CanvasWriting
-                                resource={resources.find((r) => r.id === object.id.slice(8))}
-                                onChange={(blocks) =>
-                                  context.updateWriting(object.id.slice(8), blocks)
-                                }
-                              />
-                            ) : object.id.startsWith('pin:') ? (
+                            {object.id.startsWith('pin:') ? (
                               <PinnedMessage
                                 pin={s.canvasPins.find((p) => p.id === object.id)}
                                 onSource={openMessage}
@@ -1438,10 +1637,10 @@ function App() {
                               onPointerDown={(e) => beginGesture(e, object, true)}
                               onKeyDown={(e) => {
                                 const delta = {
-                                  ArrowLeft: [-16, 0],
-                                  ArrowRight: [16, 0],
-                                  ArrowUp: [0, -16],
-                                  ArrowDown: [0, 16],
+                                  ArrowLeft: [-GRID, 0],
+                                  ArrowRight: [GRID, 0],
+                                  ArrowUp: [0, -GRID],
+                                  ArrowDown: [0, GRID],
                                 }[e.key];
                                 if (delta) {
                                   e.preventDefault();
@@ -1572,6 +1771,9 @@ function App() {
                       )
                     }
                     onClose={() => patch({ utilities: s.utilities.filter((u) => u !== kind) })}
+                    summaryRows={bounds.height < 560 ? 1 : 2}
+                    compact={bounds.height < 460}
+                    onBrowse={() => inspect('root', 'folder')}
                     onSource={(id) => inspect(id)}
                     onAgent={() => runCommand('edit-agent')}
                     onPlan={() => placeCanvasContent('planning')}
@@ -1581,12 +1783,6 @@ function App() {
             )}
           </div>
           <div className="workspace-actions">
-            {s.surface === 'canvas' && (
-              <button className="open-work-button" onClick={() => runCommand('new-writing')}>
-                <PenLine size={15} />
-                <span>Write on canvas</span>
-              </button>
-            )}
             <button
               className="open-work-button glass"
               aria-label="Open work"
@@ -1667,6 +1863,9 @@ function UtilityCard({
   onSource,
   onAgent,
   onPlan,
+  onBrowse,
+  summaryRows,
+  compact,
 }: {
   kind: Utility;
   goals: Goal[];
@@ -1677,72 +1876,74 @@ function UtilityCard({
   onSource: (id: string) => void;
   onAgent: () => void;
   onPlan: () => void;
+  onBrowse: () => void;
+  summaryRows: number;
+  compact: boolean;
 }) {
-  const [adding, setAdding] = useState(false),
-    [dateFor, setDateFor] = useState<string | null>(null);
   const w = useContext(Workspace);
   const resources = w.resources.filter((r) => r.folder !== 'private');
   const Icon = kind === 'sources' ? BookOpen : kind === 'agent' ? Workflow : Target;
+  const label =
+    kind === 'sources' ? 'Sources & context' : kind === 'agent' ? 'Project agent' : 'Goals';
+  const showAll = kind === 'sources' ? onBrowse : kind === 'agent' ? onAgent : onPlan;
   return (
     <section
       className="utility-card glass"
-      aria-label={
-        kind === 'sources' ? 'Sources and context' : kind === 'agent' ? 'Project agent' : 'Goals'
-      }
+      aria-label={kind === 'sources' ? 'Sources and context' : label}
     >
       <header className="utility-header">
         <Icon size={16} />
-        <strong>
-          {kind === 'sources' ? 'Sources & context' : kind === 'agent' ? 'Project agent' : 'Goals'}
-        </strong>
-        {kind === 'goals' && (
-          <IconButton icon={ListOrdered} label="Open project plan on canvas" onClick={onPlan} />
-        )}
+        <strong>{label}</strong>
+        <IconButton
+          icon={ArrowUpRight}
+          label={
+            kind === 'sources'
+              ? 'View all sources'
+              : kind === 'agent'
+                ? 'Open agent builder'
+                : 'Open project plan on canvas'
+          }
+          onClick={showAll}
+        />
         <IconButton
           icon={collapsed ? ChevronRight : ChevronDown}
-          label={`${collapsed ? 'Expand' : 'Collapse'} ${kind}`}
-          onClick={onCollapse}
+          label={compact ? `Open ${kind}` : `${collapsed ? 'Expand' : 'Collapse'} ${kind}`}
+          onClick={compact ? showAll : onCollapse}
         />
         <IconButton icon={X} label={`Hide ${kind}`} onClick={onClose} />
       </header>
-      {!collapsed && (
+      {!collapsed && !compact && (
         <div className="utility-card-body">
           {kind === 'sources' ? (
             <>
-              <div className="utility-context">
-                <span className="project-mark" />
-                <strong>Workstation</strong>
-              </div>
               <div className="source-rows">
-                {resources.map((r) => (
+                {resources.slice(0, summaryRows).map((r) => (
                   <button key={r.id} onClick={() => onSource(r.id)}>
-                    <FileText size={15} />
+                    <FileText size={14} />
                     <span>{r.title}</span>
                     <ArrowUpRight size={12} />
                   </button>
                 ))}
               </div>
+              <button className="text-button" onClick={onBrowse}>
+                View all sources <ArrowUpRight size={12} />
+              </button>
             </>
           ) : kind === 'agent' ? (
-            <>
-              <button className="agent-summary" onClick={onAgent}>
-                <Workflow size={17} />
-                <span>
-                  <strong>
-                    {w.agents.find((a) => a.id === 'project-agent')?.draft.name || 'Project agent'}
-                  </strong>
-                  <small>Local definition · runtime not connected</small>
-                </span>
-                <ChevronRight size={14} />
-              </button>
-              <button className="text-button" onClick={onAgent}>
-                Edit agent <ArrowUpRight size={12} />
-              </button>
-            </>
+            <button className="agent-summary" onClick={onAgent}>
+              <Workflow size={16} />
+              <span>
+                <strong>
+                  {w.agents.find((a) => a.id === 'project-agent')?.draft.name || 'Project agent'}
+                </strong>
+                <small>Runtime not connected</small>
+              </span>
+              <ChevronRight size={13} />
+            </button>
           ) : (
             <>
               <div className="compact-goals">
-                {goals.map((goal) => (
+                {goals.slice(0, summaryRows).map((goal) => (
                   <div className={`compact-goal ${goal.done ? 'done' : ''}`} key={goal.id}>
                     <button
                       className="goal-check"
@@ -1755,66 +1956,14 @@ function UtilityCard({
                     </button>
                     <div className="goal-content">
                       <span>{goal.title}</span>
-                      {(goal.due || dateFor === goal.id) && (
-                        <label className="goal-date">
-                          <Calendar size={12} />
-                          <input
-                            type="date"
-                            autoFocus={dateFor === goal.id}
-                            aria-label={`Due date for ${goal.title}`}
-                            value={goal.due}
-                            onChange={(e) =>
-                              setGoals(
-                                goals.map((g) =>
-                                  g.id === goal.id ? { ...g, due: e.target.value } : g,
-                                ),
-                              )
-                            }
-                            onBlur={() => setDateFor(null)}
-                          />
-                        </label>
-                      )}
+                      {goal.due && <small>{goal.due}</small>}
                     </div>
-                    {!goal.due && dateFor !== goal.id && (
-                      <button
-                        className="add-date"
-                        aria-label={`Set due date for ${goal.title}`}
-                        title="Set due date"
-                        onClick={() => setDateFor(goal.id)}
-                      >
-                        <Calendar size={13} />
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>
-              {adding ? (
-                <form
-                  className="new-goal"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const title = String(new FormData(e.currentTarget).get('title') || '').trim();
-                    if (title) {
-                      setGoals([
-                        ...goals,
-                        { id: crypto.randomUUID(), title, done: false, due: '' },
-                      ]);
-                      setAdding(false);
-                    }
-                  }}
-                >
-                  <input name="title" aria-label="New goal" placeholder="Goal" autoFocus required />
-                  <button className="icon-button" aria-label="Save goal">
-                    <Check size={16} />
-                  </button>
-                  <IconButton icon={X} label="Cancel goal" onClick={() => setAdding(false)} />
-                </form>
-              ) : (
-                <button className="text-button" onClick={() => setAdding(true)}>
-                  <Plus size={13} />
-                  Add goal
-                </button>
-              )}
+              <button className="text-button" onClick={onPlan}>
+                Open plan <ArrowUpRight size={12} />
+              </button>
             </>
           )}
         </div>
@@ -1822,6 +1971,7 @@ function UtilityCard({
     </section>
   );
 }
+
 createRoot(document.getElementById('root')!).render(
   location.pathname === '/materials' ? <Materials /> : <App />,
 );

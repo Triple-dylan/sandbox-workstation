@@ -7,11 +7,18 @@ export type Tool =
   | `visual:${string}`
   | `writing:${string}`;
 export type Bounds = { width: number; height: number };
+export const GRID = 24;
 export type CanvasObject = { id: Tool; x: number; y: number; width: number; height: number };
 export const minimum = { width: 300, height: 220 };
 export const minimumFor = (id: Tool) => ({
-  width: 300,
-  height: id === 'planning' ? 300 : id.startsWith('visual:') ? 280 : 220,
+  width: id.startsWith('writing:') ? 96 : 300,
+  height: id.startsWith('writing:')
+    ? 56
+    : id === 'planning'
+      ? 300
+      : id.startsWith('visual:')
+        ? 280
+        : 220,
 });
 const gap = 16;
 export function intersects(a: CanvasObject, b: CanvasObject) {
@@ -38,9 +45,10 @@ export function initialObject(
   bounds: Bounds,
   others: CanvasObject[],
 ): CanvasObject | null {
-  if (bounds.width < minimum.width || bounds.height < minimum.height) return null;
+  const min = minimumFor(id);
+  if (bounds.width < min.width || bounds.height < min.height) return null;
   const preferred = id.startsWith('writing:')
-    ? { width: 460, height: 360 }
+    ? { width: 420, height: 72 }
     : id === 'document'
       ? { width: 560, height: 520 }
       : id === 'browser'
@@ -58,8 +66,8 @@ export function initialObject(
     { width, height },
     { width: Math.min(360, width), height: Math.min(300, height) },
   ]) {
-    for (let y = 16; y + size.height <= bounds.height; y += 16)
-      for (let x = 16; x + size.width <= bounds.width; x += 16) {
+    for (let y = GRID; y + size.height <= bounds.height; y += GRID)
+      for (let x = GRID; x + size.width <= bounds.width; x += GRID) {
         const item = { id, x, y, ...size };
         if (fits(item, bounds, others)) return item;
       }
@@ -94,8 +102,8 @@ export function arrange(
           ];
       let found: CanvasObject | undefined;
       for (const size of sizes) {
-        for (let y = 0; y + size.height <= bounds.height && !found; y += 16)
-          for (let x = 0; x + size.width <= bounds.width && !found; x += 16) {
+        for (let y = 0; y + size.height <= bounds.height && !found; y += GRID)
+          for (let x = 0; x + size.width <= bounds.width && !found; x += GRID) {
             const candidate = { ...object, ...size, x, y };
             if (fits(candidate, bounds, [...placed, ...reserved])) found = candidate;
           }
@@ -112,8 +120,8 @@ export function arrange(
 export function snapped(item: CanvasObject, x: number, y: number, bounds: Bounds) {
   return {
     ...item,
-    x: Math.max(0, Math.min(bounds.width - item.width, Math.round(x / 16) * 16)),
-    y: Math.max(0, Math.min(bounds.height - item.height, Math.round(y / 16) * 16)),
+    x: Math.max(0, Math.min(bounds.width - item.width, Math.round(x / GRID) * GRID)),
+    y: Math.max(0, Math.min(bounds.height - item.height, Math.round(y / GRID) * GRID)),
   };
 }
 export function addNativeObject(

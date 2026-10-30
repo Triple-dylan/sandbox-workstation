@@ -9,7 +9,6 @@ import {
   Image,
   ListOrdered,
   Pin,
-  PenLine,
 } from 'lucide-react';
 import type { Resource } from './model';
 export type WorkCommand =
@@ -21,7 +20,6 @@ export type WorkCommand =
   | 'restore-layout'
   | 'open-plan'
   | 'add-visual'
-  | 'new-writing'
   | `pin:${string}`
   | `visual:${string}`;
 // Writing views refer to private canonical resources and appear in the document results.
@@ -67,12 +65,6 @@ export function WorkActions({
     };
   }, []);
   const commands = [
-    {
-      id: 'new-writing',
-      label: 'Write on canvas',
-      hint: 'Text, headings, lists and checklists',
-      icon: PenLine,
-    },
     {
       id: 'open-plan',
       label: 'Open project plan',

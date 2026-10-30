@@ -65,7 +65,12 @@ async function validObjects(page) {
   const all = await objects(page);
   for (const o of all) {
     const r = o.rect;
-    assert(r.width >= 298 && r.height >= 218, `${o.id} too small`);
+    assert(
+      o.id.startsWith('writing:')
+        ? r.width >= 95 && r.height >= 55
+        : r.width >= 298 && r.height >= 218,
+      `${o.id} too small`,
+    );
     assert(
       r.x >= area.x - 0.5 &&
         r.y >= area.y - 0.5 &&
@@ -175,15 +180,10 @@ test('Goals remains content-sized after closing other utilities; dates are optio
     assert(after.height < 300);
     assert(after.height < 1000 * 0.35);
     await graphFillsSurface(page);
-    await goals
-      .getByRole('button', { name: /^Set due date/ })
-      .first()
-      .focus();
-    await goals
-      .getByRole('button', { name: /^Set due date/ })
-      .first()
-      .click();
-    const date = goals.locator('input[type=date]');
+    await goals.getByRole('button', { name: 'Open project plan on canvas', exact: true }).click();
+    await page.getByRole('button', { name: 'Canvas', exact: true }).click();
+    await page.getByRole('button', { name: 'Set due date for step 1', exact: true }).click();
+    const date = page.getByLabel('Due date for step 1', { exact: true });
     await date.fill('2026-11-04');
     await date.press('Tab');
     assert.equal((await stored(page)).goals[0].due, '2026-11-04');
@@ -519,9 +519,11 @@ test('edge snapping reflows only the two requested canvas tools', async () => {
       b = await page.locator('[data-object="agent-settings"] .object-header').boundingBox();
     await page.mouse.move(b.x + 80, b.y + 18);
     await page.mouse.down();
+    await page.keyboard.down('Shift');
     await page.mouse.move(a.right, a.y + a.height / 2, { steps: 12 });
     assert.equal(await page.locator('.placement-preview').count(), 2);
     await page.mouse.up();
+    await page.keyboard.up('Shift');
     const after = await validObjects(page);
     assert.equal(after.length, 2);
     assert.notDeepEqual(after, before);
@@ -605,10 +607,12 @@ test('dragging far from a target cannot trigger a pair snap along its imaginary 
     const header = await page.locator('[data-object=browser] .object-header').boundingBox();
     await page.mouse.move(header.x + 80, header.y + 18);
     await page.mouse.down();
+    await page.keyboard.down('Shift');
     await page.mouse.move(target.x + 2, 800, { steps: 12 });
     assert.equal(await page.locator('.placement-preview').count(), 1);
     await page.mouse.up();
     await validObjects(page);
+    await page.keyboard.up('Shift');
     assert.deepEqual((await objects(page)).find((o) => o.id === 'agent-settings').rect, target);
   } finally {
     await context.close();
@@ -1122,14 +1126,14 @@ test('approved beside layout keeps the one composer aligned to resizable history
   try {
     await project(page);
     await page.locator('#composer').fill('Keep this channel draft');
-    assert.equal(await page.locator('.left-chat #composer').count(), 1);
-    const before = await page.locator('.left-chat').boundingBox();
+    assert.equal(await page.locator('.conversation-surface #composer').count(), 1);
+    const before = await page.locator('.conversation-surface').boundingBox();
     await page
       .getByRole('separator', { name: 'Resize conversation', exact: true })
       .press('ArrowRight');
-    const after = await page.locator('.left-chat').boundingBox();
+    const after = await page.locator('.conversation-surface').boundingBox();
     assert(after.width > before.width);
-    const composer = await page.locator('.left-chat .composer').boundingBox();
+    const composer = await page.locator('.conversation-surface .composer').boundingBox();
     const transcript = await page.locator('.transcript').boundingBox();
     assert(composer.y >= transcript.y + transcript.height);
     assert(composer.x >= after.x && composer.x + composer.width <= after.x + after.width);
@@ -1142,7 +1146,7 @@ test('approved beside layout keeps the one composer aligned to resizable history
     assert.equal((await stored(page)).chatWidth, 376);
     await page.getByRole('button', { name: 'Graph', exact: true }).click();
     await graphFillsSurface(page);
-    assert.equal(await page.locator('.left-chat #composer').count(), 1);
+    assert.equal(await page.locator('.conversation-surface #composer').count(), 1);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();
@@ -1153,7 +1157,9 @@ test('native writing persists typed blocks as one private source across canvas, 
   const { context, page, errors } = await session({ width: 1600, height: 1100 });
   try {
     await project(page);
-    await page.getByRole('button', { name: 'Write on canvas', exact: true }).click();
+    await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .click({ position: { x: 48, y: 72 } });
     await page.getByLabel('Writing block 1', { exact: true }).fill('A useful working draft');
     await page.getByRole('button', { name: 'Heading', exact: true }).click();
     await page.getByLabel('Writing block 2', { exact: true }).fill('Decisions');
@@ -1167,9 +1173,10 @@ test('native writing persists typed blocks as one private source across canvas, 
     await validObjects(page);
     await page.reload();
     assert.equal(
-      await page.getByLabel('Writing block 3', { exact: true }).inputValue(),
+      await page.getByLabel('Writing block 3', { exact: true }).innerText(),
       'Keep evidence attached',
     );
+    await page.locator('.canvas-text-object').hover();
     await page.getByRole('button', { name: 'Close writing', exact: true }).click();
     await page.getByRole('button', { name: 'Open work', exact: true }).click();
     await page
@@ -1189,7 +1196,7 @@ test('native writing persists typed blocks as one private source across canvas, 
     await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
     await page.getByRole('button', { name: 'Canvas', exact: true }).click();
     assert.equal(
-      await page.getByLabel('Writing block 1', { exact: true }).inputValue(),
+      await page.getByLabel('Writing block 1', { exact: true }).innerText(),
       'Updated from the source reader',
     );
     assert.deepEqual(errors, []);
@@ -1376,15 +1383,217 @@ test('source inspection retains independent project utilities and the chat compo
     await page.getByRole('button', { name: 'Project tools', exact: true }).click();
     await page
       .getByRole('region', { name: 'Sources and context', exact: true })
-      .getByRole('button', { name: 'Research review', exact: true })
+      .getByRole('button', { name: 'View all sources', exact: true })
+      .first()
+      .click();
+    await page
+      .locator('.inspection-surface')
+      .getByRole('button', { name: /Research review/ })
       .click();
     assert.equal(await page.locator('.inspection-surface').count(), 1);
     assert.equal(await page.locator('.utility-card').count(), 3);
-    assert.equal(await page.locator('.left-chat #composer').count(), 1);
+    assert.equal(await page.locator('.conversation-surface #composer').count(), 1);
     const utility = await page.locator('.utility-stack').boundingBox(),
       reader = await page.locator('.inspection-surface').boundingBox();
     assert(utility.x + utility.width <= reader.x);
     await graphFillsSurface(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('empty canvas clicks create only a caret; first keystroke preserves focus and exact location', async () => {
+  const { context, page, errors } = await session();
+  try {
+    const canvas = page.getByRole('main', { name: 'Working canvas', exact: true });
+    const area = await canvas.boundingBox();
+    await canvas.click({ position: { x: 111, y: 123 } });
+    const line = page.getByLabel('Writing block 1', { exact: true });
+    assert.equal(await line.getAttribute('contenteditable'), 'plaintext-only');
+    assert(await line.evaluate((el) => document.activeElement === el));
+    assert.equal((await stored(page)).localResources.length, 0);
+    assert.equal((await stored(page)).objects.length, 0);
+    const text = await page.locator('.canvas-text-object').boundingBox();
+    assert(Math.abs(text.x - area.x - 111) < 1 && Math.abs(text.y - area.y - 123) < 1);
+    assert.equal(await page.locator('.canvas-text-object textarea').count(), 0);
+    await page.keyboard.type('First to last keystroke');
+    assert.equal(await line.innerText(), 'First to last keystroke');
+    assert(await line.evaluate((el) => document.activeElement === el));
+    assert.equal((await stored(page)).localResources.length, 1);
+    await canvas.click({ position: { x: 40, y: 440 } });
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.canvas-text-object').count(), 1);
+    assert.equal((await stored(page)).localResources.length, 1);
+    await page.reload();
+    assert.equal(
+      await page.getByLabel('Writing block 1', { exact: true }).innerText(),
+      'First to last keystroke',
+    );
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('direct text splits at the caret and markup remains literal content', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .click({ position: { x: 72, y: 72 } });
+    const line = page.getByLabel('Writing block 1', { exact: true });
+    await page.keyboard.type('Alpha Omega');
+    await line.press('Home');
+    for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    assert.equal(await line.innerText(), 'Alpha ');
+    const second = page.getByLabel('Writing block 2', { exact: true });
+    assert.equal(await second.innerText(), 'Omega');
+    assert(await second.evaluate((el) => document.activeElement === el));
+    await second.fill('<script>not executable</script>');
+    assert.equal(await second.locator('script').count(), 0);
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('drag moves actual content before release, Escape rolls back and release aligns to visible grid', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1000 });
+  try {
+    await openTool(page, 'Browser');
+    const obj = page.locator('[data-object="browser"]'),
+      header = obj.locator('.object-header');
+    const before = await obj.boundingBox(),
+      h = await header.boundingBox();
+    const drag = async () => {
+      await page.mouse.move(h.x + 80, h.y + 18);
+      await page.mouse.down();
+      await page.mouse.move(h.x + 220, h.y + 158, { steps: 10 });
+    };
+    await drag();
+    const during = await obj.boundingBox();
+    assert(Math.abs(during.x - before.x - 140) < 1 && Math.abs(during.y - before.y - 140) < 1);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    assert.deepEqual(await obj.boundingBox(), before);
+    await drag();
+    await page.mouse.up();
+    const saved = (await stored(page)).objects[0];
+    assert.equal(saved.x % 24, 0);
+    assert.equal(saved.y % 24, 0);
+    assert.equal(
+      await page.locator('.primary-surface').evaluate((el) => getComputedStyle(el).backgroundSize),
+      '24px 24px',
+    );
+    await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('conversation is a work surface and opening history retains the canvas horizontal origin', async () => {
+  const { context, page } = await session({ width: 1600, height: 1000 });
+  try {
+    await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+    const before = await page.locator('.primary-surface').boundingBox();
+    await page.getByRole('button', { name: '# product-direction', exact: true }).click();
+    const after = await page.locator('.primary-surface').boundingBox();
+    assert(Math.abs(before.x - after.x) < 1);
+    assert.equal(await page.locator('.surface-row > .conversation-surface').count(), 1);
+    assert.equal(await page.locator('.left-extension #composer').count(), 0);
+    await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+    assert.equal(
+      await page
+        .locator('.conversation-surface')
+        .evaluate((el) => getComputedStyle(el).borderRadius),
+      '6px',
+    );
+    assert.equal(
+      await page
+        .locator('.utility-card')
+        .first()
+        .evaluate((el) => getComputedStyle(el).borderRadius),
+      '12px',
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+for (const height of [1000, 720, 500, 320])
+  test(`fixed utilities do not scroll at ${height}px and preserve the complete goal set`, async () => {
+    const { context, page, errors } = await session({ width: 1700, height });
+    try {
+      const state = await stored(page);
+      state.goals = Array.from({ length: 60 }, (_, i) => ({
+        id: `stress-${i}`,
+        title: `Goal ${i + 1}: ${'A deliberately long planning title '.repeat(8)}`,
+        done: false,
+        due: '',
+      }));
+      await page.evaluate(
+        (state) => localStorage.setItem('workstation-layout-proof-v1', JSON.stringify(state)),
+        state,
+      );
+      await page.reload();
+      await page.getByRole('button', { name: 'Project tools', exact: true }).click();
+      for (const el of await page
+        .locator('.utility-stack, .utility-card, .utility-card-body')
+        .all()) {
+        await el.evaluate((node) => {
+          node.scrollTop = 300;
+        });
+        assert.equal(await el.evaluate((node) => node.scrollTop), 0);
+      }
+      const stack = await page.locator('.utility-stack').boundingBox();
+      for (const el of await page.locator('.utility-header').all()) {
+        const r = await el.boundingBox();
+        assert(r.y >= stack.y && r.y + r.height <= stack.y + stack.height + 1);
+      }
+      await page.locator('.utility-stack').hover();
+      await page.mouse.wheel(0, 800);
+      assert.equal(await page.locator('.utility-stack').evaluate((el) => el.scrollTop), 0);
+      assert.equal(await page.locator('.utility-card').count(), 3);
+      if (height >= 720) {
+        await page
+          .getByRole('button', { name: 'Open project plan on canvas', exact: true })
+          .click();
+        const last = page.getByLabel('Step 60 title', { exact: true });
+        await last.scrollIntoViewIfNeeded();
+        assert.match(await last.inputValue(), /^Goal 60:/);
+        assert.equal((await stored(page)).goals.length, 60);
+      }
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.close();
+    }
+  });
+
+test('short-window writing reopens using text minimums rather than full-tool minimums', async () => {
+  const { context, page, errors } = await session({ width: 1100, height: 320 });
+  try {
+    await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .click({ position: { x: 48, y: 24 } });
+    await page.keyboard.type('A short note stays available');
+    const source = (await stored(page)).localResources[0];
+    await page.getByRole('button', { name: 'Close writing', exact: true }).click();
+    await page.getByRole('button', { name: 'Open work', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Find work or an action', exact: true })
+      .fill('A short note stays available');
+    await page.locator('.work-results').getByRole('button').click();
+    assert.equal(await page.locator(`[data-object="writing:${source.id}"]`).count(), 1);
+    assert.equal(
+      await page.getByLabel('Writing block 1', { exact: true }).innerText(),
+      'A short note stays available',
+    );
+    await validObjects(page);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();

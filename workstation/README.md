@@ -1,10 +1,6 @@
-# Workstation refinement revision
+# Workstation interaction proof
 
-**Current trial:** the user selected Conversation beside work. Read [Beside Work Results.md](../Beside%20Work%20Results.md). The composer now lives beneath resizable conversation history; Write on canvas creates canonical private writing with paragraph/heading/list/checklist blocks. Native pins/images/planning retain source records. Add to plan asks for an action inline and allows distinct actions from one source. Open work/Account use allocated left-region space, attachments expand in the composer, and inspection can coexist with utilities when room permits. This supersedes the older popup and source-deduplication descriptions below. Live delivery, executing agents and on-graph job activity remain unbuilt.
-
-The user authorized implementing the researched refinement plan. Read `../Maturity Refinement Plan.md`, `../Maturity Refinement Results.md`, `../AGENTS.md` and the conversation record before continuing. This is a local interaction/configuration proof, not an accepted or completed MVP.
-
-**Current known gaps:** read [the October 29 review](../Workstation%20Review%202026-10-29.md) before using the recovery/search claims below. Its isolated probes reproduce mismatched image pixels/metadata after an injected save failure, utility opening hiding active work, and full-text/caption search omissions. These remain unfixed. The review made no application changes.
+Read [AGENTS.md](../AGENTS.md), [Conversation Context.md](../Conversation%20Context.md) and [Direct Canvas Results.md](../Direct%20Canvas%20Results.md) before changing the app. The latest implementation follows the user's click-to-write clarification and review of dragging, conversation presentation and fixed utilities. It remains a browser-local review implementation, not an accepted or completed MVP.
 
 ## Run
 
@@ -15,37 +11,47 @@ npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:4174/>. Reuse the existing loopback server. Predev/prebuild snapshot four actual repository Markdown sources with content hashes; their generated copies retain stable source identities. The preview has no authentication and is not a production shared service.
+Open [port 4174](http://127.0.0.1:4174/). Reuse the existing loopback server. Predev/prebuild snapshot four repository Markdown sources with content hashes; generated copies retain stable source identities. The preview has no authentication and is not a production shared service.
 
-## Navigation, composition and work
+## Canvas and Graph
 
-- **Canvas/Graph** are primary rail destinations, never generic windows. Fresh Canvas is blank working space. Graph retains anchored physics and full-surface rendering without the decorative center glyph or application zoom.
-- **Conversations** reveals left navigation/history. Back returns to the list. Channels, private conversations and retained unverified DM drafts have distinct audiences. New private chat opens an identified draft without naming paperwork. People search explains the missing identity service; it does not pretend an arbitrary name is a verified contact.
-- Message search finds actual local transcript content and returns to its parent discussion. Replying retains parent context; main/thread drafts and attachments stay separate across navigation/reload. Reading offsets survive navigation within the browser session. A jump to new content avoids automatic scroll takeover when reading older messages.
-- The floating composer uses one neutral focus boundary. The paperclip attaches accessible source references; a reference can be inspected without sending. A private local document cannot be attached to a channel/DM draft without sharing first. Opening content never retargets messages. Sending records a local-only message; no person/agent receives it. Account includes the Enter versus Command/Control+Enter preference and appearance. IME composition is respected.
-- **Files** reveals navigation without creating work. Selecting a folder/file reuses one inspector; closing it restores prior utilities. Place document on canvas deliberately moves the single reader to a bounded work object.
-- **Project tools** reveals independent content-sized Sources/context, Project agent and Goals. They can be visible concurrently. There is no empty full-height utility column. Goals retain completion and optional simple dates.
-- **Open…**, Command/Control+K or empty-Canvas context menu open the same anchored resource/action search. Search existing resources or choose New document/New agent/Edit project agent directly. Escape cancels and restores focus. Applicable canvas arrangement actions use the same command routing. Browser connection is a searchable diagnostic for the unavailable service, not a working authenticated browser.
+Fresh Canvas is blank apart from the shell and floating input. Click an empty location to place a caret and type directly there. There is no Write launcher or text window. Unused focus creates no saved source. First meaningful text creates the private resource and placement together. Existing text edits/selects normally; hover/focus reveals separate movement, resizing and structure controls. Enter splits at the caret; Shift+Enter adds a newline. The same source appears in Files/private Graph/reader and exports Markdown. Closing its placement does not delete it. Focus the empty canvas and press Enter for keyboard entry.
 
-## Documents and agents
+Message pins retain source references and Open original navigation. Add to plan explicitly creates an action; one message may support distinct actions, with duplicate-submit guards. Private pins cannot silently become shared goals. The sequential canvas plan and fixed Goals summary use the same records; the complete plan supports title, order, optional dates and completion.
 
-New document creates a private local record with stable ID, editable body/title and Markdown download. It appears under Private documents in the local graph. Repository sources remain read-only Markdown snapshots. They are not duplicated when opened. These surfaces are not full-fidelity Word/Sheets/Slides engines.
+Add visual reference, image drop and image paste retain actual local Blobs in IndexedDB, with captions in view state. PNG/JPEG/WebP/GIF up to 12 MiB stay private on this browser. Replacement uses an immutable new binary key before publishing its metadata; failed metadata saving preserves the prior complete version. Full captions, pin text and writing are searchable. Canonical image indexing/sharing and storage cleanup remain further work.
 
-Agent editing supports local definitions, purpose/instructions, private/project scope, inherited context preference and private autonomy. The dedicated project definition retains project scope. Save version preserves an immutable configuration snapshot; Version history can restore an older version into the editable draft without changing that history. Export downloads the definition/version record. Test/deploy controls explain the missing runtime and remain unavailable. Local saving is not publishing to a live runtime, deployment or execution.
+Graph is a primary full-surface destination with anchored always-on physics, folder focus/expansion and resource inspection. No zoom control or decorative center glyph. Clicking a node does not create canvas text. One document inspection is reused; independent browser/agent work has separate roles. Document, agent inspection and conversation work have different material and corners from the fixed right summaries.
 
-## Direct canvas content
+## Conversations and supporting views
 
-Pin a message from its conversation to keep source-linked evidence on Canvas. Open original returns to the source discussion. Add to plan creates/reuses a goal with its source link; private pins cannot enter the shared project plan without sharing. Open project plan from work search or the Goals module to edit, reorder, date and complete the same goal records used by the utility.
+Conversations opens navigation. Selected history becomes a retained beside-work surface inside the workspace row, with its composer attached beneath it. List and history keep the same column width and canvas horizontal origin. A pointer/keyboard divider resizes history and retains its width. Back returns to navigation. This is not a freely draggable conversation object.
 
-Add visual reference opens the image chooser. Dropping or pasting images onto Canvas uses the same pipeline. PNG/JPEG/WebP/GIF up to 12 MiB remain private on this browser. Actual image Blobs persist in IndexedDB with editable title/caption metadata in local state. Replace/restore retains identity, but replacement is not atomic with metadata saving. Closed pins/images can be reopened through work search; only the pin's first 65 characters and image title/filename are searched. Closing is not source deletion. Invalid image validation preserves existing work; metadata-save failure can still leave a mismatched replacement. Read `../Canvas Use Results.md` and the October 29 review for evidence and limits.
+Channel, private and retained unverified DM drafts retain separate destinations. One-to-one human messaging remains a product requirement; no authoritative people/delivery service is connected. New private chat creates an identified local draft without naming paperwork. Account does not cycle fake users.
 
-## Bounded work and recovery
+Message search returns to original context. Replies preserve main/thread drafts, attachments and selection across navigation/reload. Reading positions are session-local. The composer uses a neutral focus boundary, IME-safe sending and a send-shortcut preference. Attach context expands within its space; inspecting a reference does not send it. Private local sources cannot silently attach to channel/DM drafts. Local messages are explicitly local.
 
-Browser and agent-editing objects retain separate roles from the single document viewer. Drag a header for a placement preview; only valid non-overlapping drops commit. Escape cancels. Drag near a neighboring edge to snap that pair; unrelated objects stay put. Corner handles and header/resize arrow keys support bounded resizing/movement. Focus/restore preserves the arrangement. Work below short utilities remains usable.
+Files reveals navigation without creating work. Selecting a file/folder reuses inspection; deliberate placement moves the single reader onto Canvas. Open work (Command/Control+K or Canvas context menu) and Account use allocated space with return/close behavior. They do not cover the active work. Native OS file/date dialogs follow browser/OS behavior.
 
-Save/restore arrangement is one browser-local geometry snapshot, not named working contexts. Lack of capacity retains records, but can automatically focus the last-added object and hide the active task. Narrow-window recovery restores object positions when room returns; navigation hidden by the responsive layout does not automatically reopen. Drafts and records survive the exercised resize flows. Account does not cycle fake users.
+Project tools opens independent fixed Sources/context, Project agent and Goals summaries. Their bodies, cards and stack never scroll. A bounded number of rows link to complete work views. Very short windows use actionable headers; complete tools may require additional room. Closing utilities does not delete records or leave an invisible full-height column.
 
-## Checks and limits
+## Dragging, capacity and persistence
+
+Drag a work header or native-content grip: actual content follows the pointer through valid positions. The destination guide shows the 24px grid result. Normal moves preserve neighbours. Shift-drag near a neighbour deliberately requests paired edge placement. Arrow keys move/resize on the same grid. Escape, lost capture, pointer cancellation and window blur cancel; drag-end clicks cannot create writing. Bounds and collision checks retain the last valid placement. Focus/restore and one local arrangement snapshot remain.
+
+Native content can reflow to fit when adding work or opening utilities. Full document/browser/agent tools are not silently shrunk for native imports. An unfulfillable request explains the capacity limit and preserves records. Very narrow/short-window recovery retains objects and restores prior positions when space returns; the full interface is not promised at arbitrary tiny viewport sizes. Named working arrangements and complete canvas export/undo remain open.
+
+The same `workstation-layout-proof-v1` version-2 key stores additive local resources, messages/drafts/attachments, goals, object geometry, definitions/versions, appearance and conversation preferences. Images use IndexedDB. Migration retains legacy records without restoring rejected split trees. Local storage is not a backup or authoritative permission boundary.
+
+## Documents, agents and service limits
+
+New document creates an editable private Markdown source with stable identity; repository snapshots remain read-only. There is no native Word/Sheets/Slides engine. Native writing is lightweight structured text, without a full structural undo or document revision system.
+
+Agent builder saves local definitions, purpose/instructions, scope, context preferences and private autonomy; project definition scope remains project. Versions are immutable configuration snapshots, restoration updates the editable draft, and export downloads the definition. Test/deploy controls explain the absent runtime. No fake execution, deployment, presence, portrait or successful context-maintenance event is generated.
+
+No real accounts/contact lookup/delivery, multi-user persistence, authoritative access enforcement, canonical sharing/retrieval, browser session, Office engine, executing agent, on-graph job telemetry or automatic context maintenance is connected. These remain the core production work. No provider or paid deployment service was selected. `/materials` is only a static specimen.
+
+## Checks and source
 
 ```sh
 npm run build
@@ -53,10 +59,6 @@ npm run format:check
 npm test
 ```
 
-Tests use isolated browser contexts and do not reset the user's preview. They cover full Graph bounds/anchor, no rail-driven work creation, content-sized utilities, viewer reuse, drafts/recipients, placement/cancel/recovery, source retry, IME/shortcut/focus, command cancellation, document persistence, private-reference handling, agent versions and conversation search. See the root results document for final outcomes and captures. Passing tests are not visual acceptance or server authorization.
+Checks use isolated contexts, not the user's preview state. They exercise source identity, drafts/privacy, migration, graph bounds/anchor, placement/cancellation/recovery, images, definitions, direct text and fixed utility behavior. Current outcomes/captures are in [Direct Canvas Results.md](../Direct%20Canvas%20Results.md). Passing checks do not establish user acceptance or server authorization.
 
-The same `workstation-layout-proof-v1` key stores version-2 view state plus additive local documents, agent definitions/versions, thread selection and send preference. Existing conversation/message/draft/attachment/goal/appearance records and legacy layout data remain. Old split trees are never restored as windows. Reading positions are session-local, not server records.
-
-No accounts/contact lookup/delivery, authoritative access enforcement, shared editing/presence, retrieval, approvals/jobs/schedules, executing agents, automatic context maintenance, browser session or native Office engine is connected. `/materials` remains a visual specimen; its static examples are not production workflows. No provider or paid deployment service was selected.
-
-`main.tsx` owns navigation and command/record updates; `Composer.tsx`, `Conversation.tsx`, `WorkActions.tsx` and `AgentEditor.tsx` own their respective flows; `agents.ts` defines local definition/version records; `state.ts` migrates persistence; `canvas-layout.ts` constrains deliberate work objects. Whole-workspace Dockview/Gridview remains removed.
+`main.tsx` owns navigation and record commands; `CanvasText.tsx` owns frameless Canvas input; `CanvasWriting.tsx` retains the structured source-reader editor. `Conversation.tsx`, `Composer.tsx`, `WorkActions.tsx`, `AgentEditor.tsx` and `CanvasContent.tsx` own their respective flows. `canvas-layout.ts` constrains geometry; `state.ts` migrates view data. Whole-workspace Dockview/Gridview remains removed.

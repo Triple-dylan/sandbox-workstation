@@ -1,5 +1,7 @@
 # Research review: workstation behavior and foundations
 
+**Current implementation:** [Direct Canvas Results.md](Direct%20Canvas%20Results.md) records the latest authorized app changes after the October 29 review and click-to-write clarification. The research-only and earlier-current statements below describe their historical cycles, not an unchanged present-day preview.
+
 **October 29 follow-up:** [Workstation Review 2026-10-29.md](Workstation%20Review%202026-10-29.md) is the latest review/research/reflection cycle. It audits the implemented canvas-content iteration, preserves isolated layout/save-failure/search evidence and researches canonical content versus placement, saved work, storage, provenance, access and non-drag operation. Its ranked remedies are proposals; no app code changed. The historical reviews below remain intact.
 
 October 28, 2026. This records the research/interview process that preceded the rebuild plan. **The user subsequently approved `Rebuild Plan.md`; stage A is authorized, with a design-review gate before broader implementation.** The statements below about the earlier interview/implementation pause are historical. Findings remain distinct from selected production services or accepted visuals. The existing prototype remains rejected.
