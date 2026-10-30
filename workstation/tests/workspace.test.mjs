@@ -221,8 +221,6 @@ test('Graph → folder → document reuses one inspection and retains conversati
     );
     await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
     assert.equal(await inspector.count(), 0);
-    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'direction');
-    await page.getByRole('button', { name: 'Full graph', exact: true }).click();
     assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'root');
     assert.deepEqual(errors, []);
   } finally {
@@ -1161,8 +1159,12 @@ test('native writing persists typed blocks as one private source across canvas, 
       .getByRole('main', { name: 'Working canvas', exact: true })
       .click({ position: { x: 48, y: 72 } });
     await page.getByLabel('Writing block 1', { exact: true }).fill('A useful working draft');
+    await page.getByLabel('Writing block 1', { exact: true }).press('End');
+    await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Heading', exact: true }).click();
     await page.getByLabel('Writing block 2', { exact: true }).fill('Decisions');
+    await page.getByLabel('Writing block 2', { exact: true }).press('End');
+    await page.keyboard.press('Enter');
     await page.getByRole('button', { name: 'Checklist', exact: true }).click();
     await page.getByLabel('Writing block 3', { exact: true }).fill('Keep evidence attached');
     await page.getByRole('checkbox', { name: 'Complete writing item 3', exact: true }).check();
@@ -1594,6 +1596,124 @@ test('short-window writing reopens using text minimums rather than full-tool min
       'A short note stays available',
     );
     await validObjects(page);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+for (const width of [550, 1440])
+  test(`finishing text at a canvas corner preserves note geometry at ${width}px`, async () => {
+    const { context, page, errors } = await session({ width, height: 850 });
+    try {
+      const canvas = page.getByRole('main', { name: 'Working canvas', exact: true });
+      const area = await canvas.boundingBox();
+      await canvas.click({ position: { x: 48, y: area.height - 65 } });
+      await page.keyboard.type('Do not move this note when I finish writing.');
+      const before = await objects(page),
+        saved = (await stored(page)).localResources[0].id;
+      await page.mouse.click(area.x + area.width - 2, area.y + area.height - 2);
+      assert.deepEqual(await objects(page), before);
+      assert.deepEqual(await canvas.boundingBox(), area);
+      assert.equal(await page.getByRole('status').count(), 0);
+      assert.equal(await page.locator('.canvas-text-object').count(), 1);
+      assert.equal((await stored(page)).localResources[0].id, saved);
+      await validObjects(page);
+      assert.deepEqual(errors, []);
+    } finally {
+      await context.close();
+    }
+  });
+
+test('the real 550px pane contains the composer, send action and work action', async () => {
+  const { context, page, errors } = await session({ width: 550, height: 755 });
+  try {
+    for (const locator of [
+      page.locator('.app-shell'),
+      page.locator('.composer'),
+      page.getByRole('button', { name: 'Send message', exact: true }),
+      page.getByRole('button', { name: 'Open work', exact: true }),
+    ]) {
+      const r = await locator.boundingBox();
+      assert(r.x >= 0 && r.x + r.width <= 550 && r.y + r.height <= 755);
+    }
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 550);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('text controls format the focused block; Backspace merges blocks and retains the caret', async () => {
+  const { context, page, errors } = await session();
+  try {
+    await page
+      .getByRole('main', { name: 'Working canvas', exact: true })
+      .click({ position: { x: 72, y: 72 } });
+    const first = page.getByLabel('Writing block 1', { exact: true });
+    await page.keyboard.type('Alpha');
+    await page.getByRole('button', { name: 'Heading', exact: true }).click();
+    assert.equal((await stored(page)).localResources[0].blocks.length, 1);
+    assert.equal((await stored(page)).localResources[0].blocks[0].type, 'heading');
+    await first.press('End');
+    await page.keyboard.press('Enter');
+    const second = page.getByLabel('Writing block 2', { exact: true });
+    await page.keyboard.type('Beta');
+    assert.equal((await stored(page)).localResources[0].blocks[1].type, 'paragraph');
+    await second.press('Home');
+    await page.keyboard.press('Backspace');
+    assert.equal(await first.innerText(), 'AlphaBeta');
+    assert.equal((await stored(page)).localResources[0].blocks.length, 1);
+    await page.keyboard.type(' ');
+    assert.equal(await first.innerText(), 'Alpha Beta');
+    assert.equal(await first.evaluate((el) => getComputedStyle(el).cursor), 'text');
+    assert.equal(await page.locator('body').evaluate((el) => el.style.cursor), '');
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a failed graph inspection preserves subject and canvas bounds; feedback occupies existing controls space', async () => {
+  const { context, page, errors } = await session({ width: 550, height: 755 });
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    const area = await graphFillsSurface(page);
+    await page.locator('[data-node="research-folder"]').press('Enter');
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'root');
+    assert.equal(await page.locator('.inspection-surface').count(), 0);
+    assert.match(await page.getByRole('status').innerText(), /reader needs more room/i);
+    assert.deepEqual(await graphFillsSurface(page), area);
+    const status = await page.getByRole('status').boundingBox();
+    assert(status.y >= area.y + area.height);
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('graph document and parent navigation reuse one inspector and keep graph subject in sync', async () => {
+  const { context, page, errors } = await session({ width: 1600, height: 1000 });
+  try {
+    await page.getByRole('button', { name: 'Graph', exact: true }).click();
+    await page.locator('[data-node="research-folder"]').press('Enter');
+    const reader = await page.locator('.inspection-surface').boundingBox();
+    await page.locator('[data-node="research"]').press('Enter');
+    assert.equal(await page.locator('.inspection-surface').count(), 1);
+    assert.deepEqual(await page.locator('.inspection-surface').boundingBox(), reader);
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'research');
+    await page.getByRole('button', { name: 'Back to folder', exact: true }).click();
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'research-folder');
+    assert.equal(
+      await page
+        .locator('.inspection-surface')
+        .getByRole('button', { name: 'Research review', exact: true })
+        .count(),
+      1,
+    );
+    await page.getByRole('button', { name: 'Close inspection', exact: true }).click();
+    assert.equal(await page.locator('.graph-view').getAttribute('data-subject'), 'root');
+    await graphFillsSurface(page);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();

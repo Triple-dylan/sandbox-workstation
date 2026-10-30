@@ -32,8 +32,8 @@ export function Graph({
   setExpanded: (value: boolean) => void;
   subject: string;
   setSubject: (id: string) => void;
-  onResource: (id: string) => void;
-  onFolder: (id: string) => void;
+  onResource: (id: string) => boolean;
+  onFolder: (id: string) => boolean;
   exclusion?: { x: number; y: number; width: number; height: number } | null;
 }) {
   const graphIdentity = resources.map((r) => `${r.id}:${r.title}:${r.folder}`).join('|');
@@ -107,14 +107,11 @@ export function Graph({
     const nodes = visible.map((n, i) => ({
       ...n,
       x:
-        n.id === subject
-          ? cx
-          : (priorPositions.get(n.id)?.x ?? cx + Math.cos(i * 2.399) * Math.min(width * 0.3, 190)),
+        priorPositions.get(n.id)?.x ??
+        (n.id === subject ? cx : cx + Math.cos(i * 2.399) * Math.min(width * 0.3, 190)),
       y:
-        n.id === subject
-          ? cy
-          : (priorPositions.get(n.id)?.y ??
-            cy + Math.sin(i * 2.399) * Math.min(height * 0.28, 150)),
+        priorPositions.get(n.id)?.y ??
+        (n.id === subject ? cy : cy + Math.sin(i * 2.399) * Math.min(height * 0.28, 150)),
     }));
     const ids = new Set(nodes.map((n) => n.id));
     const links: Edge[] = nodes
@@ -227,9 +224,9 @@ export function Graph({
       suppress.current = false;
       return;
     }
-    setSubject(n.id);
-    if (n.kind === 'document') onResource(n.id);
-    if (n.kind === 'folder') onFolder(n.id);
+    const opened =
+      n.kind === 'document' ? onResource(n.id) : n.kind === 'folder' ? onFolder(n.id) : true;
+    if (opened) setSubject(n.id);
   };
   return (
     <div className="graph-view" data-subject={subject}>

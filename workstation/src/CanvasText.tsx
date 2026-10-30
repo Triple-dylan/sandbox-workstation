@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type PointerEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type PointerEvent } from 'react';
 import { GripVertical, X, MoveDiagonal2 } from 'lucide-react';
 import type { Resource, WritingBlock } from './model';
 import { newBlock } from './CanvasWriting';
@@ -8,11 +8,15 @@ function TextLine({
   index,
   onChange,
   onEnter,
+  onFocus,
+  onBoundary,
 }: {
   block: WritingBlock;
   index: number;
   onChange: (text: string) => void;
   onEnter: (before: string, after: string) => void;
+  onFocus: () => void;
+  onBoundary: (direction: -1 | 1) => boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -29,8 +33,27 @@ function TextLine({
         aria-multiline="true"
         aria-label={`Writing block ${index + 1}`}
         suppressContentEditableWarning
+        onFocus={onFocus}
         onInput={(e) => onChange(e.currentTarget.innerText.replace(/\r/g, ''))}
         onKeyDown={(e) => {
+          if (
+            (e.key === 'Backspace' || e.key === 'Delete') &&
+            !e.nativeEvent.isComposing &&
+            !e.altKey &&
+            !e.ctrlKey &&
+            !e.metaKey
+          ) {
+            const selection = window.getSelection();
+            const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+            if (range?.collapsed && e.currentTarget.contains(range.startContainer)) {
+              const remaining = document.createRange();
+              remaining.selectNodeContents(e.currentTarget);
+              if (e.key === 'Backspace') remaining.setEnd(range.startContainer, range.startOffset);
+              else remaining.setStart(range.endContainer, range.endOffset);
+              if (!remaining.toString() && onBoundary(e.key === 'Backspace' ? -1 : 1))
+                e.preventDefault();
+            }
+          }
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             const selection = window.getSelection();
@@ -76,6 +99,30 @@ export function CanvasText({
   const root = useRef<HTMLDivElement>(null),
     content = useRef<HTMLDivElement>(null);
   const blocks = resource.blocks || [];
+  const [activeBlock, setActiveBlock] = useState(blocks[0]?.id);
+  const focusAt = (index: number, offset = 0) =>
+    requestAnimationFrame(() => {
+      const el = root.current?.querySelectorAll<HTMLElement>('[contenteditable]')[index];
+      if (!el) return;
+      el.focus();
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      let remaining = offset;
+      while (node && remaining > (node.textContent?.length || 0)) {
+        remaining -= node.textContent?.length || 0;
+        node = walker.nextNode();
+      }
+      const range = document.createRange();
+      if (node) range.setStart(node, Math.min(remaining, node.textContent?.length || 0));
+      else {
+        range.selectNodeContents(el);
+        range.collapse(false);
+      }
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
   useLayoutEffect(() => {
     const el = content.current!;
     const measure = () => onMeasure(Math.min(maxHeight, Math.max(56, el.scrollHeight + 30)));
@@ -87,14 +134,6 @@ export function CanvasText({
   useLayoutEffect(() => {
     if (draft) root.current?.querySelector<HTMLElement>('[contenteditable]')?.focus();
   }, []);
-  const insert = (after: number, type: WritingBlock['type']) => {
-    const next = [...blocks];
-    next.splice(after + 1, 0, newBlock(type));
-    onChange(next);
-    requestAnimationFrame(() =>
-      root.current?.querySelectorAll<HTMLElement>('[contenteditable]')[after + 1]?.focus(),
-    );
-  };
   return (
     <div
       className="canvas-text"
@@ -132,10 +171,29 @@ export function CanvasText({
             <TextLine
               block={block}
               index={index}
+              onFocus={() => setActiveBlock(block.id)}
+              onBoundary={(direction) => {
+                const neighbour = blocks[index + direction];
+                if (!neighbour) return false;
+                const left = direction === -1 ? neighbour : block;
+                const right = direction === -1 ? block : neighbour;
+                const next = [...blocks];
+                const target = direction === -1 ? index - 1 : index;
+                next.splice(target, 2, { ...left, text: left.text + right.text });
+                onChange(next);
+                focusAt(target, left.text.length);
+                return true;
+              }}
               onChange={(text) =>
                 onChange(blocks.map((b) => (b.id === block.id ? { ...b, text } : b)))
               }
               onEnter={(before, after) => {
+                if (!block.text && (block.type === 'bullet' || block.type === 'check')) {
+                  onChange(
+                    blocks.map((b) => (b.id === block.id ? { ...b, type: 'paragraph' } : b)),
+                  );
+                  return;
+                }
                 const next = [...blocks];
                 next[index] = { ...block, text: before };
                 next.splice(index + 1, 0, {
@@ -143,18 +201,7 @@ export function CanvasText({
                   text: after,
                 });
                 onChange(next);
-                requestAnimationFrame(() => {
-                  const el =
-                    root.current?.querySelectorAll<HTMLElement>('[contenteditable]')[index + 1];
-                  if (!el) return;
-                  el.focus();
-                  const range = document.createRange();
-                  range.selectNodeContents(el);
-                  range.collapse(true);
-                  const selection = window.getSelection();
-                  selection?.removeAllRanges();
-                  selection?.addRange(range);
-                });
+                focusAt(index + 1);
               }}
             />
           </div>
@@ -185,7 +232,13 @@ export function CanvasText({
           <GripVertical size={14} />
         </button>
         {(['paragraph', 'heading', 'bullet', 'check'] as const).map((type, i) => (
-          <button key={type} onClick={() => insert(blocks.length - 1, type)}>
+          <button
+            key={type}
+            aria-pressed={blocks.find((b) => b.id === activeBlock)?.type === type}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onChange(blocks.map((b) => (b.id === activeBlock ? { ...b, type } : b)))}
+            title={`Format the current block as ${['text', 'a heading', 'a list', 'a checklist'][i]}`}
+          >
             {['Text', 'Heading', 'List', 'Checklist'][i]}
           </button>
         ))}

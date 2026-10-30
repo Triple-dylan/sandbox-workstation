@@ -2,6 +2,8 @@
 
 Read [AGENTS.md](../AGENTS.md), [Conversation Context.md](../Conversation%20Context.md) and [Direct Canvas Results.md](../Direct%20Canvas%20Results.md) before changing the app. The latest implementation follows the user's click-to-write clarification and review of dragging, conversation presentation and fixed utilities. It remains a browser-local review implementation, not an accepted or completed MVP.
 
+**Latest follow-up:** read [Conversation and Canvas Interaction Plan.md](../Conversation%20and%20Canvas%20Interaction%20Plan.md). First click away ends writing, text controls format the active block, feedback occupies the existing work-action row, and graph parent/close navigation stays in sync. The shell now fits the 550px preview. A unified human/agent conversation model is proposed; proactive agents were confirmed but are not connected.
+
 ## Run
 
 Requires Node 22.12+ and npm:

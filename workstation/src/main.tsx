@@ -125,6 +125,7 @@ function App() {
     resource: import('./model').Resource;
   } | null>(null);
   const suppressCanvasClickUntil = useRef(0);
+  const finishTextOnCanvasClick = useRef(false);
   const resources = useMemo(
     () => [...repositoryResources, ...s.localResources],
     [s.localResources],
@@ -315,10 +316,24 @@ function App() {
       setNotice(
         'The reader needs more room. Close project tools or conversation history to open it without covering work.',
       );
-      return;
+      return false;
     }
     const changes: Partial<State> = {
-      inspector: kind === 'document' ? { kind, id, from } : { kind, id },
+      inspector:
+        kind === 'document'
+          ? {
+              kind,
+              id,
+              from:
+                from ||
+                (resources.find((r) => r.id === id)?.folder === 'private'
+                  ? 'private-folder'
+                  : resources.find((r) => r.id === id)?.folder === 'research'
+                    ? 'research-folder'
+                    : 'direction'),
+            }
+          : { kind, id },
+      ...(s.surface === 'graph' ? { graphSubject: id } : {}),
     };
     if (kind === 'document') {
       changes.document = id;
@@ -344,11 +359,12 @@ function App() {
       );
       if (!next) {
         setNotice('Make room before opening the reader. Your canvas work is retained.');
-        return;
+        return false;
       }
       changes.objects = next;
     }
     patch(changes);
+    return true;
   };
   useEffect(() => {
     const measured = stage.current?.getBoundingClientRect();
@@ -726,9 +742,7 @@ function App() {
       moved = false,
       ended = false,
       docking = false;
-    const cursor = document.body.style.cursor;
     element.setPointerCapture(pointer);
-    document.body.style.cursor = resize ? 'nwse-resize' : 'grabbing';
     const gridRect = (object: CanvasObject) =>
       resize
         ? {
@@ -793,7 +807,6 @@ function App() {
       window.removeEventListener('blur', cancel);
       element.removeEventListener('lostpointercapture', cancel);
       if (element.hasPointerCapture(pointer)) element.releasePointerCapture(pointer);
-      document.body.style.cursor = cursor;
       if (moved) suppressCanvasClickUntil.current = performance.now() + 250;
       setPreview(null);
     };
@@ -892,8 +905,9 @@ function App() {
   };
   const startText = (x: number, y: number) => {
     if (s.surface !== 'canvas' || focus) return;
-    x = Math.max(0, x);
-    y = Math.max(0, y);
+    if (bounds.width < 96 || bounds.height < 56) return;
+    x = Math.max(0, Math.min(bounds.width - 96, x));
+    y = Math.max(0, Math.min(bounds.height - 56, y));
     let width = Math.min(420, bounds.width - x),
       height = bounds.height - y;
     for (const other of blockers) {
@@ -910,10 +924,7 @@ function App() {
     for (const other of blockers)
       if (other.y > y && other.x < x + width + 16 && other.x + other.width + 16 > x)
         height = Math.min(height, other.y - y - 16);
-    if (width < 96 || height < 56) {
-      setNotice('Choose a little more empty space to write here.');
-      return;
-    }
+    if (width < 96 || height < 56) return;
     const id = crypto.randomUUID();
     setTextDraft({
       object: { id: `writing:${id}`, x, y, width, height: 56 },
@@ -1372,6 +1383,10 @@ function App() {
               style={{ backgroundSize: `${GRID}px ${GRID}px` }}
               onClick={(e) => {
                 if (performance.now() < suppressCanvasClickUntil.current) return;
+                if (finishTextOnCanvasClick.current) {
+                  finishTextOnCanvasClick.current = false;
+                  return;
+                }
                 if (s.surface === 'canvas' && e.target === e.currentTarget) {
                   const rect = e.currentTarget.getBoundingClientRect();
                   startText(e.clientX - rect.x, e.clientY - rect.y);
@@ -1384,6 +1399,9 @@ function App() {
                 }
               }}
               onPointerDown={(e) => {
+                finishTextOnCanvasClick.current =
+                  e.target === e.currentTarget &&
+                  !!document.activeElement?.closest('.canvas-text-object');
                 if (
                   s.surface === 'canvas' &&
                   !(e.target as HTMLElement).closest(
@@ -1733,7 +1751,12 @@ function App() {
                     <IconButton
                       icon={X}
                       label="Close inspection"
-                      onClick={() => patch({ inspector: null })}
+                      onClick={() =>
+                        patch({
+                          inspector: null,
+                          ...(s.surface === 'graph' ? { graphSubject: 'root' } : {}),
+                        })
+                      }
                     />
                   </header>
                   <div className="inspection-body">
@@ -1783,6 +1806,13 @@ function App() {
             )}
           </div>
           <div className="workspace-actions">
+            {notice && (
+              <div className="workspace-feedback" role="status">
+                <Info size={14} />
+                <span tabIndex={0}>{notice}</span>
+                <IconButton icon={X} label="Dismiss notification" onClick={() => setNotice('')} />
+              </div>
+            )}
             <button
               className="open-work-button glass"
               aria-label="Open work"
@@ -1798,13 +1828,6 @@ function App() {
             </button>
           </div>
           {visibleLeft !== 'chat' && composerView}
-          {notice && (
-            <div className="notice glass" role="status">
-              <Info size={16} />
-              <span>{notice}</span>
-              <IconButton icon={X} label="Dismiss notification" onClick={() => setNotice('')} />
-            </div>
-          )}
         </div>
       </div>
     </Workspace.Provider>

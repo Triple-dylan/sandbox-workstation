@@ -1,5 +1,7 @@
 # Direct canvas writing and spatial interaction revision
 
+**Latest follow-up:** [Conversation and Canvas Interaction Plan.md](Conversation%20and%20Canvas%20Interaction%20Plan.md) records the next repaired corner-click, active-formatting, cursor, actual-pane and graph-continuity behaviors. Its proposed communication model includes the user-confirmed proactive shared-agent replies. The earlier insertion/click behavior below is historical where it differs.
+
 October 29, 2026. Implements the user's “proceed” after their direct-writing clarification and the preceding drag, chat and fixed-module review. This is a local interaction trial, not user acceptance or a completed multi-user product.
 
 ## Review translated into implementation

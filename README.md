@@ -2,7 +2,9 @@
 
 A general-purpose workstation for people and agents, with private and collaborative work, a bounded canvas and a graph of permitted context. Agents maintaining context automatically is the core product goal; the current browser-local implementation does not execute that service.
 
-**Current implementation:** [Direct Canvas Results.md](Direct%20Canvas%20Results.md) records the latest authorized revision on port 4174. Click empty Canvas to write directly at that location. Conversation stays beside work with its composer, live dragging uses the visible grid, and fixed right utilities show non-scrolling summaries with links to complete views. Existing pins, images, goals, local sources and agent definitions remain. This is an implementation for review, not final user acceptance or the complete MVP.
+**Latest follow-up:** [Conversation and Canvas Interaction Plan.md](Conversation%20and%20Canvas%20Interaction%20Plan.md) records the latest text/corner-click and graph continuity repairs plus the proposed unified communication model. The user confirmed proactive shared-agent replies; no live replies or delivery are implemented.
+
+**Previous implementation:** [Direct Canvas Results.md](Direct%20Canvas%20Results.md) records the latest authorized revision on port 4174. Click empty Canvas to write directly at that location. Conversation stays beside work with its composer, live dragging uses the visible grid, and fixed right utilities show non-scrolling summaries with links to complete views. Existing pins, images, goals, local sources and agent definitions remain. This is an implementation for review, not final user acceptance or the complete MVP.
 
 **Service boundary:** real accounts/contact lookup/delivery, multiplayer, server authorization, Office/browser engines, authoritative sharing/retrieval, deployed agents, automatic context maintenance and working-agent Graph telemetry remain unbuilt. Local definitions/versions are not deployments. No production provider or stack was selected.
 

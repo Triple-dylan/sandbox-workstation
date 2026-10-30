@@ -1,4 +1,40 @@
 /* Native text is content on the surface; it has no editor/window shell. */
+.app-shell.revised-shell {
+  min-width: 0;
+  width: 100%;
+}
+.primary-surface {
+  cursor: default;
+}
+.mature-composer textarea {
+  cursor: text;
+}
+.workspace-actions {
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+}
+.workspace-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 15px;
+}
+.workspace-feedback > svg,
+.workspace-feedback > button,
+.workspace-actions > button {
+  flex-shrink: 0;
+}
+.workspace-feedback > span {
+  min-width: 0;
+  max-height: 30px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
 .canvas-text-object {
   position: absolute;
   background: none;
@@ -34,6 +70,7 @@
   flex: 1;
 }
 .canvas-text-line [contenteditable] {
+  cursor: text;
   min-width: 1px;
   flex: 1;
   white-space: pre-wrap;
