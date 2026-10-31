@@ -36,15 +36,22 @@ October 30, 2026. This is the resumed research/interview requested by the user, 
 6. Agent avatar color/personality versus monochrome shell controls remains to clarify. Human profile colors were explicitly allowed; do not silently generalize that into a new colorful shell or assume all agent artwork must be monochrome.
 7. The current right-hand agent summary and definition form are not the agent's full presence or working experience. Repainting that form does not answer where agents appear, how they act on knowledge, or where people talk to them.
 
+## Confirmed interview answers — October 31
+
+- Graph presence: **show avatars at active resources**. This selects activity-based depiction; do not continue presenting permanent agent nodes as the default unresolved choice.
+- Clicking an agent: show **work and conversation first**. Profile and settings are reachable secondarily. Do not make configuration the default agent experience or assume work/conversation require two new windows.
+- Creating an additional persistent agent: support **both conversational creation and a deliberate Create agent action**. These are entry routes into one creation/identity process, not separate agent types.
+- Visual identity: the user answered **“1 and 3 maybe”**, referring to soft 3D characters and restrained monochrome avatars. This is tentative interest in those directions, not selection of one, approval of colorful avatars or approval of a particular mascot. A restrained soft-character direction is an inference to explore visually.
+
+These confirmed answers supersede the corresponding alternatives in the earlier research discussion. No agent/avatar/creation implementation is claimed by this clarification.
+
 ## Interview currently pending
 
 These questions were presented to the user. No unanswered question is an approval or a new requirement.
 
 - Default conversation: while working on Canvas, who does a request in the floating bar address, and where should the first reply appear? The earlier question remains unanswered.
-- Graph presence: avatars at active resources, permanent agent nodes, or both for distinct purposes? Recommendation offered: recognizable avatars near active resources.
-- Agent selection: when clicking the avatar on Graph/Canvas, what should appear first—current work/results, conversation, or profile/configuration? Rank if needed.
-- Visual identity: soft 3D characters, simple animated shapes, or restrained avatars; whether agent identities may use color while controls remain monochrome.
-- Creation: tell an existing agent to create one, use a deliberate Create agent action, or support both? No entry point has been approved.
+- Visual identity: choose a concrete direction between restrained avatars and soft characters after seeing a coherent visual treatment; agent color remains unconfirmed.
+- First-send audience: in a shared project with no channel/DM selected, is a request shared with the project, private with the project agent, or private with the personal agent? Asked as a concrete follow-up; unanswered.
 
 Follow-up questions should use the answers to explore multi-agent density, an agent working across several resources, proactive updates while another conversation is open, and how a human DM differs from interacting with an agent. Do not restart generic product discovery, ask for a single first use case, or re-ask confirmed privacy/context/approval rules.
 

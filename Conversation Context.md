@@ -421,3 +421,12 @@ The user said the document viewer was absent on Graph, rejected the agent module
 The user clarified that **Graph document reading is missing/broken and must work there**; this was not a request to remove the viewer. They confirmed Dots means OpenAI's product and emphasized concrete representation: are agent identities around the graph, on graph nodes, or on Canvas? This is a visual/interaction-model question, not satisfied by researching configuration fields alone.
 
 `Agent Presence Research and Interview.md` records primary sources, visual inspection of Dots, Grok Bot's published avatar design and OpenDot's roster, plus inferences and pending questions. Questions currently ask about the floating composer's default addressee/reply location, active-resource avatars versus permanent agent nodes, the first view on clicking an agent, and conversational versus deliberate creation. These remain unanswered; do not turn proposed answers into requirements. The latest explicit request for questions/research supersedes assuming the preceding communication proposal is approved. No app code or preview records changed in this research/interview cycle.
+
+
+## October 31: agent presence and creation answers
+
+The user selected **avatars at active resources** for Graph. Clicking an agent on Graph or Canvas should first present **work and conversation**, with profile/settings available secondarily. They characterized this hierarchy as standard; do not re-ask whether settings should be primary. Additional agents support **both conversational creation and a deliberate Create agent route**.
+
+For visual identity, the user answered **“1 and 3 maybe”** to soft 3D characters, simple colored shapes and restrained monochrome avatars. Record tentative interest in soft characters and restrained avatars; do not interpret this as a final style or approval of agent color. `Agent Presence Research and Interview.md` now distinguishes these confirmed answers from pending presentation choices.
+
+The main unanswered area remains the floating composer and reply presentation. A concrete follow-up asks who receives a first request after entering a shared project without selecting a channel or DM: shared project conversation, private project-agent conversation or private personal-agent conversation. Existing chosen recipients must still never change silently when opening work. No app code or preview data changed while recording these answers.

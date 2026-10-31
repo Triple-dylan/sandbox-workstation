@@ -106,3 +106,8 @@ The recommended next model reuses the composer/history/navigator/viewer for huma
 ## Latest interview gate — October 30
 
 Read `Agent Presence Research and Interview.md`. The user clarified that Graph document reading is **missing/broken and required**, not forbidden. They explicitly requested deeper questions before further chat/agent UI implementation. Research must include actual visual identity/presentation from OpenAI Dots and Grok Bot, alongside creation and activity—not merely configuration forms. Published visuals from Dots, Grok Bot and OpenDot were inspected. Pending questions about avatar placement, selection behavior, creation entry points and composer addressee/reply location are not approvals. The previous communication proposal and fixed-column treatment remain unaccepted. Retain confirmed proactive agent replies, privacy and automatic context maintenance; do not restart those questions. No app code or user preview records changed during this interview cycle.
+
+
+## Confirmed agent interview answers — October 31
+
+Graph depicts agent avatars **at active resources**. Selecting an agent on Graph/Canvas prioritizes **work and conversation**; profile/settings are secondary. Additional persistent agents support **both conversational creation and a deliberate Create agent action**. Do not re-ask those decisions. The style answer “1 and 3 maybe” is tentative interest in soft 3D characters and restrained avatars, not final artwork or permission to color the shell. First-send composer audience and reply presentation remain unresolved; the existing fixed chat-column implementation is not accepted. These are clarified requirements, not newly implemented services or agent UI.
