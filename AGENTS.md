@@ -111,3 +111,6 @@ Read `Agent Presence Research and Interview.md`. The user clarified that Graph d
 ## Confirmed agent interview answers — October 31
 
 Graph depicts agent avatars **at active resources**. Selecting an agent on Graph/Canvas prioritizes **work and conversation**; profile/settings are secondary. Additional persistent agents support **both conversational creation and a deliberate Create agent action**. Do not re-ask those decisions. The style answer “1 and 3 maybe” is tentative interest in soft 3D characters and restrained avatars, not final artwork or permission to color the shell. First-send composer audience and reply presentation remain unresolved; the existing fixed chat-column implementation is not accepted. These are clarified requirements, not newly implemented services or agent UI.
+
+
+The user did **not** select a universal first-send audience. They asked for situational exploration because expectations vary. Do not repeat the shared/private-project/private-personal forced choice without first distinguishing messaging, private assistance and contextual workspace actions. The floating-bar interaction model remains unapproved.

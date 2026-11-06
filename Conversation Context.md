@@ -430,3 +430,8 @@ The user selected **avatars at active resources** for Graph. Clicking an agent o
 For visual identity, the user answered **“1 and 3 maybe”** to soft 3D characters, simple colored shapes and restrained monochrome avatars. Record tentative interest in soft characters and restrained avatars; do not interpret this as a final style or approval of agent color. `Agent Presence Research and Interview.md` now distinguishes these confirmed answers from pending presentation choices.
 
 The main unanswered area remains the floating composer and reply presentation. A concrete follow-up asks who receives a first request after entering a shared project without selecting a channel or DM: shared project conversation, private project-agent conversation or private personal-agent conversation. Existing chosen recipients must still never change silently when opening work. No app code or preview data changed while recording these answers.
+
+
+## October 31: first-send behavior needs situational exploration
+
+In response to the shared-project first-message choices, the user said this interaction needs more exploration: users may expect different things in different situations. No universal audience/default was selected. Explore private assistance, collaborative speech, contextual work actions, source-linked discussion and persistent delegation together, rather than asking the same three-way choice again. Preserve existing confirmed privacy and recipient-continuity rules. This continues the research/interview, not authorization for a new chat layout or broad implementation.

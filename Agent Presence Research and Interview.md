@@ -56,3 +56,10 @@ These questions were presented to the user. No unanswered question is an approva
 Follow-up questions should use the answers to explore multi-agent density, an agent working across several resources, proactive updates while another conversation is open, and how a human DM differs from interacting with an agent. Do not restart generic product discovery, ask for a single first use case, or re-ask confirmed privacy/context/approval rules.
 
 Before another UI implementation, produce one integrated, reviewable scenario showing agent identity, Graph reading, creation, ongoing activity and conversation together. Keep references, proposals, confirmed answers and implementation facts distinct. No live avatars, working animations, people, messages or agent results may be fabricated to fill missing services.
+
+
+## October 31: a universal first-message default was not selected
+
+The user answered the first-send scenario by saying the interaction needs more exploration because expectations vary across situations. This is not selection of shared project conversation, private project-agent conversation or private personal-agent conversation. Do not repeat that forced choice as if the problem only needs a universal default.
+
+Next exploration should distinguish giving the workspace an instruction, asking an agent privately, speaking to a person/group, discussing selected work and delegating an ongoing responsibility. Test the same phrase across personal/shared Canvas, explicit conversation selection and Graph/document context. Audience, input intent, work context and response presentation need to be evaluated together with minimal controls. Opening a resource must still not silently change an existing message recipient, and context access does not authorize publishing private material. Conversation-led versus context-led bar behavior remains a hypothesis to discuss, not an implementation decision. No app code changed.
