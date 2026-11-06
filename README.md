@@ -12,5 +12,7 @@ Requires Node 22.18 or later.
 ```sh
 cd workstation
 npm ci
-npm run dev
+npm start      # http://127.0.0.1:4174
 ```
+
+Agents run on a free scripted runtime by default. To use OpenAI, `cp .env.example .env` here in the repo root and set `OPENAI_API_KEY`.
