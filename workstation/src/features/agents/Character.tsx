@@ -1,3 +1,4 @@
+import { useId, type CSSProperties } from 'react';
 import type { Character as CharacterSpec, Job, User } from '../../../shared/types.ts';
 
 export type AgentState = 'idle' | 'working' | 'waiting' | 'failed';
@@ -19,13 +20,13 @@ const stateLabel: Record<AgentState, string> = {
   failed: 'last job failed',
 };
 
-const bodies: Record<CharacterSpec['shape'], string> = {
-  round: 'M32 6c14 0 24 10 24 25 0 16-10 27-24 27S8 47 8 31C8 16 18 6 32 6z',
-  tall: 'M32 4c11 0 19 9 19 24v8c0 14-8 22-19 22s-19-8-19-22v-8C13 13 21 4 32 4z',
-  wide: 'M32 10c16 0 27 8 27 21 0 15-11 25-27 25S5 46 5 31C5 18 16 10 32 10z',
-};
+function OrbCore({ shape }: { shape: CharacterSpec['shape'] }) {
+  if (shape === 'tall') return <rect x="23" y="13" width="18" height="38" rx="9" />;
+  if (shape === 'wide') return <rect x="16" y="16" width="32" height="32" rx="11" />;
+  return <circle cx="32" cy="32" r="17" />;
+}
 
-/** A soft, restrained character. Same identity everywhere: chat, canvas, graph, panels. */
+/** Orb: abstract core in a thin ring. State lives in motion, not a face. */
 export function Character({
   agent,
   size = 28,
@@ -36,53 +37,65 @@ export function Character({
   state?: AgentState;
 }) {
   const spec = agent.character ?? { hue: 210, shape: 'round', eyes: 'dot' };
-  const id = `g-${agent.id.slice(0, 8)}`;
+  const small = size < 32;
+  const gid = useId().replace(/:/g, '');
+  const style = {
+    width: size,
+    height: size,
+    '--s': `${size}px`,
+    '--tint': `hsl(${spec.hue} 10% 18%)`,
+  } as CSSProperties;
+
   return (
     <span
-      className={`character state-${state}`}
+      className={`character orb state-${state}${small ? ' is-small' : ''}`}
       role="img"
       aria-label={`${agent.name}, ${stateLabel[state]}`}
       title={`${agent.name} · ${stateLabel[state]}`}
+      style={style}
     >
-      <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
         <defs>
-          <radialGradient id={id} cx="38%" cy="30%" r="75%">
-            <stop offset="0%" stopColor={`hsl(${spec.hue} 45% 86%)`} />
-            <stop offset="70%" stopColor={`hsl(${spec.hue} 30% 66%)`} />
-            <stop offset="100%" stopColor={`hsl(${spec.hue} 26% 52%)`} />
-          </radialGradient>
+          <linearGradient id={`orb-${gid}`} x1="0" y1="0" x2="0.6" y2="1">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.28" />
+            <stop offset="55%" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
         </defs>
-        <g className="character-body">
-          <ellipse cx="32" cy="60" rx="15" ry="2.5" className="character-shadow" />
-          <path d={bodies[spec.shape]} fill={`url(#${id})`} />
-          <g className="character-eyes" fill="#1d1d1f">
-            {spec.eyes === 'dot' ? (
-              <>
-                <ellipse cx="25" cy="30" rx="3" ry="3.6" />
-                <ellipse cx="39" cy="30" rx="3" ry="3.6" />
-              </>
-            ) : (
-              <>
-                <path
-                  d="M21 31q4-5 8 0"
-                  stroke="#1d1d1f"
-                  strokeWidth="2.6"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M35 31q4-5 8 0"
-                  stroke="#1d1d1f"
-                  strokeWidth="2.6"
-                  fill="none"
-                  strokeLinecap="round"
-                />
-              </>
-            )}
-          </g>
+        <circle className="orb-track" cx="32" cy="32" r="28" />
+        {state === 'working' && (
+          <circle
+            className="orb-arc"
+            cx="32"
+            cy="32"
+            r="28"
+            pathLength={100}
+            strokeDasharray="30 70"
+          />
+        )}
+        {state === 'waiting' && (
+          <>
+            <circle className="orb-ripple" cx="32" cy="32" r="22" />
+            <circle className="orb-ring" cx="32" cy="32" r="28" />
+          </>
+        )}
+        <g className="orb-core">
+          {state === 'waiting' ? (
+            <>
+              <circle className="orb-hold" cx="32" cy="32" r="15" />
+              <circle className="orb-fill" cx="32" cy="32" r="6.5" />
+            </>
+          ) : (
+            <>
+              <g className="orb-fill">
+                <OrbCore shape={spec.shape} />
+              </g>
+              <g fill={`url(#orb-${gid})`}>
+                <OrbCore shape={spec.shape} />
+              </g>
+            </>
+          )}
         </g>
       </svg>
-      {state === 'waiting' && <i className="character-badge" aria-hidden="true" />}
     </span>
   );
 }

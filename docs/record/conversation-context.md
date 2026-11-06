@@ -435,3 +435,8 @@ The main unanswered area remains the floating composer and reply presentation. A
 ## October 31: first-send behavior needs situational exploration
 
 In response to the shared-project first-message choices, the user said this interaction needs more exploration: users may expect different things in different situations. No universal audience/default was selected. Explore private assistance, collaborative speech, contextual work actions, source-linked discussion and persistent delegation together, rather than asking the same three-way choice again. Preserve existing confirmed privacy and recipient-continuity rules. This continues the research/interview, not authorization for a new chat layout or broad implementation.
+
+
+## November 5: agent character chosen — Orb
+
+Dylan reviewed four character directions (Pebble, Orb, Bit, Badge) on the comparison page and picked **Orb** (option 2): abstract core inside a thin ring, no face; working = sweeping arc; waiting = held dot with pulsing ring. Monochrome-first with only a faint per-agent tint. This supersedes the earlier tentative “1 and 3 maybe” style interest and replaces the pastel gradient blob as the live demo default.

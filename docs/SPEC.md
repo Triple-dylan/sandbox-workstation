@@ -48,7 +48,7 @@ Agents automatically gather, organize, update and hand over useful context as wo
 ## Agents
 
 - Every collaborative project gets at least one dedicated agent by default, until the project completes or the agent is retired.
-- Agents are shown as **characters**; the exact style is open. Selecting an agent shows its **work and conversation first**, with profile and settings secondary.
+- Agents are shown as **Orb** characters (abstract core in a thin ring; state via motion). Selecting an agent shows its **work and conversation first**, with profile and settings secondary.
 - Additional agents can be created conversationally or with a deliberate Create agent action.
 - Project context is where an agent starts, not an absolute boundary. Wider access follows configured permissions.
 - Routine context maintenance is automatic. **Consequential shared changes need approval.** Private agents have configurable autonomy, which never overrides shared access rules.

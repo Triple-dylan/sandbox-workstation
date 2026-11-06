@@ -25,6 +25,8 @@ export type AppOptions = {
   runtime?: AgentRuntime;
   staticDir?: string | null;
   maintenanceDelayMs?: number;
+  /** Hold jobs in `running` so the Orb working arc is visible (demo default). */
+  workDelayMs?: number;
   env?: NodeJS.ProcessEnv;
 };
 
@@ -33,6 +35,7 @@ export function createApp(options: AppOptions) {
   const runtime = options.runtime ?? selectRuntime(options.env ?? process.env, store);
   const engine = new AgentEngine(store, runtime, {
     maintenanceDelayMs: options.maintenanceDelayMs,
+    workDelayMs: options.workDelayMs,
   });
   const staticDir =
     options.staticDir === undefined

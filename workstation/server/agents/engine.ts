@@ -16,8 +16,12 @@ export class AgentEngine {
   private lastProactive = new Map<Id, number>();
   private store: Store;
   readonly runtime: AgentRuntime;
-  private options: { maintenanceDelayMs?: number };
-  constructor(store: Store, runtime: AgentRuntime, options: { maintenanceDelayMs?: number } = {}) {
+  private options: { maintenanceDelayMs?: number; workDelayMs?: number };
+  constructor(
+    store: Store,
+    runtime: AgentRuntime,
+    options: { maintenanceDelayMs?: number; workDelayMs?: number } = {},
+  ) {
     this.store = store;
     this.runtime = runtime;
     this.options = options;
@@ -243,6 +247,8 @@ export class AgentEngine {
       runtime: this.runtime.id,
     });
     this.store.setJob(job.id, 'running');
+    const workDelay = this.options.workDelayMs ?? 0;
+    if (workDelay > 0) await new Promise((r) => setTimeout(r, workDelay));
     const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger);
     let result;
     let runtime = this.runtime;

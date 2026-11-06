@@ -1014,82 +1014,108 @@ h3 {
   white-space: nowrap;
 }
 
-/* ---------- characters ---------- */
+/* ---------- characters (Orb) ---------- */
 .character {
   position: relative;
   display: inline-flex;
   flex: none;
+  color: var(--text);
 }
-.character-shadow {
-  fill: rgba(0, 0, 0, 0.12);
+.character svg {
+  overflow: visible;
+  display: block;
 }
-.character-body {
-  transform-origin: 32px 58px;
-  animation: breathe 4.5s ease-in-out infinite;
+.orb-track {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 2;
 }
-.state-working .character-body {
-  animation: bob 0.9s ease-in-out infinite;
+.orb.is-small .orb-track,
+.orb.is-small .orb-arc,
+.orb.is-small .orb-ring {
+  stroke-width: 5;
 }
-.state-waiting .character-body {
-  animation: lean 2.4s ease-in-out infinite;
+.orb-fill {
+  fill: var(--tint);
 }
-.state-failed .character-body {
+:root[data-theme='dark'] .orb-fill {
+  fill: #e4e4e4;
+}
+.orb-core {
+  transform-origin: 32px 32px;
+  animation: orb-pulse 4s ease-in-out infinite;
+}
+.state-working .orb-core {
+  animation: none;
+  transform: scale(0.86);
+}
+.orb-arc {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform-origin: 32px 32px;
+  animation: orb-spin 1.3s linear infinite;
+}
+.orb-ring {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+}
+.orb-hold {
+  fill: none;
+  stroke: var(--tint);
+  stroke-width: 3.5;
+}
+:root[data-theme='dark'] .orb-hold {
+  stroke: #e4e4e4;
+}
+.orb.is-small .orb-hold {
+  stroke-width: 6;
+}
+.state-waiting .orb-core {
+  animation: none;
+}
+.orb-ripple {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  opacity: 0;
+  transform-origin: 32px 32px;
+  animation: orb-ripple 2.2s ease-out infinite;
+}
+.state-failed {
   filter: grayscale(0.7);
+  opacity: 0.72;
 }
-.character-eyes {
-  transform-origin: 32px 30px;
-  animation: blink 5.5s infinite;
-}
-.character-badge {
-  position: absolute;
-  right: -1px;
-  top: -1px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  border: 2px solid var(--glass-strong);
-}
-@keyframes breathe {
+@keyframes orb-pulse {
   0%,
   100% {
-    transform: scale(1, 1);
+    transform: scale(1);
   }
   50% {
-    transform: scale(1.02, 0.98);
+    transform: scale(0.95);
   }
 }
-@keyframes bob {
-  0%,
-  100% {
-    transform: translateY(0) scale(1, 1);
-  }
-  50% {
-    transform: translateY(-4px) scale(0.98, 1.03);
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
-@keyframes lean {
-  0%,
+@keyframes orb-ripple {
+  0% {
+    transform: scale(0.75);
+    opacity: 0.55;
+  }
   100% {
-    transform: rotate(-4deg);
-  }
-  50% {
-    transform: rotate(4deg);
-  }
-}
-@keyframes blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  97% {
-    transform: scaleY(0.1);
+    transform: scale(1.45);
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .character-body,
-  .character-eyes,
+  .orb-core,
+  .orb-arc,
+  .orb-ripple,
   .graph-actor {
     animation: none !important;
     transition: none !important;

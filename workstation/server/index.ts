@@ -8,7 +8,12 @@ const port = Number(process.env.PORT ?? 4174);
 const host = process.env.HOST ?? '127.0.0.1';
 const dbPath =
   process.env.WORKSTATION_DB ?? fileURLToPath(new URL('../data/workstation.db', import.meta.url));
-const app = createApp({ dbPath, staticDir: process.env.STATIC === 'off' ? null : undefined });
+const app = createApp({
+  dbPath,
+  staticDir: process.env.STATIC === 'off' ? null : undefined,
+  // Scripted replies are instant; a short hold lets Orb's working arc show.
+  workDelayMs: Number(process.env.AGENT_WORK_MS ?? 900),
+});
 
 app.server.listen(port, host, () => {
   const address = app.server.address();
