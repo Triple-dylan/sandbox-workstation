@@ -348,6 +348,9 @@ h3 {
   overflow: hidden;
   cursor: text;
 }
+.canvas {
+  overflow: auto;
+}
 .canvas:focus-visible {
   outline-offset: -2px;
 }
@@ -824,12 +827,14 @@ h3 {
 }
 .utilities {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   padding: 10px;
   align-content: start;
   overflow: hidden;
 }
 .card {
+  min-width: 0;
   background: var(--content);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -845,9 +850,16 @@ h3 {
   font-size: 13px;
   flex: 1;
 }
+.card > header > div {
+  flex: 1;
+  min-width: 0;
+}
 .card > header small {
   color: var(--muted);
   font-size: 12px;
+}
+.card-list li > button.truncate {
+  flex: 1;
 }
 .card-list,
 .card-lines {
@@ -858,16 +870,26 @@ h3 {
   gap: 4px;
   font-size: 12px;
 }
+.card-list {
+  grid-template-columns: minmax(0, 1fr);
+}
 .card-list li {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 .card-list li > .truncate {
-  flex: 1;
+  flex: 1 1 auto;
 }
 .card-list li small {
   color: var(--muted);
+  flex: 0 1 auto;
+  max-width: 60%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .card-list button {
   color: var(--secondary);

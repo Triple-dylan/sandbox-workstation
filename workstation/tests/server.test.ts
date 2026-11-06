@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -9,8 +9,14 @@ import type { AgentRuntime } from '../server/agents/runtime.ts';
 
 const PLACEHOLDER_KEY = 'placeholder-key-for-tests';
 
+const opened: ReturnType<typeof createApp>[] = [];
+after(async () => {
+  for (const app of opened) await app.close();
+});
+
 function setup(runtime: AgentRuntime = scriptedRuntime) {
   const app = createApp({ dbPath: ':memory:', staticDir: null, runtime, maintenanceDelayMs: 5 });
+  opened.push(app);
   const { store, engine } = app;
   const dylan = store.createHuman('Dylan');
   const maya = store.createHuman('Maya');
@@ -261,6 +267,7 @@ test('http: sessions, CSRF header, auth and static path traversal', async () => 
     staticDir: fileURLToPath(new URL('../shared/', import.meta.url)),
     runtime: scriptedRuntime,
   });
+  opened.push(app);
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
   const h = { 'content-type': 'application/json', 'x-workstation': '1' };

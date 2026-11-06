@@ -286,12 +286,15 @@ export function createApp(options: AppOptions) {
     }
   });
 
+  let closed = false;
   return {
     server,
     store,
     engine,
     runtime,
     async close() {
+      if (closed) return;
+      closed = true;
       clearInterval(heartbeat);
       engine.stop();
       for (const res of streams.keys()) res.end();

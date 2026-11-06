@@ -142,7 +142,8 @@ function OrientationCard() {
   if (!doc) return null;
   const lines = doc.body
     .split('\n')
-    .filter((l) => l.trim() && !l.startsWith('#'))
+    .filter((l) => /^\s*[-*]\s/.test(l))
+    .map((l) => l.replace(/^\s*[-*]\s*/, '').replace(/[*_`]/g, ''))
     .slice(0, 3);
   return (
     <section className="card" aria-label="Orientation">
@@ -156,7 +157,7 @@ function OrientationCard() {
       {lines.length ? (
         <ul className="card-lines">
           {lines.map((l, i) => (
-            <li key={i}>{l.replace(/^[-*]\s*/, '')}</li>
+            <li key={i}>{l}</li>
           ))}
         </ul>
       ) : (

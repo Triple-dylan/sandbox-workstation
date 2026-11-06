@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, useSession } from '../data/client.ts';
 import type { Snapshot } from '../../shared/types.ts';
 import { Join } from './Join.tsx';
@@ -65,19 +65,23 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     s.spaces.find((x) => x.kind === 'personal') ??
     s.spaces[0];
   // Drop view state that points at things this person can no longer see.
+  // Close views whose record disappeared (deleted, unshared). Only ids seen before count as gone:
+  // something just created may not be in this snapshot yet.
+  const previous = useRef(s);
   useEffect(() => {
-    setUi((old) => ({
-      spaceId: space.id,
-      conversationId:
-        old.conversationId && s.conversations.some((c) => c.id === old.conversationId)
-          ? old.conversationId
-          : null,
-      readerId:
-        old.readerId && s.resources.some((r) => r.id === old.readerId) ? old.readerId : null,
-      selectedId:
-        old.selectedId && s.resources.some((r) => r.id === old.selectedId) ? old.selectedId : null,
-    }));
-  }, [s, space.id, setUi]);
+    const before = previous.current;
+    previous.current = s;
+    const first = before === s;
+    const gone = (id: string | null, list: (x: Snapshot) => { id: string }[]) =>
+      !!id && (first || list(before).some((x) => x.id === id)) && !list(s).some((x) => x.id === id);
+    setUi((old) => {
+      const patch: Partial<Ui> = {};
+      if (gone(old.conversationId, (x) => x.conversations)) patch.conversationId = null;
+      if (gone(old.readerId, (x) => x.resources)) patch.readerId = null;
+      if (gone(old.selectedId, (x) => x.resources)) patch.selectedId = null;
+      return patch;
+    });
+  }, [s, setUi]);
 
   useEffect(() => {
     void api('/presence', {

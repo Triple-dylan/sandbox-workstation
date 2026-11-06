@@ -153,7 +153,9 @@ export class Store {
   // ---------- identity ----------
 
   profiles() {
-    return this.all(`select * from users where kind = 'human' order by created_at`).map(toUser);
+    return this.all(`select * from users where kind = 'human' order by created_at, rowid`).map(
+      toUser,
+    );
   }
   user(userId: Id) {
     const row = this.get('select * from users where id = ?', userId);
@@ -353,7 +355,7 @@ export class Store {
   }
   resourcesIn(spaceId: Id) {
     return this.all(
-      'select * from resources where space_id = ? and deleted = 0 order by created_at',
+      'select * from resources where space_id = ? and deleted = 0 order by created_at, rowid',
       spaceId,
     ).map(toResource);
   }
@@ -481,7 +483,7 @@ export class Store {
     );
     if (next.title !== resource.title || next.body !== resource.body) {
       const last = this.get(
-        'select * from revisions where resource_id = ? order by created_at desc limit 1',
+        'select * from revisions where resource_id = ? order by created_at desc, rowid desc limit 1',
         resourceId,
       );
       if (
@@ -528,7 +530,7 @@ export class Store {
     if (!resource || !this.canReadResource(actorId, resource))
       throw new AccessError('Not available.');
     return this.all(
-      'select * from revisions where resource_id = ? order by created_at desc',
+      'select * from revisions where resource_id = ? order by created_at desc, rowid desc',
       resourceId,
     ).map((r) => ({
       id: r.id,
@@ -706,7 +708,7 @@ export class Store {
   }
   messages(conversationId: Id, limit = 300) {
     return this.all(
-      'select * from (select * from messages where conversation_id = ? order by created_at desc limit ?) order by created_at',
+      'select * from (select *, rowid as seq from messages where conversation_id = ? order by created_at desc, rowid desc limit ?) order by created_at, seq',
       conversationId,
       limit,
     ).map(toMessage);
@@ -895,7 +897,7 @@ export class Store {
       .filter((m) => spaceIds.has(m.space_id))
       .map((m) => ({ spaceId: m.space_id, userId: m.user_id, role: m.role }) as Member);
     const resources = spaces.flatMap((s) => this.readableResources(userId, s.id));
-    const conversations = this.all('select id from conversations order by created_at')
+    const conversations = this.all('select id from conversations order by created_at, rowid')
       .map((r) => this.conversation(r.id)!)
       .filter((c) => this.canReadConversation(userId, c));
     const conversationIds = new Set(conversations.map((c) => c.id));
@@ -907,7 +909,7 @@ export class Store {
     const users = this.all('select * from users')
       .map(toUser)
       .filter((u) => u.kind === 'human' || visibleUserIds.has(u.id));
-    const jobs = this.all('select * from jobs order by created_at desc limit 500')
+    const jobs = this.all('select * from jobs order by created_at desc, rowid desc limit 500')
       .map(toJob)
       .filter(
         (j) =>
@@ -920,7 +922,9 @@ export class Store {
     const assignments = this.all('select * from assignments')
       .map(toAssignment)
       .filter((a) => conversationIds.has(a.conversationId));
-    const approvals = this.all('select * from approvals order by created_at desc limit 200')
+    const approvals = this.all(
+      'select * from approvals order by created_at desc, rowid desc limit 200',
+    )
       .map(toApproval)
       .filter((a) => spaceIds.has(a.spaceId));
     const lastRead = Object.fromEntries(

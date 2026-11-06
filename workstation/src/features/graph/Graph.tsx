@@ -22,6 +22,27 @@ function layout(nodes: GraphNode[], links: GraphLink[], width: number, height: n
         changed = true;
       }
   }
+  // Layered start: one row per depth, siblings spread evenly, crowded rows staggered.
+  const rows = new Map<number, GraphNode[]>();
+  for (const n of nodes) {
+    const d = depth.get(n.id) ?? 1;
+    rows.set(d, [...(rows.get(d) ?? []), n]);
+  }
+  const rowGap = Math.max(96, Math.min(150, (height - 120) / Math.max(1, rows.size - 1)));
+  const target = new Map<string, { x: number; y: number }>();
+  for (const [d, row] of rows) {
+    const perLine = Math.max(1, Math.floor((width - 80) / 180));
+    row.forEach((n, i) => {
+      const line = Math.floor(i / perLine);
+      const inLine = Math.min(perLine, row.length - line * perLine);
+      const x = ((i % perLine) + 0.5) * ((width - 80) / inLine) + 40;
+      const y = 60 + d * rowGap + line * 44 + (row.length > perLine ? 0 : (i % 2) * 18);
+      target.set(n.id, { x, y });
+      n.x = x;
+      n.y = y;
+    });
+  }
+  const radius = (n: GraphNode) => Math.min(80, 18 + n.label.slice(0, 28).length * 3.1);
   const sim = forceSimulation<GraphNode>(nodes)
     .force(
       'link',
@@ -29,24 +50,19 @@ function layout(nodes: GraphNode[], links: GraphLink[], width: number, height: n
         links.map((l) => ({ source: l.source, target: l.target })),
       )
         .id((n) => n.id)
-        .distance(90)
-        .strength(0.9),
+        .strength(0.05),
     )
-    .force('charge', forceManyBody().strength(-260))
-    .force('collide', forceCollide(34))
-    .force('x', forceX(width / 2).strength(0.04))
-    .force(
-      'y',
-      forceY<GraphNode>(
-        (n) => 70 + (depth.get(n.id) ?? 1) * Math.max(90, (height - 140) / 4),
-      ).strength(0.5),
-    )
+    .force('charge', forceManyBody().strength(-40))
+    .force('collide', forceCollide<GraphNode>(radius).strength(0.8))
+    .force('x', forceX<GraphNode>((n) => target.get(n.id)!.x).strength(0.25))
+    .force('y', forceY<GraphNode>((n) => target.get(n.id)!.y).strength(0.9))
     .stop();
   nodes[0].fx = width / 2;
-  nodes[0].fy = 70;
-  for (let i = 0; i < 300; i++) sim.tick();
+  nodes[0].fy = 60;
+  for (let i = 0; i < 200; i++) sim.tick();
   for (const n of nodes) {
-    n.x = Math.max(40, Math.min(width - 40, n.x ?? 0));
+    const half = Math.min(width / 2, radius(n) + 12);
+    n.x = Math.max(half, Math.min(width - half, n.x ?? 0));
     n.y = Math.max(40, Math.min(height - 40, n.y ?? 0));
   }
 }

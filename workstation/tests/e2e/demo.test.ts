@@ -82,7 +82,11 @@ async function scenario(dylan: Page, maya: Page) {
   await maya.getByRole('button', { name: 'Launch', exact: true }).click();
   const note = maya.locator('.canvas-item textarea');
   await note.waitFor();
-  assert.equal(await note.inputValue(), 'Pricing tiers draft');
+  await maya.waitForFunction(
+    () =>
+      document.querySelector<HTMLTextAreaElement>('.canvas-item textarea')?.value ===
+      'Pricing tiers draft',
+  );
 
   // Situation 4: discuss the selected work.
   await maya.locator('.canvas-item').hover();

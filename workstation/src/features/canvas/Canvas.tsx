@@ -14,7 +14,7 @@ export const canvasBounds = { width: 960, height: 720 };
 export function Canvas() {
   const { s, space, ui, setUi, run } = useWorkspace();
   const stage = useRef<HTMLDivElement>(null);
-  const [bounds, setBounds] = useState({ width: 0, height: 0 });
+  const [visible, setVisible] = useState({ width: 0, height: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [moving, setMoving] = useState<{ id: string; placement: Placement; valid: boolean } | null>(
@@ -30,12 +30,22 @@ export function Canvas() {
         width: Math.floor(entry.contentRect.width),
         height: Math.floor(entry.contentRect.height),
       };
-      Object.assign(canvasBounds, next);
-      setBounds(next);
+      setVisible(next);
     });
     observer.observe(stage.current);
     return () => observer.disconnect();
   }, []);
+  // Items placed on a wider screen stay reachable (the canvas scrolls) and movable.
+  const bounds = items.reduce(
+    (b, r) => ({
+      width: Math.max(b.width, r.placement!.x + r.placement!.width + GRID),
+      height: Math.max(b.height, r.placement!.y + r.placement!.height + GRID),
+    }),
+    visible,
+  );
+  useEffect(() => {
+    Object.assign(canvasBounds, visible);
+  }, [visible]);
   useEffect(() => {
     setDraft(null);
     setEditingId(null);
@@ -62,7 +72,9 @@ export function Canvas() {
     }
     setUi({ selectedId: null });
     const rect = stage.current!.getBoundingClientRect();
-    const placement = placeNote(e.clientX - rect.left, e.clientY - rect.top, bounds, others(null));
+    const x = e.clientX - rect.left + stage.current!.scrollLeft;
+    const y = e.clientY - rect.top + stage.current!.scrollTop;
+    const placement = placeNote(x, y, bounds, others(null));
     if (!placement) return;
     setDraft({ placement, resourceId: null, text: '' });
   };
