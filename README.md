@@ -5,6 +5,7 @@ A canvas-and-graph workstation where people and agents work together, and agents
 - Product: [docs/SPEC.md](docs/SPEC.md)
 - Decisions: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Status and how to run: [docs/STATE.md](docs/STATE.md)
+- Shared planning (all harnesses): [docs/project/](docs/project/)
 - History: [docs/record/](docs/record/) (interview record), [docs/archive/](docs/archive/) (superseded plans and evidence)
 
 Requires Node 22.18 or later.

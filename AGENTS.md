@@ -1,6 +1,6 @@
 # Working on Sandbox Workstation
 
-1. Read `docs/SPEC.md` (confirmed requirements), `docs/DECISIONS.md` (dated decisions and open items) and `docs/STATE.md` (what is built). Later decisions win.
+1. Read `docs/SPEC.md` (confirmed requirements), `docs/DECISIONS.md` (dated decisions and open items) and `docs/STATE.md` (what is built). Later decisions win. Shared planning notes (review, overhaul plan, harness tip): `docs/project/`.
 2. `docs/record/conversation-context.md` is the verbatim interview record. Append to it when Dylan gives durable direction; don't rewrite it.
 3. `docs/archive/` holds superseded plans, reviews and evidence. Use it as history only; never restore rejected designs from it.
 
