@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4174 --strictPort",
     "test": "node --test tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepare:sources": "node scripts/snapshot-sources.mjs",
     "predev": "npm run prepare:sources",
     "prebuild": "npm run prepare:sources",
