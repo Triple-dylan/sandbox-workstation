@@ -11,7 +11,7 @@ const dbPath =
 const app = createApp({
   dbPath,
   staticDir: process.env.STATIC === 'off' ? null : undefined,
-  // Scripted replies are instant; a short hold lets Orb's working arc show.
+  // Scripted replies are instant; a short hold lets Orb's working motion show.
   workDelayMs: Number(process.env.AGENT_WORK_MS ?? 900),
 });
 

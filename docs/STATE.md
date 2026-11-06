@@ -20,7 +20,7 @@ Optional real agents: `cp .env.example .env` in the repo root and set `OPENAI_AP
 - Blank canvas: click anywhere and type. Notes save as you type, move on a 24px grid with collision checks, can be private or shared, and show who is working on them.
 - Graph: the space as a tree (space, folders, docs, canvas notes), with agents and people shown on what they are touching.
 - Composer with an explicit audience covering the five first-message situations: instruct the project agent, privately ask your agent, message a person, discuss selected work, delegate ongoing work.
-- Agents use the **Orb** character (monochrome core + ring; idle / working / waiting motion) at chat, canvas, graph and panel sizes. Proposals need a person's approval; delegated work can be stopped.
+- Agents use the **Orb** character via `thinking-orbs` (canvas particles; idle=`breathing`, working=`working`, waiting=`shaping`) at chat/rail 18, canvas 26, graph 28, panel 40. Proposals need a person's approval; delegated work can be stopped.
 - One access check in the store governs everything a person or agent can see.
 
 ## Not yet

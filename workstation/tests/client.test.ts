@@ -11,6 +11,8 @@ import {
 } from '../src/features/conversations/audience.ts';
 import { fits, freeSpot, placeNote, snap } from '../src/features/canvas/layout.ts';
 import { NOTES_GROUP, graphOf } from '../src/features/graph/tree.ts';
+import { agentState, orbStateForAgent } from '../src/features/agents/agent-state.ts';
+import { presetForDisplay } from '../src/features/agents/thinking-orb.ts';
 
 function world() {
   const store = new Store(openDb(':memory:'));
@@ -106,4 +108,34 @@ test('graph is a tree with notes grouped, and hides items the viewer cannot see'
   assert.ok(nodes.some((n) => n.label === 'Shared idea'));
   assert.ok(!nodes.some((n) => n.label === 'Mine'));
   assert.equal(links.length, nodes.length - 1, 'every node except the root has one parent');
+});
+
+test('Orb maps agent job state to thinking-orbs verbs and size presets', () => {
+  assert.equal(orbStateForAgent('idle'), 'breathing');
+  assert.equal(orbStateForAgent('working'), 'working');
+  assert.equal(orbStateForAgent('waiting'), 'shaping');
+  assert.equal(orbStateForAgent('failed'), 'breathing');
+  assert.equal(presetForDisplay(18), 20);
+  assert.equal(presetForDisplay(26), 64);
+  assert.equal(presetForDisplay(40), 64);
+  const now = new Date().toISOString();
+  const base = {
+    spaceId: 's',
+    conversationId: null,
+    kind: 'ask' as const,
+    request: 'x',
+    targetResourceId: null,
+    runtime: 'scripted',
+    error: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  assert.equal(
+    agentState('a1', [{ ...base, id: 'j1', agentId: 'a1', status: 'running' }]),
+    'working',
+  );
+  assert.equal(
+    agentState('a1', [{ ...base, id: 'j1', agentId: 'a1', status: 'awaiting_approval' }]),
+    'waiting',
+  );
 });

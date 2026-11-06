@@ -1,32 +1,12 @@
-import { useId, type CSSProperties } from 'react';
-import type { Character as CharacterSpec, Job, User } from '../../../shared/types.ts';
+import { useEffect, useRef, type CSSProperties } from 'react';
+import type { Job, User } from '../../../shared/types.ts';
+import { agentState, agentStateLabel, orbStateForAgent, type AgentState } from './agent-state.ts';
+import { mountThinkingOrb, type ThinkingOrbHandle } from './thinking-orb.ts';
 
-export type AgentState = 'idle' | 'working' | 'waiting' | 'failed';
+export type { AgentState };
+export { agentState, orbStateForAgent };
 
-export function agentState(agentId: string, jobs: Job[]): AgentState {
-  const mine = jobs.filter((j) => j.agentId === agentId);
-  if (mine.some((j) => j.status === 'running' || j.status === 'queued')) return 'working';
-  if (mine.some((j) => j.status === 'awaiting_approval')) return 'waiting';
-  const latest = mine[0];
-  if (latest?.status === 'failed' && Date.now() - Date.parse(latest.updatedAt) < 60_000)
-    return 'failed';
-  return 'idle';
-}
-
-const stateLabel: Record<AgentState, string> = {
-  idle: 'idle',
-  working: 'working',
-  waiting: 'waiting for approval',
-  failed: 'last job failed',
-};
-
-function OrbCore({ shape }: { shape: CharacterSpec['shape'] }) {
-  if (shape === 'tall') return <rect x="23" y="13" width="18" height="38" rx="9" />;
-  if (shape === 'wide') return <rect x="16" y="16" width="32" height="32" rx="11" />;
-  return <circle cx="32" cy="32" r="17" />;
-}
-
-/** Orb: abstract core in a thin ring. State lives in motion, not a face. */
+/** Orb: thinking-orbs particle canvas. State lives in motion, not a face. */
 export function Character({
   agent,
   size = 28,
@@ -36,67 +16,56 @@ export function Character({
   size?: number;
   state?: AgentState;
 }) {
+  const hostRef = useRef<HTMLSpanElement>(null);
+  const handleRef = useRef<ThinkingOrbHandle | null>(null);
   const spec = agent.character ?? { hue: 210, shape: 'round', eyes: 'dot' };
-  const small = size < 32;
-  const gid = useId().replace(/:/g, '');
+  const orbState = orbStateForAgent(state);
+  const label = `${agent.name}, ${agentStateLabel[state]}`;
   const style = {
     width: size,
     height: size,
     '--s': `${size}px`,
-    '--tint': `hsl(${spec.hue} 10% 18%)`,
+    '--tint': `hsl(${spec.hue} 28% 48% / 0.14)`,
   } as CSSProperties;
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const handle = mountThinkingOrb(host, {
+      state: orbState,
+      displaySize: size,
+      theme: 'auto',
+      label,
+    });
+    handleRef.current = handle;
+    return () => {
+      handle.destroy();
+      handleRef.current = null;
+    };
+    // Remount when display size changes; state updates go through setState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: size only
+  }, [size]);
+
+  useEffect(() => {
+    handleRef.current?.setState(orbState);
+    // Failed: hold a static frame (package has no failed verb).
+    handleRef.current?.setPaused(state === 'failed');
+  }, [orbState, state]);
+
+  useEffect(() => {
+    const canvas = hostRef.current?.querySelector('canvas');
+    if (canvas && !canvas.hasAttribute('aria-hidden')) {
+      canvas.setAttribute('aria-label', label);
+    }
+  }, [label]);
 
   return (
     <span
-      className={`character orb state-${state}${small ? ' is-small' : ''}`}
-      role="img"
-      aria-label={`${agent.name}, ${stateLabel[state]}`}
-      title={`${agent.name} · ${stateLabel[state]}`}
+      ref={hostRef}
+      className={`character orb state-${state}`}
+      title={`${agent.name} · ${agentStateLabel[state]}`}
       style={style}
-    >
-      <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
-        <defs>
-          <linearGradient id={`orb-${gid}`} x1="0" y1="0" x2="0.6" y2="1">
-            <stop offset="0%" stopColor="#fff" stopOpacity="0.28" />
-            <stop offset="55%" stopColor="#fff" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <circle className="orb-track" cx="32" cy="32" r="28" />
-        {state === 'working' && (
-          <circle
-            className="orb-arc"
-            cx="32"
-            cy="32"
-            r="28"
-            pathLength={100}
-            strokeDasharray="30 70"
-          />
-        )}
-        {state === 'waiting' && (
-          <>
-            <circle className="orb-ripple" cx="32" cy="32" r="22" />
-            <circle className="orb-ring" cx="32" cy="32" r="28" />
-          </>
-        )}
-        <g className="orb-core">
-          {state === 'waiting' ? (
-            <>
-              <circle className="orb-hold" cx="32" cy="32" r="15" />
-              <circle className="orb-fill" cx="32" cy="32" r="6.5" />
-            </>
-          ) : (
-            <>
-              <g className="orb-fill">
-                <OrbCore shape={spec.shape} />
-              </g>
-              <g fill={`url(#orb-${gid})`}>
-                <OrbCore shape={spec.shape} />
-              </g>
-            </>
-          )}
-        </g>
-      </svg>
-    </span>
+    />
   );
 }
 

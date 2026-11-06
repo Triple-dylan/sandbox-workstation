@@ -2,9 +2,17 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-05 — agent character: dynamic Orb (thinking-orbs)
+
+- Dylan confirmed **dynamic particle orbs** via npm `thinking-orbs@0.2.0` (same as DropDeployment), not the SVG ring.
+- State → verb: idle → `breathing`, working → `working`, waiting-for-approval → `shaping`; brief failed holds a static breathing frame.
+- Sizes stay chat/rail 18, canvas 26, graph 28, panel 40 (nearest package preset 20/64 for particle tuning).
+- Package is monochrome; faint per-agent hue tint stays a host wash. Respects `prefers-reduced-motion`.
+
 ## 2026-11-05 — agent character: Orb
 
 - **Orb** is the agent character (option 2 from the comparison page). Abstract core inside a thin ring; no face.
+- *Superseded for motion/renderer by the thinking-orbs decision above;* name and tint intent remain.
 - State is motion: idle pulse, working = sweeping arc, waiting = held dot with pulsing ring.
 - Monochrome-first with only a faint per-agent tint from hue. Shape (round / tall / wide) still varies identity.
 - Replaces the pastel gradient blob as the default everywhere (chat/rail 18, canvas 26, graph 28, panel 40).

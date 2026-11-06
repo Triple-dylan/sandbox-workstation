@@ -1014,108 +1014,31 @@ h3 {
   white-space: nowrap;
 }
 
-/* ---------- characters (Orb) ---------- */
+/* ---------- characters (Orb via thinking-orbs) ---------- */
 .character {
   position: relative;
   display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
   color: var(--text);
+  vertical-align: middle;
 }
-.character svg {
-  overflow: visible;
+.character.orb {
+  border-radius: 50%;
+  /* Faint per-agent tint — package draw is monochrome; tint is a host wash. */
+  background: radial-gradient(circle at 50% 45%, var(--tint, transparent), transparent 68%);
+}
+.character .thinking-orb-canvas {
   display: block;
-}
-.orb-track {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 2;
-}
-.orb.is-small .orb-track,
-.orb.is-small .orb-arc,
-.orb.is-small .orb-ring {
-  stroke-width: 5;
-}
-.orb-fill {
-  fill: var(--tint);
-}
-:root[data-theme='dark'] .orb-fill {
-  fill: #e4e4e4;
-}
-.orb-core {
-  transform-origin: 32px 32px;
-  animation: orb-pulse 4s ease-in-out infinite;
-}
-.state-working .orb-core {
-  animation: none;
-  transform: scale(0.86);
-}
-.orb-arc {
-  fill: none;
-  stroke: var(--text);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  transform-origin: 32px 32px;
-  animation: orb-spin 1.3s linear infinite;
-}
-.orb-ring {
-  fill: none;
-  stroke: var(--text);
-  stroke-width: 2;
-}
-.orb-hold {
-  fill: none;
-  stroke: var(--tint);
-  stroke-width: 3.5;
-}
-:root[data-theme='dark'] .orb-hold {
-  stroke: #e4e4e4;
-}
-.orb.is-small .orb-hold {
-  stroke-width: 6;
-}
-.state-waiting .orb-core {
-  animation: none;
-}
-.orb-ripple {
-  fill: none;
-  stroke: var(--text);
-  stroke-width: 1.5;
-  opacity: 0;
-  transform-origin: 32px 32px;
-  animation: orb-ripple 2.2s ease-out infinite;
+  width: 100%;
+  height: 100%;
 }
 .state-failed {
   filter: grayscale(0.7);
   opacity: 0.72;
 }
-@keyframes orb-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(0.95);
-  }
-}
-@keyframes orb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes orb-ripple {
-  0% {
-    transform: scale(0.75);
-    opacity: 0.55;
-  }
-  100% {
-    transform: scale(1.45);
-    opacity: 0;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .orb-core,
-  .orb-arc,
-  .orb-ripple,
   .graph-actor {
     animation: none !important;
     transition: none !important;

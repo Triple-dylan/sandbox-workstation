@@ -440,3 +440,7 @@ In response to the shared-project first-message choices, the user said this inte
 ## November 5: agent character chosen — Orb
 
 Dylan reviewed four character directions (Pebble, Orb, Bit, Badge) on the comparison page and picked **Orb** (option 2): abstract core inside a thin ring, no face; working = sweeping arc; waiting = held dot with pulsing ring. Monochrome-first with only a faint per-agent tint. This supersedes the earlier tentative “1 and 3 maybe” style interest and replaces the pastel gradient blob as the live demo default.
+
+## November 5: Orb motion is thinking-orbs
+
+Dylan confirmed he wants **dynamic orbs**. The reference he already wired is DropDeployment’s npm `thinking-orbs@0.2.0` (upstream https://github.com/Jakubantalik/thinking-orbs), not a further SVG/CSS keyframe pass. Sandbox should host the canvas particle orb with state verbs and keep only a faint per-agent tint as a host concern.

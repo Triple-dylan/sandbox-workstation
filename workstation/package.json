@@ -21,7 +21,8 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-markdown": "10.1.0",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "thinking-orbs": "^0.2.0"
   },
   "devDependencies": {
     "@types/d3-force": "3.0.10",
