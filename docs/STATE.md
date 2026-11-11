@@ -13,6 +13,10 @@ HOST=0.0.0.0 npm start    # let others on a trusted network join
 
 Optional real agents: `cp .env.example .env` in the repo root and set `OPENAI_API_KEY`. Without it, agents use the free scripted runtime.
 
+## Open it without running anything
+
+`npm run build:inpage` writes `dist-inpage/workstation.html`: the client and the real server (store, access checks, agent engine) bundled into one page, with data kept in that browser. It is for looking and trying alone; several people at once still need `npm start`.
+
 ## What works (demo track)
 
 - Local server with SQLite and live sync (Server-Sent Events). Several people at once, each picking a name; no passwords (demo only).
