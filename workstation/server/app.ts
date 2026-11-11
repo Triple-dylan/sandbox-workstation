@@ -197,6 +197,26 @@ export function createApp(options: AppOptions) {
       store.markRead(me.id, str('conversationId'));
       return send(res, 200, { ok: true });
     }
+    if (segments[0] === 'agents' && segments[1] && method === 'PATCH')
+      return send(
+        res,
+        200,
+        store.updateAgent(me.id, segments[1], {
+          ...(typeof input.name === 'string' ? { name: input.name } : {}),
+          ...(typeof input.purpose === 'string' ? { purpose: input.purpose } : {}),
+          ...(typeof input.instructions === 'string' ? { instructions: input.instructions } : {}),
+        }),
+      );
+    if (path === '/api/folders' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.createFolder(me.id, {
+          spaceId: str('spaceId'),
+          title: str('title'),
+          parentId: str('parentId') || null,
+        }),
+      );
     if (path === '/api/resources' && method === 'POST')
       return send(
         res,

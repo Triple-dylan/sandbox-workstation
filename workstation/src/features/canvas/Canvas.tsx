@@ -352,7 +352,14 @@ function CanvasItem({
         <button className="doc-card" onClick={() => openResource(item.id)}>
           <FileText size={15} />
           <strong>{item.title}</strong>
-          <span>{item.body.replace(/[#*_>-]/g, '').slice(0, 140)}</span>
+          <span>
+            {item.body
+              .replace(/^#.*$/m, '')
+              .replace(/[#*_>|]|-{3,}/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 140)}
+          </span>
         </button>
       )}
       {(agents.length > 0 || viewers.length > 0 || editor) && (

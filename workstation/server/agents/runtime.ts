@@ -3,7 +3,7 @@ import type { JobKind, Proposal } from '../../shared/types.ts';
 /** Everything a runtime sees. Built by the engine from what the agent may access; nothing else is reachable. */
 export type AgentTask = {
   kind: JobKind;
-  agent: { name: string; role: 'personal' | 'project' };
+  agent: { name: string; role: 'personal' | 'project'; purpose: string; instructions: string };
   spaceName: string;
   requester: string | null;
   request: string;

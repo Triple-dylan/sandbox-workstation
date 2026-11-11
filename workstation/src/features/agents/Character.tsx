@@ -1,3 +1,4 @@
+import { ThinkingOrb, type OrbState } from 'thinking-orbs';
 import type { Job, User } from '../../../shared/types.ts';
 
 export type AgentState = 'idle' | 'working' | 'waiting' | 'failed';
@@ -19,7 +20,17 @@ const stateLabel: Record<AgentState, string> = {
   failed: 'last job failed',
 };
 
-/** An agent's identity: a soft animated orb, the same everywhere it appears. Motion shows real job state. */
+const orbState: Record<AgentState, OrbState> = {
+  idle: 'breathing',
+  working: 'working',
+  waiting: 'shaping',
+  failed: 'breathing',
+};
+
+/**
+ * An agent's identity: the dotted thinking orb used in the DropDeployment harness, the same
+ * everywhere it appears. The animation is the agent's real job state.
+ */
 export function Character({
   agent,
   size = 28,
@@ -29,16 +40,19 @@ export function Character({
   size?: number;
   state?: AgentState;
 }) {
-  const hue = agent.character?.hue ?? 210;
+  const preset = size <= 24 ? 20 : size <= 44 ? 32 : 64;
   return (
     <span
       className={`orb state-${state}`}
-      style={{ '--size': `${size}px`, '--hue': hue } as React.CSSProperties}
-      role="img"
-      aria-label={`${agent.name}, ${stateLabel[state]}`}
+      style={{ width: preset, height: preset }}
       title={`${agent.name} · ${stateLabel[state]}`}
     >
-      <i className="orb-core" aria-hidden="true" />
+      <ThinkingOrb
+        state={orbState[state]}
+        size={preset}
+        paused={state === 'failed'}
+        aria-label={`${agent.name}, ${stateLabel[state]}`}
+      />
       {state === 'waiting' && <i className="orb-badge" aria-hidden="true" />}
     </span>
   );

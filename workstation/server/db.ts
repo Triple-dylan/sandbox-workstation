@@ -61,5 +61,12 @@ export function openDb(path: string): Db {
   const db = new DatabaseSync(path);
   db.exec('pragma journal_mode = wal; pragma foreign_keys = on;');
   db.exec(schema);
+  // Added after the first databases were created; ignore the error where the column already exists.
+  for (const column of ['purpose text', 'instructions text'])
+    try {
+      db.exec(`alter table users add column ${column}`);
+    } catch {
+      // Already there.
+    }
   return db;
 }

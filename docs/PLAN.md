@@ -1,6 +1,6 @@
 # What we are building
 
-_Rewritten 2026-11-11 after reviewing the whole lineage, not only this repo. Awaiting Dylan's confirmation._
+_Rewritten 2026-11-11 after reviewing the whole lineage, not only this repo. Confirmed by Dylan the same day with the corrections marked below._
 
 ## Lineage (read all of it before changing anything)
 
@@ -20,11 +20,11 @@ A shared brain you can see and work in. The brain is folders and files, some pri
 ## The parts
 
 1. **Brain.** Folders and files are the truth. Every item is private or shared. Sharing changes the original item; history and origin are kept.
-2. **Graph (home).** The map of the brain, in the CampaignOS/DropDeployment style: hubs, constellation physics, simmer, folders as places, files opening in place. It shows which person and which agent is touching what, from real events only. Agents orbit outside the knowledge, not inside it.
+2. **Graph.** Not necessarily the home (Dylan, 2026-11-11). It is how you traverse the shared context of a workspace, and it must show what is private versus shared. The map of the brain, in the CampaignOS/DropDeployment style: hubs, constellation physics, simmer, folders as places, files opening in place. It shows which person and which agent is touching what, from real events only. Agents orbit outside the knowledge, not inside it.
 3. **Canvas.** A living board per space for laying out work: notes typed directly, images, documents, a plan, pinned messages, agent results. Everything on it is a real item in the brain. Opening an item grows it into a working view.
-4. **Agents.** A roster of named agents: personal ones private to you, project ones shared. Each is a `thinking-orbs` orb with real states. Selecting one shows its work and conversation first, settings second. They can be created by asking or by a Create action, and edited (name, purpose, instructions, where it works, autonomy). They maintain context automatically, may speak unprompted, and need approval for consequential shared changes.
-5. **Conversation.** One message bar with an explicit audience. Direct messages, channels, threads, private agent chats and group chats with several agents. History sits beside the work.
-6. **Together.** Several people live in one space, each with their own arrangement.
+4. **Agents.** A roster of named agents: personal ones private to you, project ones shared. Each is a `thinking-orbs` orb with real states. Selecting one shows its work and conversation first, settings second. They can be created by asking or by a Create action, and edited (name, purpose, instructions, where it works, autonomy). They maintain context automatically, may speak unprompted, and need approval for consequential shared changes. *To evaluate in the running app (Dylan, 2026-11-11):* how agents are visible and present across every view, and how private and group agents interact.
+5. **Conversation.** One message bar with an explicit audience. Direct messages, channels, threads, private agent chats and group chats with several agents. History sits beside the work. Open to evolve (Dylan, 2026-11-11).
+6. **Together.** Shared workspaces: several people live in one space, each with their own arrangement.
 
 ## How it gets built
 

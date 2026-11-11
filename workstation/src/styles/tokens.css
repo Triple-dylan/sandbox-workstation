@@ -55,3 +55,28 @@
   --focus: #f1f2f2;
   --danger: #e08a8a;
 }
+
+/* Before the app has set a theme (first paint), follow the system. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #0f1011;
+    --bg-2: #17191a;
+    --glow: rgba(255, 255, 255, 0.07);
+    --ink: #f1f2f2;
+    --ink-2: #a9adaf;
+    --ink-3: #74787a;
+    --glass: rgba(255, 255, 255, 0.07);
+    --glass-solid: rgba(30, 32, 33, 0.94);
+    --edge: rgba(255, 255, 255, 0.13);
+    --line: rgba(255, 255, 255, 0.11);
+    --wash: rgba(255, 255, 255, 0.07);
+    --wash-2: rgba(255, 255, 255, 0.12);
+    --paper: #1b1d1e;
+    --dot: rgba(255, 255, 255, 0.13);
+    --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 30px -10px rgba(0, 0, 0, 0.65);
+    --lift: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 44px -16px rgba(0, 0, 0, 0.75);
+    --focus: #f1f2f2;
+    --danger: #e08a8a;
+  }
+}

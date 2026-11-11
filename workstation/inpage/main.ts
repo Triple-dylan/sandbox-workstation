@@ -5,8 +5,9 @@ import { ready } from './shims/sqlite.ts';
 import { handler } from './shims/node.ts';
 import { createApp } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
+import { seedExample } from './example.ts';
 
-const TOKEN = 'sw-inpage-session';
+const TOKEN = 'sw-inpage-session-v2';
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);
@@ -83,7 +84,20 @@ const realFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url;
   if (!url.startsWith('/api')) return realFetch(input, init);
-  return call(init.method ?? 'GET', url, init.body as string | undefined).done;
+  const first = url === '/api/join' && app.store.profiles().length === 0;
+  const done = call(init.method ?? 'GET', url, init.body as string | undefined).done;
+  // The very first person to join gets a labelled example project, so there is something to look at.
+  if (first)
+    return done.then((response) => {
+      try {
+        const me = app.store.userForToken(token);
+        if (response.ok && me) seedExample(app.store, me.id);
+      } catch (error) {
+        console.warn('Example project was not created', error);
+      }
+      return response;
+    });
+  return done;
 };
 
 globalThis.EventSource = class {
@@ -101,8 +115,9 @@ globalThis.EventSource = class {
   }
 };
 
+let app: ReturnType<typeof createApp>;
 (async () => {
   await ready();
-  createApp({ dbPath: ':memory:', staticDir: null, runtime: scriptedRuntime, env: {} });
+  app = createApp({ dbPath: ':memory:', staticDir: null, runtime: scriptedRuntime, env: {} });
   await import('../src/main.tsx');
 })();

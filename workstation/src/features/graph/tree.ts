@@ -43,7 +43,7 @@ export function graphOf(s: Snapshot, space: Space): { nodes: GraphNode[]; links:
   for (const r of items)
     nodes.push({
       id: r.id,
-      label: r.title || 'Untitled',
+      label: (r.title || 'Untitled').slice(0, r.kind === 'note' ? 26 : 60),
       kind: r.kind,
       resourceId: r.id,
       parentId:
@@ -62,19 +62,4 @@ export function graphOf(s: Snapshot, space: Space): { nodes: GraphNode[]; links:
   }
   const links = nodes.filter((n) => n.parentId).map((n) => ({ source: n.parentId!, target: n.id }));
   return { nodes, links };
-}
-
-/** Drops everything beneath a folded node. */
-export function visibleGraph(
-  graph: { nodes: GraphNode[]; links: GraphLink[] },
-  folded: Set<string>,
-) {
-  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
-  const hidden = (n: GraphNode): boolean => {
-    for (let p = n.parentId; p; p = byId.get(p)?.parentId ?? null) if (folded.has(p)) return true;
-    return false;
-  };
-  const nodes = graph.nodes.filter((n) => !hidden(n));
-  const shown = new Set(nodes.map((n) => n.id));
-  return { nodes, links: graph.links.filter((l) => shown.has(l.target)) };
 }

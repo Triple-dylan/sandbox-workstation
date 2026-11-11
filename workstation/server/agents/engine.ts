@@ -192,7 +192,12 @@ export class AgentEngine {
     const anchorResource = trigger?.anchor ? this.store.resource(trigger.anchor.resourceId) : null;
     return {
       kind,
-      agent: { name: agent.name, role: agent.role ?? 'project' },
+      agent: {
+        name: agent.name,
+        role: agent.role ?? 'project',
+        purpose: agent.purpose ?? '',
+        instructions: agent.instructions ?? '',
+      },
       spaceName: space.name,
       requester: trigger ? (this.store.user(trigger.authorId)?.name ?? null) : null,
       request,

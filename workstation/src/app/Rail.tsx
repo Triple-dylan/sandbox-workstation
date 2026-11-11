@@ -136,16 +136,28 @@ export function Rail() {
           <button
             aria-label={`${projectAgent.name}: work and approvals`}
             title={projectAgent.name}
-            onClick={() => setUi({ readerId: null, tools: true })}
+            aria-pressed={ui.agentId === projectAgent.id}
+            onClick={() =>
+              setUi({
+                readerId: null,
+                agentId: ui.agentId === projectAgent.id ? null : projectAgent.id,
+              })
+            }
           >
             <Character agent={projectAgent} size={22} state={agentState(projectAgent.id, s.jobs)} />
           </button>
         )}
         {mine && (
           <button
-            aria-label="Your agent, private to you"
-            title="Your agent (private)"
-            onClick={() => openConversation(mine.conversation.id)}
+            aria-label={`${mine.agent.name}, private to you`}
+            title={`${mine.agent.name} (private to you)`}
+            aria-pressed={ui.agentId === mine.agent.id}
+            onClick={() =>
+              setUi({
+                readerId: null,
+                agentId: ui.agentId === mine.agent.id ? null : mine.agent.id,
+              })
+            }
           >
             <Character agent={mine.agent} size={22} state={agentState(mine.agent.id, s.jobs)} />
           </button>

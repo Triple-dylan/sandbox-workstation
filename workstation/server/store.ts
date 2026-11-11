@@ -52,6 +52,7 @@ const toUser = (r: Row): User => ({
   ...(r.owner_id ? { ownerId: r.owner_id } : {}),
   ...(r.space_id ? { spaceId: r.space_id } : {}),
   ...(r.role ? { role: r.role } : {}),
+  ...(r.kind === 'agent' ? { purpose: r.purpose ?? '', instructions: r.instructions ?? '' } : {}),
 });
 const toResource = (r: Row): Resource => ({
   id: r.id,
@@ -217,6 +218,31 @@ export class Store {
       now(),
     );
     return agentId;
+  }
+  /** A personal agent is edited by its owner; a project agent by any member of that project. */
+  updateAgent(
+    actorId: Id,
+    agentId: Id,
+    patch: { name?: string; purpose?: string; instructions?: string },
+  ) {
+    const agent = this.user(agentId);
+    if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
+    const allowed =
+      agent.role === 'personal'
+        ? agent.ownerId === actorId
+        : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+    if (!allowed) throw new AccessError('Not available.');
+    const name = patch.name === undefined ? agent.name : patch.name.trim().slice(0, 40);
+    if (!name) throw new InputError('Give the agent a name.');
+    this.run(
+      'update users set name = ?, purpose = ?, instructions = ? where id = ?',
+      name,
+      (patch.purpose ?? agent.purpose ?? '').slice(0, 300),
+      (patch.instructions ?? agent.instructions ?? '').slice(0, 4000),
+      agentId,
+    );
+    this.changed();
+    return this.user(agentId)!;
   }
   createSession(userId: Id) {
     if (!this.user(userId) || this.user(userId)!.kind !== 'human')
@@ -433,6 +459,28 @@ export class Store {
       visibility: space.kind === 'personal' ? 'private' : (input.visibility ?? 'space'),
       parentId: input.parentId ?? null,
       placement: input.placement ?? null,
+    });
+    this.changed({ type: 'resource', resource, actorId });
+    return resource;
+  }
+  createFolder(actorId: Id, input: { spaceId: Id; title: string; parentId?: Id | null }) {
+    const space = this.requireMember(actorId, input.spaceId);
+    if (input.parentId) {
+      const parent = this.resource(input.parentId);
+      if (!parent || parent.spaceId !== space.id || parent.kind !== 'folder')
+        throw new InputError('Unknown folder.');
+    }
+    const title = String(input.title ?? '')
+      .trim()
+      .slice(0, 80);
+    if (!title) throw new InputError('Name the folder.');
+    const resource = this.insertResource(actorId, {
+      spaceId: space.id,
+      kind: 'folder',
+      title,
+      body: '',
+      visibility: space.kind === 'personal' ? 'private' : 'space',
+      parentId: input.parentId ?? null,
     });
     this.changed({ type: 'resource', resource, actorId });
     return resource;

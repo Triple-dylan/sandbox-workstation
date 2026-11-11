@@ -12,6 +12,9 @@ export type User = {
   ownerId?: Id;
   spaceId?: Id;
   role?: 'personal' | 'project';
+  /** Agents only: what it is for, and standing instructions. Editable by its owner or project members. */
+  purpose?: string;
+  instructions?: string;
 };
 
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };

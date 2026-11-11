@@ -9,6 +9,8 @@ export type Ui = {
   conversationId: Id | null;
   selectedId: Id | null;
   readerId: Id | null;
+  /** The agent whose work and conversation are open at the right. */
+  agentId: Id | null;
   audience: Record<Id, Audience>;
   drafts: Record<string, string>;
   theme: 'system' | 'light' | 'dark';
@@ -24,6 +26,7 @@ export const initialUi: Ui = {
   conversationId: null,
   selectedId: null,
   readerId: null,
+  agentId: null,
   audience: {},
   drafts: {},
   theme: 'system',

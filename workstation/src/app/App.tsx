@@ -10,6 +10,7 @@ import { ConversationPanel } from '../features/conversations/ConversationPanel.t
 import { Composer, Peek } from '../features/conversations/Composer.tsx';
 import { Reader } from '../features/reader/Reader.tsx';
 import { Utilities } from '../features/agents/Utilities.tsx';
+import { AgentPanel } from '../features/agents/AgentPanel.tsx';
 
 const UI_KEY = 'sw-ui-v1';
 const loadUi = (): Ui => {
@@ -115,7 +116,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         setUi({ conversationId: id, nav: false });
         void api('/reads', { body: { conversationId: id } }).then(refresh, () => {});
       },
-      openResource: (id) => setUi({ readerId: id, selectedId: id }),
+      openResource: (id) => setUi({ readerId: id, selectedId: id, agentId: null }),
       discuss: (resourceId) =>
         setUi((old) => ({
           audience: { ...old.audience, [space.id]: { kind: 'discuss', resourceId } },
@@ -124,6 +125,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     };
   }, [s, ui, setUi, space, refresh]);
 
+  const agentOpen = !!ui.agentId && s.users.some((u) => u.id === ui.agentId && u.kind === 'agent');
   return (
     <WorkspaceContext.Provider value={workspace}>
       <div className="shell">
@@ -144,12 +146,18 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
             <Composer />
           </div>
         </main>
-        {(ui.readerId || ui.tools) && (
+        {(ui.readerId || agentOpen || ui.tools) && (
           <aside
             className={`side ${ui.readerId ? 'reading' : ''}`}
-            aria-label={ui.readerId ? 'Reader' : 'Project tools'}
+            aria-label={ui.readerId ? 'Reader' : agentOpen ? 'Agent' : 'Project tools'}
           >
-            {ui.readerId ? <Reader key={ui.readerId} resourceId={ui.readerId} /> : <Utilities />}
+            {ui.readerId ? (
+              <Reader key={ui.readerId} resourceId={ui.readerId} />
+            ) : agentOpen ? (
+              <AgentPanel key={ui.agentId} agentId={ui.agentId!} />
+            ) : (
+              <Utilities />
+            )}
           </aside>
         )}
       </div>
