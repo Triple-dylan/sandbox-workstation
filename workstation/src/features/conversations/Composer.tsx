@@ -3,11 +3,13 @@ import { ArrowUp, ChevronDown, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { Conversation, Message } from '../../../shared/types.ts';
+import { Actor } from '../agents/Character.tsx';
 import {
   audienceKey,
   audienceOptions,
   defaultAudience,
   describeAudience,
+  conversationLabel,
   stillValid,
   type Audience,
 } from './audience.ts';
@@ -158,5 +160,31 @@ export function Composer() {
         </button>
       </div>
     </form>
+  );
+}
+
+/** The newest unread message from someone else, shown above the composer while no conversation is open. */
+export function Peek() {
+  const { s, ui, user, openConversation } = useWorkspace();
+  if (ui.conversationId && !ui.nav) return null;
+  const latest = s.messages
+    .filter((m) => m.authorId !== s.me.id && m.createdAt > (s.lastRead[m.conversationId] ?? ''))
+    .reduce<Message | null>((a, m) => (!a || m.createdAt > a.createdAt ? m : a), null);
+  const conversation = latest && s.conversations.find((c) => c.id === latest.conversationId);
+  const author = latest && user(latest.authorId);
+  if (!latest || !conversation || !author) return null;
+  return (
+    <button className="peek" onClick={() => openConversation(conversation.id)}>
+      <Actor user={author} jobs={s.jobs} size={26} />
+      <span className="peek-body">
+        <span className="peek-head">
+          <strong style={{ color: author.kind === 'human' ? author.color : undefined }}>
+            {author.name}
+          </strong>
+          <small>in {conversationLabel(s, conversation).label}</small>
+        </span>
+        <span className="peek-text">{latest.text.replace(/[#*_`>]/g, '').slice(0, 220)}</span>
+      </span>
+    </button>
   );
 }

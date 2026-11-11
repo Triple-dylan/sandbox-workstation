@@ -7,7 +7,7 @@ import { Rail } from './Rail.tsx';
 import { Canvas } from '../features/canvas/Canvas.tsx';
 import { Graph } from '../features/graph/Graph.tsx';
 import { ConversationPanel } from '../features/conversations/ConversationPanel.tsx';
-import { Composer } from '../features/conversations/Composer.tsx';
+import { Composer, Peek } from '../features/conversations/Composer.tsx';
 import { Reader } from '../features/reader/Reader.tsx';
 import { Utilities } from '../features/agents/Utilities.tsx';
 
@@ -112,7 +112,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       notify: setNotice,
       run,
       openConversation: (id) => {
-        setUi({ conversationId: id });
+        setUi({ conversationId: id, nav: false });
         void api('/reads', { body: { conversationId: id } }).then(refresh, () => {});
       },
       openResource: (id) => setUi({ readerId: id, selectedId: id }),
@@ -126,23 +126,32 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
 
   return (
     <WorkspaceContext.Provider value={workspace}>
-      <div className={`shell ${ui.conversationId ? 'with-conversation' : ''}`}>
+      <div className="shell">
         <Rail />
-        {ui.conversationId && (
+        {!ui.nav && ui.conversationId && (
           <ConversationPanel key={ui.conversationId} conversationId={ui.conversationId} />
         )}
         <main className="surface" aria-label={ui.surface === 'canvas' ? 'Canvas' : 'Graph'}>
           {ui.surface === 'canvas' ? <Canvas /> : <Graph />}
-          <Composer />
-          {notice && (
-            <div className="notice" role="status">
-              {notice}
-            </div>
-          )}
+          <div className="dock">
+            {notice ? (
+              <div className="notice" role="status">
+                {notice}
+              </div>
+            ) : (
+              <Peek />
+            )}
+            <Composer />
+          </div>
         </main>
-        <aside className="side" aria-label={ui.readerId ? 'Reader' : 'Project tools'}>
-          {ui.readerId ? <Reader key={ui.readerId} resourceId={ui.readerId} /> : <Utilities />}
-        </aside>
+        {(ui.readerId || ui.tools) && (
+          <aside
+            className={`side ${ui.readerId ? 'reading' : ''}`}
+            aria-label={ui.readerId ? 'Reader' : 'Project tools'}
+          >
+            {ui.readerId ? <Reader key={ui.readerId} resourceId={ui.readerId} /> : <Utilities />}
+          </aside>
+        )}
       </div>
     </WorkspaceContext.Provider>
   );

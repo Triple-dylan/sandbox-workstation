@@ -12,6 +12,10 @@ export type Ui = {
   audience: Record<Id, Audience>;
   drafts: Record<string, string>;
   theme: 'system' | 'light' | 'dark';
+  /** Navigation sheet beside the rail. */
+  nav: boolean;
+  /** Project tools (agent, orientation, people) at the right edge. */
+  tools: boolean;
 };
 
 export const initialUi: Ui = {
@@ -23,6 +27,8 @@ export const initialUi: Ui = {
   audience: {},
   drafts: {},
   theme: 'system',
+  nav: false,
+  tools: true,
 };
 
 export type Workspace = {

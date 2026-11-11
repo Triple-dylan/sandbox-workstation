@@ -28,7 +28,6 @@ export function Join({ onJoined }: { onJoined: () => void }) {
           if (name.trim()) void join({ name });
         }}
       >
-        <h1>Sandbox Workstation</h1>
         {profiles.length > 0 && (
           <section aria-label="People on this server">
             <h2>Continue as</h2>

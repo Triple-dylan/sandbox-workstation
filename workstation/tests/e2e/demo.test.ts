@@ -23,7 +23,14 @@ before(async () => {
   });
   await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-  browser = await chromium.launch(process.env.CI ? {} : { channel: 'chrome' });
+  // CHROMIUM_PATH lets a machine with its own Chromium build run this without a download.
+  browser = await chromium.launch(
+    process.env.CHROMIUM_PATH
+      ? { executablePath: process.env.CHROMIUM_PATH }
+      : process.env.CI
+        ? {}
+        : { channel: 'chrome' },
+  );
 });
 
 after(async () => {
@@ -44,6 +51,10 @@ async function join(name: string): Promise<Page> {
 }
 
 const composer = (page: Page) => page.locator('.composer textarea');
+const openNav = async (page: Page) => {
+  const toggle = page.getByRole('button', { name: 'Spaces and conversations' });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+};
 
 test('two people: private agent, shared canvas, discuss, and an approved agent proposal', async () => {
   const dylan = await join('Dylan');
@@ -65,6 +76,7 @@ async function scenario(dylan: Page, maya: Page) {
   await dylan.locator('.conversation .from-agent').first().waitFor();
 
   // A project, shared with Maya.
+  await openNav(dylan);
   await dylan.getByRole('button', { name: 'New project' }).click();
   await dylan.getByLabel('New project name').fill('Launch');
   await dylan.getByLabel('New project name').press('Enter');
@@ -79,7 +91,9 @@ async function scenario(dylan: Page, maya: Page) {
   await dylan.locator('.canvas-item').first().waitFor();
 
   // Maya sees the project and the note live.
+  await openNav(maya);
   await maya.getByRole('button', { name: 'Launch', exact: true }).click();
+  await maya.getByRole('button', { name: 'Spaces and conversations' }).click();
   const note = maya.locator('.canvas-item textarea');
   await note.waitFor();
   await maya.waitForFunction(
@@ -95,6 +109,7 @@ async function scenario(dylan: Page, maya: Page) {
   await composer(maya).fill('Can we drop the middle tier?');
   await composer(maya).press('Enter');
   await maya.locator('.conversation .anchor').waitFor();
+  await openNav(dylan);
   await dylan
     .locator('nav .rail-row')
     .filter({ hasText: 'Pricing tiers draft' })

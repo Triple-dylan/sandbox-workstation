@@ -287,7 +287,7 @@ function CanvasItem({
   };
   return (
     <div
-      className={`canvas-item kind-${item.kind} ${selected ? 'selected' : ''} ${invalid ? 'invalid' : ''}`}
+      className={`canvas-item kind-${item.kind} ${selected ? 'selected' : ''} ${invalid ? 'invalid' : ''} ${item.visibility === 'private' && space.kind === 'project' ? 'is-private' : ''}`}
       style={{
         left: placement.x,
         top: placement.y,
@@ -373,7 +373,9 @@ function CanvasItem({
         </div>
       )}
       {item.visibility === 'private' && space.kind === 'project' && (
-        <Lock className="private-mark" size={12} aria-label="Private" />
+        <span className="private-mark">
+          <Lock size={10} aria-hidden="true" /> Only you
+        </span>
       )}
     </div>
   );
