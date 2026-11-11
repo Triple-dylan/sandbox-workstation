@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   forceCollide,
   forceLink,
@@ -6,71 +6,31 @@ import {
   forceSimulation,
   forceX,
   forceY,
+  type Simulation,
   type SimulationLinkDatum,
 } from 'd3-force';
+import { AlignLeft, Compass, FileText, Folder, FolderOpen, LayoutGrid, Lock } from 'lucide-react';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
-import { graphOf, type GraphLink, type GraphNode } from './tree.ts';
+import { graphOf, visibleGraph, type GraphNode } from './tree.ts';
 
-function layout(nodes: GraphNode[], links: GraphLink[], width: number, height: number) {
-  const depth = new Map<string, number>([[nodes[0].id, 0]]);
-  for (let changed = true; changed;) {
-    changed = false;
-    for (const l of links)
-      if (depth.has(l.source) && !depth.has(l.target)) {
-        depth.set(l.target, depth.get(l.source)! + 1);
-        changed = true;
-      }
-  }
-  // Layered start: one row per depth, siblings spread evenly, crowded rows staggered.
-  const rows = new Map<number, GraphNode[]>();
-  for (const n of nodes) {
-    const d = depth.get(n.id) ?? 1;
-    rows.set(d, [...(rows.get(d) ?? []), n]);
-  }
-  const rowGap = Math.max(96, Math.min(150, (height - 120) / Math.max(1, rows.size - 1)));
-  const target = new Map<string, { x: number; y: number }>();
-  for (const [d, row] of rows) {
-    const perLine = Math.max(1, Math.floor((width - 80) / 180));
-    row.forEach((n, i) => {
-      const line = Math.floor(i / perLine);
-      const inLine = Math.min(perLine, row.length - line * perLine);
-      const x = ((i % perLine) + 0.5) * ((width - 80) / inLine) + 40;
-      const y = 60 + d * rowGap + line * 44 + (row.length > perLine ? 0 : (i % 2) * 18);
-      target.set(n.id, { x, y });
-      n.x = x;
-      n.y = y;
-    });
-  }
-  const radius = (n: GraphNode) => Math.min(80, 18 + n.label.slice(0, 28).length * 3.1);
-  const sim = forceSimulation<GraphNode>(nodes)
-    .force(
-      'link',
-      forceLink<GraphNode, SimulationLinkDatum<GraphNode>>(
-        links.map((l) => ({ source: l.source, target: l.target })),
-      )
-        .id((n) => n.id)
-        .strength(0.05),
-    )
-    .force('charge', forceManyBody().strength(-40))
-    .force('collide', forceCollide<GraphNode>(radius).strength(0.8))
-    .force('x', forceX<GraphNode>((n) => target.get(n.id)!.x).strength(0.25))
-    .force('y', forceY<GraphNode>((n) => target.get(n.id)!.y).strength(0.9))
-    .stop();
-  nodes[0].fx = width / 2;
-  nodes[0].fy = 60;
-  for (let i = 0; i < 200; i++) sim.tick();
-  for (const n of nodes) {
-    const half = Math.min(width / 2, radius(n) + 12);
-    n.x = Math.max(half, Math.min(width - half, n.x ?? 0));
-    n.y = Math.max(40, Math.min(height - 40, n.y ?? 0));
-  }
-}
+const ROOT_LEASH = 36;
+const PAD = 56;
+
+/** Folds the board's notes away once there are enough of them to crowd the map. */
+const AUTO_FOLD = 8;
 
 export function Graph() {
   const { s, space, ui, openResource, user } = useWorkspace();
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
+  const [folded, setFolded] = useState<Set<string> | null>(null);
+  const [, setFrame] = useState(0);
+  const sim = useRef<Simulation<GraphNode, undefined> | null>(null);
+  const places = useRef(new Map<string, { x: number; y: number }>());
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
   useLayoutEffect(() => {
     if (!host.current) return;
     const observer = new ResizeObserver(([e]) =>
@@ -79,37 +39,161 @@ export function Graph() {
     observer.observe(host.current);
     return () => observer.disconnect();
   }, []);
+
   const structure = s.resources
     .filter((r) => r.spaceId === space.id)
-    .map((r) => `${r.id}:${r.parentId}:${r.kind}:${r.title}`)
+    .map((r) => `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}`)
     .join('|');
-  const graph = useMemo(() => {
-    const g = graphOf(s, space);
-    layout(g.nodes, g.links, size.width, size.height);
-    return g;
-    // Re-layout only when the tree's shape or the surface size changes, not on every edit.
-  }, [structure, space.id, size.width, size.height]);
+  // Rebuild only when the tree's shape changes, not on every edit or presence update.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const full = useMemo(() => graphOf(s, space), [structure, space.id, space.name]);
+  useEffect(() => {
+    setFolded(null);
+    places.current.clear();
+  }, [space.id]);
+  const effectiveFolded = useMemo(
+    () =>
+      folded ??
+      new Set(
+        full.nodes.filter((n) => n.kind === 'group' && n.childCount > AUTO_FOLD).map((n) => n.id),
+      ),
+    [folded, full],
+  );
+  const graph = useMemo(() => visibleGraph(full, effectiveFolded), [full, effectiveFolded]);
+
+  // One live simulation. Positions carry over when the tree changes, so nothing teleports.
+  useEffect(() => {
+    const { width, height } = sizeRef.current;
+    const cx = width / 2;
+    const cy = height / 2;
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    graph.nodes.forEach((n, i) => {
+      const known = places.current.get(n.id);
+      const parent = n.parentId ? (places.current.get(n.parentId) ?? { x: cx, y: cy }) : null;
+      const angle = i * 2.399963;
+      n.x = known?.x ?? (parent ? parent.x + Math.cos(angle) * 90 : cx);
+      n.y = known?.y ?? (parent ? parent.y + Math.sin(angle) * 90 : cy);
+    });
+    const simulation = forceSimulation<GraphNode>(graph.nodes)
+      .force(
+        'link',
+        forceLink<GraphNode, SimulationLinkDatum<GraphNode>>(
+          graph.links.map((l) => ({ source: l.source, target: l.target })),
+        )
+          .id((n) => n.id)
+          .distance((l) => ((l.target as GraphNode).depth > 1 ? 96 : 170))
+          .strength(0.55),
+      )
+      .force('charge', forceManyBody<GraphNode>().strength(-420).distanceMax(520))
+      .force('collide', forceCollide<GraphNode>(54).strength(0.9))
+      .force('x', forceX<GraphNode>(() => sizeRef.current.width / 2).strength(0.035))
+      .force('y', forceY<GraphNode>(() => sizeRef.current.height / 2).strength(0.05))
+      // The subject is anchored: it can be nudged, and always springs back to the centre.
+      .force('anchor', () => {
+        const root = byId.get(space.id);
+        if (!root || root.fx != null) return;
+        root.vx = (root.vx ?? 0) + (sizeRef.current.width / 2 - (root.x ?? 0)) * 0.35;
+        root.vy = (root.vy ?? 0) + (sizeRef.current.height / 2 - (root.y ?? 0)) * 0.35;
+      })
+      .velocityDecay(0.32)
+      .on('tick', () => {
+        const { width: w, height: h } = sizeRef.current;
+        for (const n of graph.nodes) {
+          n.x = Math.max(PAD, Math.min(w - PAD, n.x ?? 0));
+          n.y = Math.max(PAD - 16, Math.min(h - PAD, n.y ?? 0));
+          places.current.set(n.id, { x: n.x, y: n.y });
+        }
+        setFrame((f) => f + 1);
+      });
+    sim.current = simulation;
+    return () => {
+      simulation.stop();
+    };
+  }, [graph, space.id]);
+  useEffect(() => {
+    sim.current?.alpha(0.5).restart();
+  }, [size.width, size.height]);
+
+  const activate = (n: GraphNode) => {
+    if (n.kind === 'folder' || n.kind === 'group') {
+      const next = new Set(effectiveFolded);
+      if (next.has(n.id)) next.delete(n.id);
+      else next.add(n.id);
+      setFolded(next);
+    } else if (n.resourceId) openResource(n.resourceId);
+  };
+
+  const beginDrag = (e: React.PointerEvent, n: GraphNode) => {
+    if (e.button !== 0) return;
+    const rect = host.current!.getBoundingClientRect();
+    const start = { x: e.clientX, y: e.clientY };
+    const origin = { x: n.x ?? 0, y: n.y ?? 0 };
+    let dragged = false;
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x;
+      const dy = ev.clientY - start.y;
+      if (!dragged && Math.hypot(dx, dy) < 4) return;
+      dragged = true;
+      if (n.kind === 'root') {
+        const pull = Math.hypot(dx, dy);
+        const k = pull > ROOT_LEASH ? ROOT_LEASH / pull : 1;
+        n.fx = origin.x + dx * k;
+        n.fy = origin.y + dy * k;
+      } else {
+        n.fx = ev.clientX - rect.left;
+        n.fy = ev.clientY - rect.top;
+      }
+      sim.current?.alphaTarget(0.25).restart();
+    };
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('blur', end);
+      n.fx = null;
+      n.fy = null;
+      sim.current?.alphaTarget(0).alpha(0.4).restart();
+      if (dragged) suppressClick.current = n.id;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('blur', end);
+  };
+  const suppressClick = useRef<string | null>(null);
+
   const at = new Map(graph.nodes.map((n) => [n.id, n]));
+  /** The node to draw an actor at: the resource itself, or its nearest visible ancestor. */
+  const anchorFor = (resourceId: string | null) => {
+    if (!resourceId) return at.get(space.id);
+    const all = new Map(full.nodes.map((n) => [n.id, n]));
+    for (let n = all.get(resourceId); n; n = n.parentId ? all.get(n.parentId) : undefined)
+      if (at.has(n.id)) return at.get(n.id);
+    return at.get(space.id);
+  };
   const working = s.jobs.filter(
     (j) =>
       j.spaceId === space.id &&
-      j.targetResourceId &&
       (j.status === 'running' || j.status === 'queued' || j.status === 'awaiting_approval'),
   );
   const visitors = s.presence.filter(
     (p) => p.online && p.spaceId === space.id && p.resourceId && p.userId !== s.me.id,
   );
+  const glyph = (n: GraphNode) => {
+    if (n.kind === 'root') return <i className="graph-core" aria-hidden="true" />;
+    if (n.kind === 'folder')
+      return effectiveFolded.has(n.id) ? <Folder size={20} /> : <FolderOpen size={20} />;
+    if (n.kind === 'group') return <LayoutGrid size={18} />;
+    if (n.role === 'orientation') return <Compass size={18} />;
+    if (n.kind === 'note') return <AlignLeft size={14} />;
+    return <FileText size={18} />;
+  };
+
   return (
     <div className="graph" ref={host}>
-      <svg
-        width={size.width}
-        height={size.height}
-        role="img"
-        aria-label={`${space.name} resource graph`}
-      >
+      <svg width={size.width} height={size.height} aria-hidden="true">
         {graph.links.map((l) => {
-          const a = at.get(l.source)!;
-          const b = at.get(l.target)!;
+          const a = at.get(l.source);
+          const b = at.get(l.target);
+          if (!a || !b) return null;
           return (
             <line
               key={`${l.source}-${l.target}`}
@@ -122,44 +206,62 @@ export function Graph() {
           );
         })}
       </svg>
-      {graph.nodes.map((n) => (
-        <button
-          key={n.id}
-          className={`graph-node kind-${n.kind} ${ui.readerId === n.resourceId ? 'active' : ''}`}
-          style={{ left: n.x, top: n.y }}
-          disabled={!n.resourceId}
-          onClick={() => n.resourceId && openResource(n.resourceId)}
-        >
-          <i aria-hidden="true" />
-          <span>{n.label.slice(0, 28)}</span>
-        </button>
-      ))}
+      {graph.nodes.map((n) => {
+        const isFolded = effectiveFolded.has(n.id);
+        const foldable = n.kind === 'folder' || n.kind === 'group';
+        return (
+          <button
+            key={n.id}
+            className={`graph-node kind-${n.kind} ${ui.readerId && ui.readerId === n.resourceId ? 'active' : ''} ${n.private ? 'is-private' : ''}`}
+            style={{ left: n.x, top: n.y }}
+            aria-expanded={foldable ? !isFolded : undefined}
+            aria-label={`${n.label}${n.private ? ', only you' : ''}${foldable ? `, ${n.childCount} inside` : ''}`}
+            onPointerDown={(e) => beginDrag(e, n)}
+            onClick={() => {
+              if (suppressClick.current === n.id) {
+                suppressClick.current = null;
+                return;
+              }
+              activate(n);
+            }}
+          >
+            <span className="graph-glyph">{glyph(n)}</span>
+            <span className="graph-label">
+              {n.private && <Lock size={10} aria-hidden="true" />}
+              {n.label}
+            </span>
+            {foldable && n.childCount > 0 && (
+              <small>{isFolded ? `${n.childCount} folded` : n.childCount}</small>
+            )}
+          </button>
+        );
+      })}
       {working.map((j, i) => {
-        const n = at.get(j.targetResourceId!);
+        const n = anchorFor(j.targetResourceId);
         const agent = user(j.agentId);
         if (!n || !agent) return null;
         return (
           <span
             key={j.id}
             className="graph-actor"
-            style={{ left: (n.x ?? 0) + 18 + i * 6, top: (n.y ?? 0) - 34 }}
+            style={{ left: (n.x ?? 0) + 14 + i * 8, top: (n.y ?? 0) - 40 }}
           >
-            <Character agent={agent} size={28} state={agentState(agent.id, s.jobs)} />
+            <Character agent={agent} size={26} state={agentState(agent.id, s.jobs)} />
           </span>
         );
       })}
       {visitors.map((p, i) => {
-        const n = at.get(p.resourceId!);
+        const n = anchorFor(p.resourceId);
         const person = user(p.userId);
         if (!n || !person) return null;
         return (
           <span
             key={p.userId}
             className="graph-actor"
-            style={{ left: (n.x ?? 0) - 30 - i * 10, top: (n.y ?? 0) - 30 }}
+            style={{ left: (n.x ?? 0) - 34 - i * 12, top: (n.y ?? 0) - 34 }}
             title={`${person.name} is here`}
           >
-            <Avatar user={person} size={18} />
+            <Avatar user={person} size={20} />
           </span>
         );
       })}

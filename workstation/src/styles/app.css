@@ -580,7 +580,7 @@ textarea.note-text[style*='absolute'] {
 .graph {
   overflow: hidden;
 }
-.graph svg {
+.graph > svg {
   position: absolute;
   inset: 0;
 }
@@ -591,56 +591,88 @@ textarea.note-text[style*='absolute'] {
 }
 .graph-node {
   position: absolute;
-  transform: translate(-50%, -11px);
+  transform: translate(-50%, -17px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   font-size: 12.5px;
   color: var(--ink-2);
-  max-width: 150px;
+  width: 132px;
   text-align: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
-.graph-node i {
-  width: 12px;
-  height: 12px;
+.graph-node:active {
+  cursor: grabbing;
+}
+.graph-glyph {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
   border-radius: 50%;
-  background: var(--ink-2);
-  box-shadow: 0 0 0 5px var(--wash);
-  transition: box-shadow 0.15s;
+  color: var(--ink);
+  transition:
+    background 0.15s,
+    transform 0.15s;
 }
-.graph-node.kind-folder i,
-.graph-node.kind-group i {
-  border-radius: 4px;
-  width: 16px;
-  height: 13px;
+.graph-node:hover .graph-glyph,
+.graph-node.active .graph-glyph {
+  background: var(--wash-2);
+  transform: scale(1.08);
 }
-.graph-node.kind-note i {
-  width: 8px;
-  height: 8px;
-  margin: 2px;
-  background: var(--ink-3);
+.graph-node.active .graph-glyph {
+  background: var(--ink);
+  color: var(--bg);
+}
+.graph-label {
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.graph-label svg {
+  margin-right: 3px;
+  vertical-align: -1px;
+}
+.graph-node small {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.graph-node.kind-note {
+  font-size: 12px;
+}
+.graph-node.kind-note .graph-glyph {
+  color: var(--ink-2);
+}
+.graph-node.is-private .graph-glyph {
+  outline: 1.5px dashed var(--ink-3);
 }
 .graph-node.kind-root {
   color: var(--ink);
   font-weight: 650;
-  font-size: 14px;
-  transform: translate(-50%, -14px);
+  font-size: 14.5px;
+  transform: translate(-50%, -21px);
+  gap: 6px;
 }
-.graph-node.kind-root i {
-  width: 22px;
-  height: 22px;
+.graph-node.kind-root .graph-glyph {
+  width: 42px;
+  height: 42px;
+  background: var(--wash-2);
+}
+.graph-core {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
   background: var(--ink);
-  box-shadow: 0 0 0 9px var(--wash-2);
 }
-.graph-node:not(:disabled):hover,
+.graph-node:hover,
 .graph-node.active {
   color: var(--ink);
-}
-.graph-node:not(:disabled):hover i,
-.graph-node.active i {
-  box-shadow: 0 0 0 7px var(--wash-2);
-  background: var(--ink);
 }
 .graph-actor {
   position: absolute;

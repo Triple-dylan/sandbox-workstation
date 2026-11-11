@@ -435,3 +435,16 @@ The main unanswered area remains the floating composer and reply presentation. A
 ## October 31: first-send behavior needs situational exploration
 
 In response to the shared-project first-message choices, the user said this interaction needs more exploration: users may expect different things in different situations. No universal audience/default was selected. Explore private assistance, collaborative speech, contextual work actions, source-linked discussion and persistent delegation together, rather than asking the same three-way choice again. Preserve existing confirmed privacy and recipient-continuity rules. This continues the research/interview, not authorization for a new chat layout or broad implementation.
+
+
+## November 11: full review, interview and rebuild start
+
+The user asked for a major review of the project and their GitHub, an interview, a plan, and then work. They said other models had struggled to get the idea right and listed possible overhauls: UI/UX, visual style, graph interactions, agent interactions, multiplayer, cohesion between private chats, collaboration, shared context and shared versus private agents, and a new approach to the canvas.
+
+On which codebase to build on: "I am not really sure. Cursor (grok), and Codex both worked on this. I want a real version I can test locally before deploying it. Thats all. I do not have techincal depth to truly know the differences here."
+
+On the canvas: "show me options. I lean living board, I think". After seeing three concepts as screens they chose the living board combined with opening an object into a full working view.
+
+On priority: "Look and feel, canvas worth using, and agents in that order." On visual departure: "Evolve it".
+
+On agents and private items: "No I want to go back to the animated orbs for agents for now. Unless you can design characters that feel fun but arent doing too much, dont love the kiln style. on the private / shared I am unsure what you mean".

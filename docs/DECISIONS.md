@@ -2,6 +2,15 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-11 — review and interview
+
+- **Foundation:** keep the demo server; rebuild the client on it. Dylan wants a real version to test locally before deploying, and left the technical choice to the builder.
+- **Order of work:** look and feel, then a canvas worth using, then agents.
+- **Visual:** evolve the monochrome glass. Colour only for people, agents and content.
+- **Canvas:** living board. Opening an object grows it into a full working view while the rest of the board folds into a shelf; closing returns to the board as it was. Chosen from three concepts shown as screens.
+- **Agents:** animated orbs for now. The small clay "character with eyes" style was rejected. Characters are welcome later only if they are fun without doing too much.
+- *Open:* how private items appear on a shared board. A dashed "Only you" outline is built for review; Dylan was unsure what the question meant, so judge it in the running app.
+
 ## 2026-11-05 — direction reset
 
 - **Build the real product** (backend, real identities and data, running agents). Stop the UI-only redesign loop. Overhauls are welcome.
