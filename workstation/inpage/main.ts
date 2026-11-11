@@ -7,7 +7,7 @@ import { createApp } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { seedExample } from './example.ts';
 
-const TOKEN = 'sw-inpage-session-v2';
+const TOKEN = 'sw-inpage-session-v4';
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);

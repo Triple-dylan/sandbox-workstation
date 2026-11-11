@@ -6,6 +6,7 @@ import type {
   Assignment,
   Character,
   Conversation,
+  Goal,
   Id,
   Job,
   JobKind,
@@ -223,7 +224,7 @@ export class Store {
   updateAgent(
     actorId: Id,
     agentId: Id,
-    patch: { name?: string; purpose?: string; instructions?: string },
+    patch: { name?: string; purpose?: string; instructions?: string; hue?: number },
   ) {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
@@ -241,6 +242,15 @@ export class Store {
       (patch.instructions ?? agent.instructions ?? '').slice(0, 4000),
       agentId,
     );
+    if (typeof patch.hue === 'number' && Number.isFinite(patch.hue)) {
+      const hue = ((Math.round(patch.hue) % 360) + 360) % 360;
+      this.run(
+        'update users set character = ?, color = ? where id = ?',
+        json({ ...(agent.character ?? { shape: 'round', eyes: 'dot' }), hue }),
+        `hsl(${hue} 35% 45%)`,
+        agentId,
+      );
+    }
     this.changed();
     return this.user(agentId)!;
   }
@@ -351,10 +361,49 @@ export class Store {
   }
   projectAgent(spaceId: Id) {
     const row = this.get(
-      `select * from users where kind = 'agent' and role = 'project' and space_id = ?`,
+      `select * from users where kind = 'agent' and role = 'project' and space_id = ? order by created_at, rowid`,
       spaceId,
     );
     return row ? toUser(row) : null;
+  }
+  /** Every agent that belongs to a project; the first is the one that keeps its context current. */
+  projectAgents(spaceId: Id) {
+    return this.all(
+      `select * from users where kind = 'agent' and role = 'project' and space_id = ? order by created_at, rowid`,
+      spaceId,
+    ).map(toUser);
+  }
+  /**
+   * Adds an agent to the roster. In a project it is shared with every member; otherwise it is
+   * private to the person who made it and gets its own private conversation.
+   */
+  newAgent(
+    actorId: Id,
+    input: { name: string; purpose?: string; instructions?: string; spaceId?: Id | null },
+  ) {
+    const name = String(input.name ?? '')
+      .trim()
+      .slice(0, 40);
+    if (!name) throw new InputError('Give the agent a name.');
+    const space = input.spaceId ? this.requireMember(actorId, input.spaceId) : null;
+    let agentId: Id;
+    if (space?.kind === 'project') {
+      agentId = this.createAgent(name, { spaceId: space.id, role: 'project' });
+      this.run('insert into members values (?, ?, ?)', space.id, agentId, 'agent');
+    } else {
+      const personal = this.personalSpace(actorId)!;
+      agentId = this.createAgent(name, { ownerId: actorId, role: 'personal' });
+      this.run('insert into members values (?, ?, ?)', personal, agentId, 'agent');
+      this.createConversation('agent-private', personal, name, null, [actorId, agentId]);
+    }
+    this.run(
+      'update users set purpose = ?, instructions = ? where id = ?',
+      String(input.purpose ?? '').slice(0, 300),
+      String(input.instructions ?? '').slice(0, 4000),
+      agentId,
+    );
+    this.changed();
+    return this.user(agentId)!;
   }
   personalSpace(userId: Id) {
     const row = this.get(`select id from spaces where kind = 'personal' and owner_id = ?`, userId);
@@ -367,7 +416,7 @@ export class Store {
   }
   personalAgent(userId: Id) {
     const row = this.get(
-      `select * from users where kind = 'agent' and role = 'personal' and owner_id = ?`,
+      `select * from users where kind = 'agent' and role = 'personal' and owner_id = ? order by created_at, rowid`,
       userId,
     );
     return row ? toUser(row) : null;
@@ -435,7 +484,7 @@ export class Store {
     actorId: Id,
     input: {
       spaceId: Id;
-      kind: 'note' | 'doc';
+      kind: 'note' | 'doc' | 'pin' | 'image' | 'plan';
       title?: string;
       body: string;
       visibility?: Resource['visibility'];
@@ -449,14 +498,44 @@ export class Store {
       if (!parent || parent.spaceId !== space.id || parent.kind !== 'folder')
         throw new InputError('Unknown folder.');
     }
-    const body = String(input.body ?? '').slice(0, 50_000);
-    const title = (input.title ?? '').trim().slice(0, 120) || titleFrom(body);
+    let body = String(input.body ?? '').slice(0, input.kind === 'image' ? 900_000 : 50_000);
+    let title = (input.title ?? '').trim().slice(0, 120);
+    let visibility: Resource['visibility'] =
+      space.kind === 'personal' ? 'private' : (input.visibility ?? 'space');
+    if (input.kind === 'pin') {
+      // A pin points at a message the actor can read. Pins of private conversations stay private.
+      const wanted = parse<{ messageId?: string }>(body)?.messageId;
+      const row = wanted && this.get('select * from messages where id = ?', wanted);
+      const source = row && this.conversation(row.conversation_id);
+      if (!row || !source || !this.canReadConversation(actorId, source))
+        throw new AccessError('Not available.');
+      const shared = source.kind === 'channel' && source.spaceId === space.id;
+      if (!shared) visibility = 'private';
+      body = json({
+        messageId: row.id,
+        conversationId: source.id,
+        authorId: row.author_id,
+        quote: String(row.text).slice(0, 600),
+      })!;
+      title = title || titleFrom(String(row.text));
+    } else if (input.kind === 'image') {
+      if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(body))
+        throw new InputError('That is not an image this board can show.');
+      title = title || 'Image';
+    } else if (input.kind === 'plan') {
+      const existing = this.resourcesIn(space.id).find((r) => r.kind === 'plan');
+      if (existing)
+        return this.updateResource(actorId, existing.id, { placement: input.placement });
+      body = '';
+      title = 'Plan';
+      visibility = space.kind === 'personal' ? 'private' : 'space';
+    } else title = title || titleFrom(body);
     const resource = this.insertResource(actorId, {
       spaceId: space.id,
       kind: input.kind,
       title,
       body,
-      visibility: space.kind === 'personal' ? 'private' : (input.visibility ?? 'space'),
+      visibility,
       parentId: input.parentId ?? null,
       placement: input.placement ?? null,
     });
@@ -688,8 +767,8 @@ export class Store {
       (conversation.kind === 'channel' || conversation.kind === 'discussion') &&
       conversation.spaceId
     ) {
-      const agent = this.projectAgent(conversation.spaceId);
-      if (agent && this.isMember(userId, conversation.spaceId)) agents.push(agent);
+      if (this.isMember(userId, conversation.spaceId))
+        agents.push(...this.projectAgents(conversation.spaceId));
     }
     return agents;
   }
@@ -901,6 +980,13 @@ export class Store {
       });
       resultResourceId = resource.id;
     }
+    // An agent asked for by conversation joins the roster only once a person approves it.
+    if (decision === 'approved' && approval.proposal.kind === 'create-agent')
+      this.newAgent(actorId, {
+        name: approval.proposal.title,
+        purpose: approval.proposal.body,
+        spaceId: space.kind === 'project' ? space.id : null,
+      });
     this.run(
       'update approvals set status = ?, decided_by = ?, result_resource_id = ? where id = ?',
       decision,
@@ -920,6 +1006,112 @@ export class Store {
     if (!orientation || !this.isMember(agentId, spaceId)) throw new AccessError('Not available.');
     return this.updateResource(agentId, orientation.id, { body });
   }
+  // ---------- goals ----------
+
+  goals(spaceId: Id): Goal[] {
+    return this.all('select * from goals where space_id = ? order by position, rowid', spaceId).map(
+      (r) => ({
+        id: r.id,
+        spaceId: r.space_id,
+        title: r.title,
+        ownerId: r.owner_id,
+        agentId: r.agent_id,
+        due: r.due,
+        done: !!r.done,
+        position: r.position,
+        sourceMessageId: r.source_message_id,
+        createdBy: r.created_by,
+      }),
+    );
+  }
+  createGoal(actorId: Id, input: { spaceId: Id; title: string; sourceMessageId?: Id | null }) {
+    const space = this.requireMember(actorId, input.spaceId);
+    const title = String(input.title ?? '')
+      .trim()
+      .slice(0, 200);
+    if (!title) throw new InputError('Write the step first.');
+    let source: Id | null = null;
+    if (input.sourceMessageId) {
+      // Only a message everyone in this space can read may be linked from its shared plan.
+      const row = this.get(
+        'select conversation_id from messages where id = ?',
+        input.sourceMessageId,
+      );
+      const conversation = row && this.conversation(row.conversation_id);
+      if (
+        conversation &&
+        this.canReadConversation(actorId, conversation) &&
+        (space.kind === 'personal' ||
+          (conversation.kind === 'channel' && conversation.spaceId === space.id))
+      )
+        source = input.sourceMessageId;
+    }
+    const goalId = id();
+    const position = Number(
+      this.get('select coalesce(max(position), 0) + 1 n from goals where space_id = ?', space.id)!
+        .n,
+    );
+    this.run(
+      'insert into goals (id, space_id, title, owner_id, agent_id, due, done, position, source_message_id, created_by, created_at) values (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)',
+      goalId,
+      space.id,
+      title,
+      space.kind === 'personal' ? actorId : null,
+      null,
+      null,
+      position,
+      source,
+      actorId,
+      now(),
+    );
+    this.changed();
+    return this.goals(space.id).find((g) => g.id === goalId)!;
+  }
+  updateGoal(
+    actorId: Id,
+    goalId: Id,
+    patch: {
+      title?: string;
+      ownerId?: Id | null;
+      agentId?: Id | null;
+      due?: string | null;
+      done?: boolean;
+    },
+  ) {
+    const row = this.get('select * from goals where id = ?', goalId);
+    if (!row) throw new AccessError('Not available.');
+    this.requireMember(actorId, row.space_id);
+    const memberOf = (userId: Id | null | undefined, kind: 'human' | 'agent') => {
+      if (!userId) return null;
+      const u = this.user(userId);
+      return u && u.kind === kind && this.isMember(userId, row.space_id) ? userId : null;
+    };
+    const title =
+      patch.title === undefined ? row.title : patch.title.trim().slice(0, 200) || row.title;
+    this.run(
+      'update goals set title = ?, owner_id = ?, agent_id = ?, due = ?, done = ? where id = ?',
+      title,
+      patch.ownerId === undefined ? row.owner_id : memberOf(patch.ownerId, 'human'),
+      patch.agentId === undefined ? row.agent_id : memberOf(patch.agentId, 'agent'),
+      patch.due === undefined
+        ? row.due
+        : patch.due && /^\d{4}-\d{2}-\d{2}$/.test(patch.due)
+          ? patch.due
+          : null,
+      patch.done === undefined ? row.done : patch.done ? 1 : 0,
+      goalId,
+    );
+    this.changed();
+    return this.goals(row.space_id).find((g) => g.id === goalId)!;
+  }
+  deleteGoal(actorId: Id, goalId: Id) {
+    const row = this.get('select space_id from goals where id = ?', goalId);
+    if (!row) return;
+    this.requireMember(actorId, row.space_id);
+    this.run('delete from goals where id = ?', goalId);
+    this.changed();
+  }
+
   usageToday() {
     const day = now().slice(0, 10);
     return Number(this.get('select tokens from usage where day = ?', day)?.tokens ?? 0);
@@ -999,6 +1191,7 @@ export class Store {
       jobs,
       assignments,
       approvals,
+      goals: spaces.flatMap((s) => this.goals(s.id)),
       presence: visiblePresence,
       lastRead,
       runtime,

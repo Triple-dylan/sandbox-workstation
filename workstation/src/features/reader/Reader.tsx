@@ -23,7 +23,7 @@ export function Reader({ resourceId }: { resourceId: string }) {
     }
   }, [item, editing]);
   if (!item) return null;
-  const close = () => setUi({ readerId: null });
+  const close = () => setUi({ readerId: null, wide: false });
   const save = async () => {
     await run(() => api(`/resources/${item.id}`, { method: 'PATCH', body: { title, body } }));
     setEditing(false);

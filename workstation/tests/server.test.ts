@@ -292,3 +292,132 @@ test('http: sessions, CSRF header, auth and static path traversal', async () => 
   assert.ok(!(await traversal.text()).includes('devDependencies'));
   await app.close();
 });
+
+test('roster: project agents are shared, personal agents stay with their owner, and both can be edited', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  const scout = store.newAgent(dylan.id, {
+    name: 'Scout',
+    purpose: 'Compare vendors',
+    spaceId: project.id,
+  });
+  const mine = store.newAgent(dylan.id, { name: 'Notebook', purpose: 'My own notes' });
+  assert.equal(scout.role, 'project');
+  assert.equal(mine.role, 'personal');
+  // A teammate sees the shared agent and may address it; the private one is invisible to them.
+  const mayaView = snap(maya.id);
+  assert.ok(mayaView.users.some((u) => u.id === scout.id));
+  assert.ok(!mayaView.users.some((u) => u.id === mine.id));
+  assert.ok(store.addressableAgents(maya.id, general).some((a) => a.id === scout.id));
+  assert.ok(
+    snap(dylan.id).conversations.some(
+      (c) => c.kind === 'agent-private' && c.participantIds.includes(mine.id),
+    ),
+  );
+  // Any member edits a project agent; only the owner edits a personal one; outsiders edit neither.
+  assert.equal(store.updateAgent(maya.id, scout.id, { name: 'Scout 2', hue: 400 }).name, 'Scout 2');
+  assert.equal(store.user(scout.id)!.character!.hue, 40);
+  assert.throws(() => store.updateAgent(maya.id, mine.id, { name: 'Taken' }));
+  assert.throws(() => store.updateAgent(sam.id, scout.id, { name: 'Taken' }));
+  assert.equal(
+    store.updateAgent(dylan.id, mine.id, { instructions: 'Be brief.' }).instructions,
+    'Be brief.',
+  );
+});
+
+test('an agent asked for in conversation joins the roster only after a person approves it', async () => {
+  const { store, engine, dylan, project, general, agent, snap } = setup();
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'create an agent called Courier to track deliveries',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  const approval = snap(dylan.id).approvals.find((a) => a.proposal.kind === 'create-agent')!;
+  assert.equal(approval.proposal.title, 'Courier');
+  assert.equal(store.projectAgents(project.id).length, 1);
+  store.decideApproval(dylan.id, approval.id, 'approved');
+  const added = store.projectAgents(project.id).find((a) => a.name === 'Courier')!;
+  assert.equal(added.purpose, 'track deliveries');
+});
+
+test('goals: lightweight steps that only members can see or change', async () => {
+  const { store, dylan, maya, sam, project, agent, snap } = setup();
+  const goal = store.createGoal(dylan.id, { spaceId: project.id, title: 'Choose packaging' });
+  const updated = store.updateGoal(maya.id, goal.id, {
+    ownerId: maya.id,
+    agentId: agent.id,
+    due: '2027-05-30',
+    done: true,
+  });
+  assert.deepEqual(
+    [updated.ownerId, updated.agentId, updated.due, updated.done],
+    [maya.id, agent.id, '2027-05-30', true],
+  );
+  // People outside the project cannot be made owners, and cannot touch or see the goal.
+  assert.equal(store.updateGoal(dylan.id, goal.id, { ownerId: sam.id }).ownerId, null);
+  assert.throws(() => store.updateGoal(sam.id, goal.id, { done: false }));
+  assert.equal(snap(sam.id).goals.length, 0);
+  assert.equal(snap(maya.id).goals.length, 1);
+});
+
+test('pins point at a message; a pin of a private conversation never becomes shared', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  const said = store.postMessage(maya.id, {
+    conversationId: general.id,
+    text: 'Deposit due Friday',
+  });
+  const pin = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'pin',
+    body: JSON.stringify({ messageId: said.id }),
+  });
+  assert.equal(pin.visibility, 'space');
+  assert.equal(JSON.parse(pin.body).quote, 'Deposit due Friday');
+  // A direct message pinned onto the shared board stays visible to its pinner only.
+  const dm = store.openDm(maya.id, dylan.id);
+  const whisper = store.postMessage(maya.id, { conversationId: dm.id, text: 'between us' });
+  const privatePin = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'pin',
+    body: JSON.stringify({ messageId: whisper.id }),
+    visibility: 'space',
+  });
+  assert.equal(privatePin.visibility, 'private');
+  assert.ok(!snap(maya.id).resources.some((r) => r.id === privatePin.id));
+  // Someone who cannot read the conversation cannot pin from it, and it cannot feed a shared plan.
+  assert.throws(() =>
+    store.createResource(sam.id, {
+      spaceId: snap(sam.id).spaces[0].id,
+      kind: 'pin',
+      body: JSON.stringify({ messageId: whisper.id }),
+    }),
+  );
+  const step = store.createGoal(dylan.id, {
+    spaceId: project.id,
+    title: 'between us',
+    sourceMessageId: whisper.id,
+  });
+  assert.equal(step.sourceMessageId, null);
+});
+
+test('folders and the plan: folders hold documents, and a space has one plan on its board', async () => {
+  const { store, dylan, maya, project } = setup();
+  const folder = store.createFolder(dylan.id, { spaceId: project.id, title: 'Vendors' });
+  const doc = store.createResource(maya.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Shortlist',
+    body: '# Shortlist',
+    parentId: folder.id,
+  });
+  assert.equal(doc.parentId, folder.id);
+  const first = store.createResource(dylan.id, { spaceId: project.id, kind: 'plan', body: '' });
+  const second = store.createResource(maya.id, {
+    spaceId: project.id,
+    kind: 'plan',
+    body: '',
+    placement: { x: 24, y: 24, width: 384, height: 312 },
+  });
+  assert.equal(second.id, first.id);
+  assert.equal(second.placement?.x, 24);
+});

@@ -9,7 +9,12 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **Visual:** evolve the monochrome glass. Colour only for people, agents and content.
 - **Canvas:** living board. Opening an object grows it into a full working view while the rest of the board folds into a shelf; closing returns to the board as it was. Chosen from three concepts shown as screens.
 - **Agents:** animated orbs for now. The small clay "character with eyes" style was rejected. Characters are welcome later only if they are fun without doing too much.
-- *Open:* how private items appear on a shared board. A dashed "Only you" outline is built for review; Dylan was unsure what the question meant, so judge it in the running app.
+- **Corrections after the first build (same day):** the orbs Dylan meant are the `thinking-orbs` from the DropDeployment harness, not invented ones. Earlier work must be reused, not replaced: October's canvas pieces and agent builder, DropDeployment's graph. Dylan does not run terminal commands; give him something that opens.
+- **The graph** is not necessarily the home. It is how you traverse the shared context of a workspace, and it must show private versus shared.
+- **Agents:** how they appear across every view, and how private and group agents interact, is to be evaluated in the running app. *Assumed for review:* each agent has its own orb colour; personal agents carry a lock; idle agents live in the rail, working agents also appear at the item on board and graph.
+- **Conversation** is open to evolve.
+- **Shared workspaces** confirmed.
+- *Assumed for review:* private items sit on the shared board with a dashed "Only you" outline; a pin of a private conversation stays private; opening a document from the board folds the board into a shelf; the in-page preview opens on an example project with example teammates.
 
 ## 2026-11-05 — direction reset
 

@@ -51,6 +51,11 @@ create table if not exists approvals (
 create table if not exists reads (
   user_id text not null, conversation_id text not null, last_read_at text not null, primary key (user_id, conversation_id)
 );
+create table if not exists goals (
+  id text primary key, space_id text not null, title text not null, owner_id text, agent_id text, due text,
+  done integer not null default 0, position integer not null, source_message_id text, created_by text not null,
+  created_at text not null
+);
 create table if not exists usage (day text primary key, tokens integer not null);
 `;
 

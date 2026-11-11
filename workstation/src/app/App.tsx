@@ -11,6 +11,7 @@ import { Composer, Peek } from '../features/conversations/Composer.tsx';
 import { Reader } from '../features/reader/Reader.tsx';
 import { Utilities } from '../features/agents/Utilities.tsx';
 import { AgentPanel } from '../features/agents/AgentPanel.tsx';
+import { Shelf } from '../features/canvas/Shelf.tsx';
 
 const UI_KEY = 'sw-ui-v1';
 const loadUi = (): Ui => {
@@ -79,6 +80,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       const patch: Partial<Ui> = {};
       if (gone(old.conversationId, (x) => x.conversations)) patch.conversationId = null;
       if (gone(old.readerId, (x) => x.resources)) patch.readerId = null;
+      if (old.agentId && !s.users.some((u) => u.id === old.agentId)) patch.agentId = null;
       if (gone(old.selectedId, (x) => x.resources)) patch.selectedId = null;
       return patch;
     });
@@ -113,10 +115,10 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       notify: setNotice,
       run,
       openConversation: (id) => {
-        setUi({ conversationId: id, nav: false });
+        setUi({ conversationId: id, nav: false, create: false });
         void api('/reads', { body: { conversationId: id } }).then(refresh, () => {});
       },
-      openResource: (id) => setUi({ readerId: id, selectedId: id, agentId: null }),
+      openResource: (id) => setUi({ readerId: id, selectedId: id, agentId: null, wide: false }),
       discuss: (resourceId) =>
         setUi((old) => ({
           audience: { ...old.audience, [space.id]: { kind: 'discuss', resourceId } },
@@ -126,15 +128,27 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   }, [s, ui, setUi, space, refresh]);
 
   const agentOpen = !!ui.agentId && s.users.some((u) => u.id === ui.agentId && u.kind === 'agent');
+  // A document opened from the board takes the work area; the board folds into a shelf beside it.
+  const working = !!ui.readerId && ui.wide && ui.surface === 'canvas';
+  const reading = !!ui.readerId && !working;
   return (
     <WorkspaceContext.Provider value={workspace}>
       <div className="shell">
         <Rail />
-        {!ui.nav && ui.conversationId && (
+        {!ui.nav && !ui.create && ui.conversationId && (
           <ConversationPanel key={ui.conversationId} conversationId={ui.conversationId} />
         )}
         <main className="surface" aria-label={ui.surface === 'canvas' ? 'Canvas' : 'Graph'}>
-          {ui.surface === 'canvas' ? <Canvas /> : <Graph />}
+          {working ? (
+            <div className="workview">
+              <Shelf />
+              <Reader key={ui.readerId} resourceId={ui.readerId!} />
+            </div>
+          ) : ui.surface === 'canvas' ? (
+            <Canvas />
+          ) : (
+            <Graph />
+          )}
           <div className="dock">
             {notice ? (
               <div className="notice" role="status">
@@ -146,15 +160,15 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
             <Composer />
           </div>
         </main>
-        {(ui.readerId || agentOpen || ui.tools) && (
+        {((ui.readerId && !working) || agentOpen || ui.tools) && (
           <aside
-            className={`side ${ui.readerId ? 'reading' : ''}`}
-            aria-label={ui.readerId ? 'Reader' : agentOpen ? 'Agent' : 'Project tools'}
+            className={`side ${reading ? 'reading' : ''}`}
+            aria-label={reading ? 'Reader' : agentOpen ? 'Agent' : 'Project tools'}
           >
-            {ui.readerId ? (
-              <Reader key={ui.readerId} resourceId={ui.readerId} />
+            {reading ? (
+              <Reader key={ui.readerId!} resourceId={ui.readerId!} />
             ) : agentOpen ? (
-              <AgentPanel key={ui.agentId} agentId={ui.agentId!} />
+              <AgentPanel key={ui.agentId!} agentId={ui.agentId!} />
             ) : (
               <Utilities />
             )}

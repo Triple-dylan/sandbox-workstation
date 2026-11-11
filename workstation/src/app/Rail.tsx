@@ -1,3 +1,4 @@
+import { nameStyle } from '../features/agents/Character.tsx';
 import { useState } from 'react';
 import {
   Hash,
@@ -16,7 +17,8 @@ import {
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
 import { Avatar, Character, agentState } from '../features/agents/Character.tsx';
-import { privateAgentConversation, projectAgentOf } from '../features/conversations/audience.ts';
+import { myAgents, projectAgentsOf } from '../features/conversations/audience.ts';
+import { CreateSheet } from './CreateSheet.tsx';
 import type { Conversation, Space } from '../../shared/types.ts';
 
 export function Rail() {
@@ -39,8 +41,13 @@ export function Rail() {
       s.messages.some((m) => m.conversationId === c.id),
   );
   const people = s.users.filter((u) => u.kind === 'human' && u.id !== s.me.id);
-  const mine = privateAgentConversation(s);
-  const projectAgent = space.kind === 'project' ? projectAgentOf(s, space.id) : undefined;
+  const mine = myAgents(s);
+  const projectAgents = space.kind === 'project' ? projectAgentsOf(s, space.id) : [];
+  const roster = [...projectAgents, ...mine.map((m) => m.agent)];
+  const agentUnread = (agentId: string) => {
+    const own = mine.find((m) => m.agent.id === agentId);
+    return own ? unread(own.conversation) : 0;
+  };
   const submit = async () => {
     const value = name.trim();
     if (!value) return setCreating(null);
@@ -127,41 +134,41 @@ export function Rail() {
           aria-label="Spaces and conversations"
           title="Spaces and conversations"
           aria-expanded={ui.nav}
-          onClick={() => setUi({ nav: !ui.nav })}
+          onClick={() => setUi({ nav: !ui.nav, create: false })}
         >
           <PanelLeft size={17} />
           {totalUnread > 0 && <span className="unread dot" aria-label={`${totalUnread} unread`} />}
         </button>
-        {projectAgent && (
+        <button
+          aria-label="Create"
+          title="Create"
+          aria-expanded={ui.create}
+          onClick={() => setUi({ create: !ui.create, nav: false })}
+        >
+          <Plus size={18} />
+        </button>
+        <hr />
+        {roster.map((agent) => (
           <button
-            aria-label={`${projectAgent.name}: work and approvals`}
-            title={projectAgent.name}
-            aria-pressed={ui.agentId === projectAgent.id}
+            key={agent.id}
+            className="rail-agent"
+            aria-label={`${agent.name}, ${agent.role === 'personal' ? 'private to you' : 'shared with this project'}`}
+            title={`${agent.name} · ${agent.role === 'personal' ? 'private to you' : 'shared'}`}
+            aria-pressed={ui.agentId === agent.id}
             onClick={() =>
               setUi({
                 readerId: null,
-                agentId: ui.agentId === projectAgent.id ? null : projectAgent.id,
+                wide: false,
+                agentId: ui.agentId === agent.id ? null : agent.id,
               })
             }
           >
-            <Character agent={projectAgent} size={22} state={agentState(projectAgent.id, s.jobs)} />
+            <Character agent={agent} size={22} state={agentState(agent.id, s.jobs)} />
+            {agent.role === 'personal' && (
+              <Lock className="rail-private" size={9} aria-hidden="true" />
+            )}
           </button>
-        )}
-        {mine && (
-          <button
-            aria-label={`${mine.agent.name}, private to you`}
-            title={`${mine.agent.name} (private to you)`}
-            aria-pressed={ui.agentId === mine.agent.id}
-            onClick={() =>
-              setUi({
-                readerId: null,
-                agentId: ui.agentId === mine.agent.id ? null : mine.agent.id,
-              })
-            }
-          >
-            <Character agent={mine.agent} size={22} state={agentState(mine.agent.id, s.jobs)} />
-          </button>
-        )}
+        ))}
         <span className="rail-gap" />
         <button
           aria-label="Project tools"
@@ -175,7 +182,8 @@ export function Rail() {
           <Avatar user={s.me} size={24} />
         </button>
       </div>
-      {ui.nav && (
+      {ui.create && <CreateSheet />}
+      {ui.nav && !ui.create && (
         <div className="sheet nav-sheet">
           <div className="rail-scroll">
             <section aria-label="Spaces">
@@ -228,34 +236,34 @@ export function Rail() {
               </section>
             )}
             <section aria-label="Agents">
-              <h2>Agents</h2>
-              {projectAgent && (
+              <h2>
+                Agents
                 <button
-                  className="rail-row"
-                  onClick={() => setUi({ readerId: null })}
-                  title="Shows its work and approvals"
+                  className="rail-add"
+                  aria-label="New agent"
+                  onClick={() => setUi({ create: true, nav: false })}
                 >
-                  <Character
-                    agent={projectAgent}
-                    size={18}
-                    state={agentState(projectAgent.id, s.jobs)}
-                  />
-                  <span className="rail-label">{projectAgent.name}</span>
+                  <Plus size={14} />
                 </button>
-              )}
-              {mine && (
-                <Row
-                  c={mine.conversation}
-                  label="Your agent"
-                  icon={
-                    <Character
-                      agent={mine.agent}
-                      size={18}
-                      state={agentState(mine.agent.id, s.jobs)}
-                    />
+              </h2>
+              {roster.map((agent) => (
+                <button
+                  key={agent.id}
+                  className={`rail-row ${ui.agentId === agent.id ? 'active' : ''}`}
+                  onClick={() =>
+                    setUi({ readerId: null, wide: false, agentId: agent.id, nav: false })
                   }
-                />
-              )}
+                >
+                  <Character agent={agent} size={18} state={agentState(agent.id, s.jobs)} />
+                  <span className="rail-label">{agent.name}</span>
+                  {agent.role === 'personal' && <Lock size={11} aria-label="Private to you" />}
+                  {agentUnread(agent.id) > 0 && (
+                    <span className="unread" aria-label={`${agentUnread(agent.id)} unread`}>
+                      {agentUnread(agent.id)}
+                    </span>
+                  )}
+                </button>
+              ))}
             </section>
             <section aria-label="People">
               <h2>People</h2>
@@ -283,7 +291,7 @@ export function Rail() {
                         aria-label={online(p.id) ? 'online' : 'offline'}
                       />
                     </span>
-                    <span className="rail-label" style={{ color: p.color }}>
+                    <span className="rail-label" style={nameStyle(p.color)}>
                       {p.name}
                     </span>
                     {count > 0 && (

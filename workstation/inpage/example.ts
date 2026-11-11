@@ -1,6 +1,42 @@
 // @ts-nocheck
 // A clearly labelled example project for the in-page preview. Never used by the real server.
 export function seedExample(store, meId: string) {
+  // Your own private space: only you ever see this.
+  const mine = store.personalSpace(meId);
+  const own = (kind, body, placement, title) =>
+    store.createResource(meId, { spaceId: mine, kind, title, body, placement });
+  own('note', 'Things I am thinking about this week', { x: 96, y: 96, width: 336, height: 48 });
+  own('note', 'Pop-up shop: am I pricing the vases too low?', {
+    x: 96,
+    y: 192,
+    width: 336,
+    height: 48,
+  });
+  own('note', 'Read the market rules properly before Saturday.', {
+    x: 96,
+    y: 288,
+    width: 336,
+    height: 48,
+  });
+  const reading = store.createFolder(meId, { spaceId: mine, title: 'Reading' });
+  store.createResource(meId, {
+    spaceId: mine,
+    kind: 'doc',
+    parentId: reading.id,
+    title: 'Pricing handmade work',
+    body: '# Pricing handmade work\n\nNotes to self. Materials times two, plus time, plus the stall.',
+    placement: { x: 480, y: 96, width: 288, height: 120 },
+  });
+  store.createResource(meId, {
+    spaceId: mine,
+    kind: 'doc',
+    parentId: reading.id,
+    title: 'Glaze test log',
+    body: '# Glaze test log\n\n- Tide: cone 6, ran slightly\n- Oat: perfect\n- Ember: needs a thicker coat',
+  });
+  store.createGoal(meId, { spaceId: mine, title: 'Fire the last batch' });
+  store.createGoal(meId, { spaceId: mine, title: 'Photograph the blue set' });
+
   const maya = store.createHuman('Maya (example)');
   const jon = store.createHuman('Jon (example)');
   const project = store.createProject(meId, 'Pop-up shop (example)');
@@ -30,7 +66,7 @@ export function seedExample(store, meId: string) {
     vendors.id,
     'Vendor shortlist',
     '# Vendor shortlist\n\nPackaging for 40 pieces. We need boxes by June 5.\n\n## Paperie\n$58 for 50 boxes. Recycled card, plain. Delivers in four days.\n\n## Boxwell\n$74 for 50 boxes. Printed lid. Ten days.\n\n## North Pack\n$61 for 60 boxes. No delivery; pickup only.',
-    { x: 432, y: 384, width: 288, height: 120 },
+    { x: 408, y: 480, width: 288, height: 120 },
   );
   doc(
     maya.id,
@@ -62,7 +98,7 @@ export function seedExample(store, meId: string) {
     money.id,
     'Budget',
     '# Budget\n\n| Item | Cost |\n| --- | --- |\n| Stall fee | $180 |\n| Clay and glaze | $240 |\n| Packaging | $58 |\n| Signage | $90 |\n| **Total** | **$568** |',
-    { x: 96, y: 528, width: 288, height: 120 },
+    { x: 96, y: 480, width: 288, height: 120 },
   );
   doc(meId, money.id, 'Price list', '# Price list\n\n- Cups: $28\n- Bowls: $36\n- Vases: $60');
   doc(
@@ -84,8 +120,7 @@ export function seedExample(store, meId: string) {
     96,
     96,
   );
-  note(maya.id, 'Dock Street confirmed the corner stall. Deposit is due Friday.', 96, 240, 288);
-  note(jon.id, 'I can drive both days. Need the load list by June 10.', 432, 240, 288);
+  note(jon.id, 'I can drive both days. Need the load list by June 10.', 456, 336, 168);
   note(
     meId,
     "Ask Jon if he can lend the van. Don't promise the blue set yet.",
@@ -94,6 +129,49 @@ export function seedExample(store, meId: string) {
     336,
     'private',
   );
+  const swatch = (from: string, to: string) => {
+    const c = document.createElement('canvas');
+    c.width = 480;
+    c.height = 360;
+    const g = c.getContext('2d')!;
+    const fill = g.createLinearGradient(0, 0, 480, 360);
+    fill.addColorStop(0, from);
+    fill.addColorStop(1, to);
+    g.fillStyle = fill;
+    g.fillRect(0, 0, 480, 360);
+    return c.toDataURL('image/jpeg', 0.8);
+  };
+  const image = (title: string, from: string, to: string, placement) =>
+    store.createResource(jon.id, {
+      spaceId,
+      kind: 'image',
+      title,
+      body: swatch(from, to),
+      placement,
+    });
+  image('Glaze reference: Oat', '#e3d5bf', '#b9a184', { x: 456, y: 96, width: 168, height: 216 });
+  image('Table reference', '#b8c4b0', '#e6ddd0', { x: 720, y: 456, width: 288, height: 168 });
+
+  const scout = store.newAgent(meId, {
+    name: 'Scout',
+    purpose: 'Compare vendors and prices',
+    instructions: 'Keep the vendor shortlist current. Flag any quote that changes.',
+    spaceId,
+  });
+  const step = (title: string, patch = {}) => {
+    const goal = store.createGoal(meId, { spaceId, title });
+    store.updateGoal(meId, goal.id, patch);
+  };
+  step('Book the stall', { ownerId: maya.id, due: '2027-05-20', done: true });
+  step('Choose packaging', { ownerId: jon.id, agentId: scout.id, due: '2027-05-30' });
+  step('Price list and signage', { ownerId: meId, due: '2027-06-06' });
+  step('Load in', { ownerId: jon.id, due: '2027-06-13' });
+  store.createResource(meId, {
+    spaceId,
+    kind: 'plan',
+    body: '',
+    placement: { x: 648, y: 96, width: 384, height: 336 },
+  });
 
   const general = store
     .snapshot(meId, [], { id: 'x', label: 'x' })
@@ -105,8 +183,14 @@ export function seedExample(store, meId: string) {
     const first = say(
       maya.id,
       general.id,
-      'Corner stall is confirmed. I put the confirmation in Market.',
+      'Corner stall is confirmed. Deposit is due Friday. I put the confirmation in Market.',
     );
+    store.createResource(meId, {
+      spaceId,
+      kind: 'pin',
+      body: JSON.stringify({ messageId: first.id }),
+      placement: { x: 96, y: 216, width: 312, height: 144 },
+    });
     say(jon.id, general.id, 'Nice. Do we know which packaging yet?', first.id);
     say(
       maya.id,

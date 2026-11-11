@@ -20,7 +20,8 @@ export type User = {
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
-export type ResourceKind = 'folder' | 'note' | 'doc';
+/** note: text typed on the board. pin: a message kept on the board. image: a picture. plan: the space's goals shown on the board. */
+export type ResourceKind = 'folder' | 'note' | 'doc' | 'pin' | 'image' | 'plan';
 export type Placement = { x: number; y: number; width: number; height: number };
 export type Resource = {
   id: Id;
@@ -96,7 +97,8 @@ export type Assignment = {
   createdAt: string;
 };
 
-export type Proposal = { kind: 'create-doc'; title: string; body: string };
+/** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. */
+export type Proposal = { kind: 'create-doc' | 'create-agent'; title: string; body: string };
 export type Approval = {
   id: Id;
   jobId: Id;
@@ -108,6 +110,24 @@ export type Approval = {
   resultResourceId: Id | null;
   createdAt: string;
 };
+
+/** A lightweight, ordered step: an owner, an optional agent and an optional date. Not a task system. */
+export type Goal = {
+  id: Id;
+  spaceId: Id;
+  title: string;
+  ownerId: Id | null;
+  agentId: Id | null;
+  due: string | null;
+  done: boolean;
+  position: number;
+  /** The message this step came from, when it was made from a pinned message. */
+  sourceMessageId: Id | null;
+  createdBy: Id;
+};
+
+/** What a pin on the board stores. The message stays where it was said; this only points at it. */
+export type PinBody = { messageId: Id; conversationId: Id; authorId: Id; quote: string };
 
 export type Presence = {
   userId: Id;
@@ -130,6 +150,7 @@ export type Snapshot = {
   jobs: Job[];
   assignments: Assignment[];
   approvals: Approval[];
+  goals: Goal[];
   presence: Presence[];
   lastRead: Record<Id, string>;
   runtime: { id: string; label: string; model?: string };

@@ -1,9 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Simulation } from 'd3-force';
-import { AlignLeft, Compass, FileText, Folder, LayoutGrid, Lock } from 'lucide-react';
+import {
+  AlignLeft,
+  Compass,
+  FileText,
+  Folder,
+  Image as ImageIcon,
+  LayoutGrid,
+  ListChecks,
+  Lock,
+  Pin,
+} from 'lucide-react';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
-import { graphOf, type GraphNode } from './tree.ts';
+import { NOTES_GROUP, graphOf, type GraphNode } from './tree.ts';
 import {
   createCampaignOsSimulation,
   enforceHierarchyOrbits,
@@ -73,8 +83,19 @@ function build(nodes: GraphNode[], previous: Map<string, { x: number; y: number 
         { x: Math.cos(angle) * orbitRadius, y: Math.sin(angle) * orbitRadius * orbitAspectY },
       );
     } else {
-      // Loose files at the top level sit close to the centre.
-      add(n, { isCandidate: true }, { x: Math.cos(angle) * 150, y: Math.sin(angle) * 110 });
+      // Loose files at the top level orbit the centre on its upper side, clear of its label.
+      const loose = top.filter((x) => !hubs.includes(x));
+      const hierarchyAngle = -Math.PI / 2 + (loose.indexOf(n) - (loose.length - 1) / 2) * 0.7;
+      add(
+        n,
+        {
+          hierarchyParentId: root.id,
+          hierarchyRadius: 170,
+          hierarchyAngle,
+          hierarchyStrength: 0.5,
+        },
+        { x: Math.cos(hierarchyAngle) * 170, y: Math.sin(hierarchyAngle) * 170 },
+      );
     }
   });
   const place = (parent: GraphNode) => {
@@ -197,7 +218,10 @@ export function Graph() {
     if (n.data.kind === 'root') return setFocus(null);
     if (n.data.kind === 'folder' || n.data.kind === 'group')
       return setFocus((f) => (f === n.id ? null : n.id));
-    if (n.data.resourceId) openResource(n.data.resourceId);
+    if (!n.data.resourceId) return;
+    // Documents open beside the graph; things that live on the board take you to them there.
+    if (n.data.kind === 'doc') openResource(n.data.resourceId);
+    else setUi({ surface: 'canvas', selectedId: n.data.resourceId, readerId: null });
   };
 
   const beginDrag = (e: React.PointerEvent, n: SimNode) => {
@@ -258,6 +282,9 @@ export function Graph() {
     if (d.kind === 'group') return <LayoutGrid size={17} />;
     if (d.role === 'orientation') return <Compass size={13} />;
     if (d.kind === 'note') return <AlignLeft size={10} />;
+    if (d.kind === 'pin') return <Pin size={10} />;
+    if (d.kind === 'image') return <ImageIcon size={10} />;
+    if (d.kind === 'plan') return <ListChecks size={11} />;
     return <FileText size={12} />;
   };
   const privateCount = tree.nodes.filter((n) => n.private).length;
@@ -295,7 +322,10 @@ export function Graph() {
         const d = n.data;
         const lv = level(n);
         const hub = n.isHub || n.isCampaignCenter;
-        const labelled = hub || !quiet || lv === 'focus' || (focus !== null && lv === 'near');
+        // Things on the board are many and wordy; they name themselves when you look at them.
+        const boardItem = d.parentId === NOTES_GROUP;
+        const labelled =
+          hub || lv === 'focus' || (focus !== null && lv === 'near') || (!quiet && !boardItem);
         const diameter = Math.max(12, n.radius * 2 * Math.max(0.72, scale));
         return (
           <button

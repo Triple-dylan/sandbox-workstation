@@ -31,7 +31,9 @@ export function graphOf(s: Snapshot, space: Space): { nodes: GraphNode[]; links:
   };
   const nodes: GraphNode[] = [root];
   const ids = new Set(items.map((r) => r.id));
-  if (items.some((r) => r.kind === 'note'))
+  const onBoard = (r: Resource) =>
+    r.kind === 'note' || r.kind === 'pin' || r.kind === 'image' || r.kind === 'plan';
+  if (items.some(onBoard))
     nodes.push({
       id: NOTES_GROUP,
       label: 'On the board',
@@ -46,8 +48,11 @@ export function graphOf(s: Snapshot, space: Space): { nodes: GraphNode[]; links:
       label: (r.title || 'Untitled').slice(0, r.kind === 'note' ? 26 : 60),
       kind: r.kind,
       resourceId: r.id,
-      parentId:
-        r.kind === 'note' ? NOTES_GROUP : r.parentId && ids.has(r.parentId) ? r.parentId : space.id,
+      parentId: onBoard(r)
+        ? NOTES_GROUP
+        : r.parentId && ids.has(r.parentId)
+          ? r.parentId
+          : space.id,
       depth: 1,
       private: r.visibility === 'private' && space.kind === 'project',
       role: r.role,

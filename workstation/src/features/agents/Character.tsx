@@ -20,6 +20,19 @@ const stateLabel: Record<AgentState, string> = {
   failed: 'last job failed',
 };
 
+/** The orb's ink: the agent's own hue, kept restrained and readable in either theme. */
+function tint(hue: number) {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const s = dark ? 0.8 : 0.45;
+  const l = dark ? 0.88 : 0.38;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + hue / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+  };
+  return `rgb(${f(0)}, ${f(8)}, ${f(4)})`;
+}
+
 const orbState: Record<AgentState, OrbState> = {
   idle: 'breathing',
   working: 'working',
@@ -51,11 +64,21 @@ export function Character({
         state={orbState[state]}
         size={preset}
         paused={state === 'failed'}
+        color={agent.character ? tint(agent.character.hue) : undefined}
         aria-label={`${agent.name}, ${stateLabel[state]}`}
       />
       {state === 'waiting' && <i className="orb-badge" aria-hidden="true" />}
     </span>
   );
+}
+
+/** A person's colour for their name, lifted toward white in the dark theme so it stays readable. */
+export function nameStyle(color: string | undefined): React.CSSProperties | undefined {
+  if (!color) return undefined;
+  return {
+    '--who': color,
+    color: 'color-mix(in oklab, var(--who) var(--who-mix), white)',
+  } as React.CSSProperties;
 }
 
 export function Avatar({ user, size = 24 }: { user: User; size?: number }) {

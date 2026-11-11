@@ -17,7 +17,9 @@ export const audienceKey = (a: Audience) =>
     ? `person:${a.userId}`
     : a.kind === 'discuss'
       ? `discuss:${a.resourceId}`
-      : `${a.kind}:${a.conversationId}`;
+      : a.kind === 'conversation'
+        ? `conversation:${a.conversationId}`
+        : `${a.kind}:${a.conversationId}:${a.agentId}`;
 
 export type AudienceOption = { audience: Audience; label: string; detail: string; group: string };
 
@@ -34,6 +36,22 @@ export function privateAgentConversation(s: Snapshot) {
   return agent && conversation ? { agent, conversation } : null;
 }
 
+/** Every private agent of mine, each with its own private conversation. */
+export function myAgents(s: Snapshot) {
+  return s.users
+    .filter((u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id)
+    .flatMap((agent) => {
+      const conversation = s.conversations.find(
+        (c) => c.kind === 'agent-private' && c.participantIds.includes(agent.id),
+      );
+      return conversation ? [{ agent, conversation }] : [];
+    });
+}
+
+export function projectAgentsOf(s: Snapshot, spaceId: Id): User[] {
+  return s.users.filter((u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === spaceId);
+}
+
 export function projectAgentOf(s: Snapshot, spaceId: Id): User | undefined {
   return s.users.find((u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === spaceId);
 }
@@ -45,10 +63,8 @@ export function audienceOptions(
 ): AudienceOption[] {
   const space = s.spaces.find((x) => x.id === spaceId);
   const options: AudienceOption[] = [];
-  const mine = privateAgentConversation(s);
   if (space?.kind === 'project') {
     const channels = channelsOf(s, spaceId);
-    const agent = projectAgentOf(s, spaceId);
     for (const c of channels)
       options.push({
         audience: { kind: 'conversation', conversationId: c.id },
@@ -56,37 +72,38 @@ export function audienceOptions(
         detail: `Everyone in ${space.name}`,
         group: 'Project',
       });
-    if (agent && channels[0]) {
-      options.push({
-        audience: { kind: 'instruct', conversationId: channels[0].id, agentId: agent.id },
-        label: `Ask ${agent.name}`,
-        detail: `Instruction, visible in #${channels[0].title}`,
-        group: 'Project',
-      });
-      options.push({
-        audience: { kind: 'delegate', conversationId: channels[0].id, agentId: agent.id },
-        label: `Delegate to ${agent.name}`,
-        detail: 'An ongoing responsibility, visible to the project',
-        group: 'Project',
-      });
-    }
+    if (channels[0])
+      for (const agent of projectAgentsOf(s, spaceId)) {
+        options.push({
+          audience: { kind: 'instruct', conversationId: channels[0].id, agentId: agent.id },
+          label: `Ask ${agent.name}`,
+          detail: `Visible in #${channels[0].title}`,
+          group: 'Project agents',
+        });
+        options.push({
+          audience: { kind: 'delegate', conversationId: channels[0].id, agentId: agent.id },
+          label: `Delegate to ${agent.name}`,
+          detail: 'Ongoing work, visible to the project',
+          group: 'Project agents',
+        });
+      }
   }
-  if (mine) {
+  for (const mine of myAgents(s)) {
     options.push({
       audience: {
         kind: 'private-agent',
         conversationId: mine.conversation.id,
         agentId: mine.agent.id,
       },
-      label: 'Your agent',
+      label: mine.agent.name,
       detail: 'Private to you',
-      group: 'Private',
+      group: 'Your agents',
     });
     options.push({
       audience: { kind: 'delegate', conversationId: mine.conversation.id, agentId: mine.agent.id },
-      label: 'Delegate to your agent',
-      detail: 'Ongoing, private to you',
-      group: 'Private',
+      label: `Delegate to ${mine.agent.name}`,
+      detail: 'Ongoing work, private to you',
+      group: 'Your agents',
     });
   }
   if (selected)
@@ -153,7 +170,7 @@ export function describeAudience(
       };
     case 'delegate':
       return {
-        label: `Delegate to ${user(audience.agentId)?.role === 'personal' ? 'your agent' : (user(audience.agentId)?.name ?? 'agent')}`,
+        label: `Delegate to ${user(audience.agentId)?.name ?? 'agent'}`,
         detail:
           conversation(audience.conversationId)?.kind === 'agent-private'
             ? 'Private to you'
@@ -162,9 +179,9 @@ export function describeAudience(
       };
     case 'private-agent':
       return {
-        label: 'Your agent',
+        label: user(audience.agentId)?.name ?? 'Your agent',
         detail: 'Private to you',
-        placeholder: 'Ask your agent privately',
+        placeholder: `Ask ${user(audience.agentId)?.name ?? 'your agent'} privately`,
       };
     case 'person':
       return {
@@ -196,7 +213,10 @@ export function conversationLabel(s: Snapshot, c: Conversation | undefined) {
     const other = s.users.find((u) => c.participantIds.includes(u.id) && u.id !== s.me.id);
     return { label: other?.name ?? 'Direct message', detail: 'Direct message' };
   }
-  if (c.kind === 'agent-private') return { label: 'Your agent', detail: 'Private to you' };
+  if (c.kind === 'agent-private') {
+    const agent = s.users.find((u) => u.kind === 'agent' && c.participantIds.includes(u.id));
+    return { label: agent?.name ?? 'Your agent', detail: 'Private to you' };
+  }
   const r = s.resources.find((x) => x.id === c.resourceId);
   return {
     label: `On “${(r?.title ?? c.title).slice(0, 32)}”`,

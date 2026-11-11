@@ -1490,3 +1490,459 @@ button.primary,
   color: var(--ink-2);
   font-size: 12.5px;
 }
+
+/* ---------- rail agents ---------- */
+.rail-private {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border-radius: 50%;
+  padding: 1px;
+  box-sizing: content-box;
+}
+.rail > button.rail-agent[aria-pressed='true'] {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+
+/* ---------- create sheet ---------- */
+.create-sheet > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 4px 18px;
+}
+.create-sheet h2 {
+  font-size: 15px;
+}
+.create-sheet > header button {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+.create-sheet > header button:hover {
+  background: var(--wash);
+}
+.create-sheet section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.create-sheet h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 4px 8px;
+}
+.create-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px;
+  border-radius: var(--r-s);
+  text-align: left;
+  color: var(--ink);
+}
+.create-row > svg {
+  flex: none;
+  color: var(--ink-2);
+}
+.create-row:hover,
+.create-row.active {
+  background: var(--wash);
+}
+.create-row span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.create-row strong {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.create-row small {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 8px 10px 35px;
+}
+.create-form input {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: var(--r-s);
+  padding: 7px 9px;
+  font-size: 13.5px;
+}
+.create-form .primary {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border-radius: var(--r-s);
+  font-weight: 600;
+  font-size: 13px;
+}
+.create-form .primary:disabled {
+  opacity: 0.35;
+}
+.create-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.create-scope button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: var(--r-s);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.create-scope button[aria-checked='true'] {
+  background: var(--wash-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- board objects ---------- */
+.canvas-item.kind-pin,
+.canvas-item.kind-plan,
+.canvas-item.kind-doc,
+.canvas-item.kind-image {
+  display: flex;
+}
+.canvas-item.selected.kind-pin,
+.canvas-item.selected.kind-plan,
+.canvas-item.selected.kind-doc,
+.canvas-item.selected.kind-image {
+  box-shadow: none;
+}
+.canvas-item.selected > .pin-card,
+.canvas-item.selected > .plan-card,
+.canvas-item.selected > .doc-card,
+.canvas-item.selected > .board-image {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1px;
+}
+.board-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-m);
+  box-shadow: var(--shadow);
+  display: block;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.pin-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-m);
+  background: var(--glass);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+.pin-card header {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.pin-card header svg {
+  align-self: center;
+  flex: none;
+}
+.pin-card header small {
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+.pin-card p {
+  margin: 0;
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+.pin-card footer {
+  display: flex;
+  gap: 6px;
+}
+.pin-card footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--ink-2);
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+}
+.pin-card footer button:not(:disabled):hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.pin-card footer button:disabled {
+  opacity: 0.6;
+}
+.plan-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.plan-card > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 8px;
+  font-size: 14px;
+}
+.plan-card .plan {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 14px 10px;
+}
+.plan ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.plan li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.plan li:first-child {
+  border-top: 0;
+}
+.plan.compact li {
+  padding: 3px 0;
+  border: 0;
+  flex-wrap: nowrap;
+}
+.plan-check {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.6px solid var(--ink-2);
+  flex: none;
+}
+.plan-check[aria-checked='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.plan-title {
+  flex: 1;
+  min-width: 120px;
+  border: 0;
+  background: none;
+  outline: none;
+  padding: 0;
+  font-size: 13.5px;
+}
+.plan.compact .plan-title {
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan li.done .plan-title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+.plan-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 23px;
+  width: 100%;
+}
+.plan-meta select,
+.plan-meta input[type='date'] {
+  border: 0;
+  background: var(--wash);
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  max-width: 108px;
+}
+.plan-meta button {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.plan-meta button:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.plan-meta button:last-child {
+  margin-left: auto;
+}
+.plan-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line);
+}
+.plan-add input {
+  flex: 1;
+  border: 0;
+  background: none;
+  outline: none;
+  font-size: 13.5px;
+  padding: 2px 0;
+}
+.message-pin {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+  opacity: 0;
+}
+.message:hover .message-pin,
+.message-pin:focus-visible,
+.message-pin:disabled {
+  opacity: 1;
+}
+.message-pin:not(:disabled):hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.message-pin:disabled {
+  color: var(--ink);
+}
+
+/* ---------- working view: an open document with the board folded beside it ---------- */
+.workview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 12px;
+  padding: 12px 12px 12px 0;
+}
+.shelf {
+  width: 216px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  padding-top: 4px;
+}
+.shelf h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 12px 8px 4px;
+}
+.shelf-back,
+.shelf-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: var(--r-s);
+  text-align: left;
+  color: var(--ink-2);
+  font-size: 13px;
+  min-width: 0;
+}
+.shelf-back {
+  color: var(--ink);
+  font-weight: 600;
+}
+.shelf-row > svg {
+  flex: none;
+}
+.shelf-row .truncate {
+  flex: 1;
+}
+.shelf-back:hover,
+.shelf-row:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.shelf-row.active {
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+.workview .reader-body,
+.workview .reader-edit {
+  padding-left: max(24px, calc((100% - 720px) / 2));
+  padding-right: max(24px, calc((100% - 720px) / 2));
+  font-size: 15px;
+}
+
+/* Room is tight with a sheet open: the project tools step aside until it closes. */
+@media (max-width: 1599px) {
+  .shell:has(.conversation, .sheet) .side:not(.reading):not(:has(.agent-panel)) {
+    display: none;
+  }
+}
+.plan-meta select {
+  max-width: 86px;
+}
+.plan-meta input[type='date'] {
+  max-width: 104px;
+}
+.agent-hues {
+  display: flex;
+  gap: 6px;
+}
+.agent-hues button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.agent-hues button[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 3.5px var(--ink);
+}

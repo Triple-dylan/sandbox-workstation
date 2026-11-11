@@ -1,3 +1,4 @@
+import { nameStyle } from '../agents/Character.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, ChevronDown, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
@@ -178,10 +179,14 @@ export function Peek() {
       <Actor user={author} jobs={s.jobs} size={26} />
       <span className="peek-body">
         <span className="peek-head">
-          <strong style={{ color: author.kind === 'human' ? author.color : undefined }}>
+          <strong style={nameStyle(author.kind === 'human' ? author.color : undefined)}>
             {author.name}
           </strong>
-          <small>in {conversationLabel(s, conversation).label}</small>
+          <small>
+            {conversation.kind === 'dm' || conversation.kind === 'agent-private'
+              ? 'to you'
+              : `in ${conversationLabel(s, conversation).label}`}
+          </small>
         </span>
         <span className="peek-text">{latest.text.replace(/[#*_`>]/g, '').slice(0, 220)}</span>
       </span>

@@ -70,7 +70,7 @@ test('two people: private agent, shared canvas, discuss, and an approved agent p
 
 async function scenario(dylan: Page, maya: Page) {
   // Situation 2: a private question to your own agent, from a fresh personal space.
-  await assert.doesNotReject(dylan.getByText('To: Your agent').waitFor());
+  await assert.doesNotReject(dylan.getByText("To: Dylan's agent").waitFor());
   await composer(dylan).fill('What can you do?');
   await composer(dylan).press('Enter');
   await dylan.locator('.conversation .from-agent').first().waitFor();

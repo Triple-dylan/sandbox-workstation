@@ -167,7 +167,13 @@ export class AgentEngine {
     const spaces = agent.role === 'personal' ? this.store.memberSpaces(agent.id) : [spaceId];
     const resources = spaces
       .flatMap((id) => this.store.readableResources(agent.id, id))
-      .filter((r) => r.kind !== 'folder' && r.role !== 'orientation');
+      .filter(
+        (r) =>
+          r.kind !== 'folder' &&
+          r.kind !== 'image' &&
+          r.kind !== 'plan' &&
+          r.role !== 'orientation',
+      );
     const orientation = this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation');
     const shared =
       kind === 'maintenance' || (kind === 'delegation' && !conversation)
@@ -214,7 +220,7 @@ export class AgentEngine {
         resources: resources.map((r) => ({
           title: r.title,
           kind: r.kind,
-          excerpt: r.body.replace(/\s+/g, ' ').slice(0, 400),
+          excerpt: (r.kind === 'pin' ? r.title : r.body).replace(/\s+/g, ' ').slice(0, 400),
         })),
         recent,
       },

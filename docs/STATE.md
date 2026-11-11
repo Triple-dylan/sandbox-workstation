@@ -1,41 +1,39 @@
 # Current state
 
-_Updated 2026-11-11._
+_Updated 2026-11-11._ What is being built and why is in `docs/PLAN.md`.
 
-## Run it
+## Open it
 
-```sh
-cd workstation
-npm ci
-npm start                 # http://127.0.0.1:4174
-HOST=0.0.0.0 npm start    # let others on a trusted network join
-```
+- **No setup:** `npm run build:inpage` (in `workstation/`) writes `dist-inpage/workstation.html`, one page with the client and the real server inside it. It opens on a labelled example project. One person at a time; data stays in that browser.
+- **Several people:** `npm ci && npm start` in `workstation/`, then http://127.0.0.1:4174. `HOST=0.0.0.0 npm start` lets others on a trusted network join.
+- Agents reply from a scripted runtime unless `OPENAI_API_KEY` is set in the root `.env`.
 
-Optional real agents: `cp .env.example .env` in the repo root and set `OPENAI_API_KEY`. Without it, agents use the free scripted runtime.
+## What works
 
-## Open it without running anything
+**Spaces.** A private Personal space for each person, plus shared projects. Every item is private or shared; sharing changes the same item. One access check on the server governs what any person or agent can see.
 
-`npm run build:inpage` writes `dist-inpage/workstation.html`: the client and the real server (store, access checks, agent engine) bundled into one page, with data kept in that browser. It is for looking and trying alone; several people at once still need `npm start`.
+**Board (canvas).** Click empty space and type. Objects: notes, documents, images (paste, drop or pick), a plan, and pinned messages. Everything moves on a 24px grid without overlapping. Private items on a shared board carry a dashed "Only you" outline and are invisible to others. Opening a document from the board fills the work area and folds the board into a shelf beside it; closing returns to the board.
 
-## What works (demo track)
+**Graph.** The CampaignOS/DropDeployment constellation: the space pinned at the centre, folders on a tilted ring, files orbiting their folder, gentle simmer. Click a folder to focus it and dim the rest; click a document to read it beside the graph. Private items are dashed, with a legend. People and working agents appear at the item they are touching.
 
-- Local server with SQLite and live sync (Server-Sent Events). Several people at once, each picking a name; no passwords (demo only).
-- Personal space (always private) plus shared projects. Each project gets `#general`, a project agent, a "Resources & context" folder and an Orientation doc the agent maintains.
-- Blank canvas: click anywhere and type. Notes save as you type, move on a 24px grid with collision checks, can be private or shared, and show who is working on them.
-- Graph: live physics with the space anchored at the centre (it can be nudged and springs back), draggable nodes, foldable folders, typed unframed nodes, private items marked, and documents readable without leaving the graph. Agents and people appear at what they are touching.
-- Shell: one full-bleed dotted surface. Slim floating rail, navigation sheet, conversation, project tools and composer sit in reserved lanes and never cover work. The newest unread reply shows above the composer.
-- Composer with an explicit audience covering the five first-message situations: instruct the project agent, privately ask your agent, message a person, discuss selected work, delegate ongoing work.
-- Agents shown as animated orbs with visible states (idle, working, waiting for approval). Proposals need a person's approval; delegated work can be stopped.
-- One access check in the store governs everything a person or agent can see.
+**Agents.** A roster: shared project agents and private personal agents, each a `thinking-orbs` orb in its own colour whose animation is its real job state. Selecting one shows its work and what it last said, then its name, colour, purpose and standing instructions, all editable. New agents are made from Create or by asking an agent; a person approves the second route. Agents keep the project orientation current, may speak unprompted in shared conversations, and need approval for consequential shared changes.
 
-## Next
+**Plan and goals.** Ordered steps with an owner, an agent and a date. The board's plan and the Goals card are the same records. A pinned message can become a step and keeps its link to the message.
 
-See `docs/PLAN.md`. Step 3 is the living board: more object types, and opening an object into a full working view with the rest folded into a shelf.
+**Conversation.** One message bar with an explicit audience: channels, threads, direct messages, private agent chats, asking or delegating to any agent, and discussing a selected item. History opens beside the work. The newest unread reply shows above the message bar. Any message can be pinned to the board.
 
-## Not yet
+**Create.** One sheet beside the rail: document, image, plan, folder, channel, agent, project.
 
-Real accounts, hosting, file uploads, images, search, undo, and the October prototype's richer canvas (pins, plans, image drops). See `docs/DECISIONS.md` for what was deliberately cut.
+## Known gaps
+
+- No live model in the preview; scripted replies only. A Claude runtime is not written yet.
+- Board images are stored inline and resent with every update; fine locally, not for production.
+- Board arrangement is shared by everyone in a project; per-person arrangements are not built.
+- No search, undo, file uploads other than images, real accounts or hosting.
+- Documents edit as Markdown text, not a rich editor. No sheets, slides or browser surfaces.
+- Agents cannot be retired, and goals cannot be reordered.
+- The graph shows one space at a time and only folder containment, not links between items.
 
 ## Checks
 
-From `workstation/`: `npm run typecheck`, `npm run format:check`, `npm test`, `npm run build && npm run test:e2e`. CI runs all of them. Set `CHROMIUM_PATH` to run the browser test with an existing Chromium.
+From `workstation/`: `npm run typecheck`, `npm run format:check`, `npm test`, `npm run build && npm run test:e2e`. Set `CHROMIUM_PATH` to run the browser test with an existing Chromium.

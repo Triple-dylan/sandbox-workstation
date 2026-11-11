@@ -1,15 +1,64 @@
+import { nameStyle } from '../agents/Character.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FileText, GripVertical, Lock, MessageSquareText, Trash2, Users } from 'lucide-react';
+import {
+  FileText,
+  GripVertical,
+  ListChecks,
+  ListPlus,
+  Lock,
+  MessageSquareText,
+  Pin,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
-import type { Placement, Resource } from '../../../shared/types.ts';
-import { GRID, fits, placeNote, snap } from './layout.ts';
+import type { PinBody, Placement, Resource, Snapshot } from '../../../shared/types.ts';
+import { GRID, fits, freeSpot, placeNote, snap } from './layout.ts';
+import { readImage } from './image.ts';
+import { PlanList } from '../plan/Plan.tsx';
+import { conversationLabel } from '../conversations/audience.ts';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
 
 type Draft = { placement: Placement; resourceId: string | null; text: string };
 
 /** Last measured canvas size, so other surfaces can place items into a free spot. */
 export const canvasBounds = { width: 960, height: 720 };
+
+/** A free place on a space's board for something new of the given size. */
+export function boardSpot(s: Snapshot, spaceId: string, size: { width: number; height: number }) {
+  const others = s.resources
+    .filter((r) => r.spaceId === spaceId && r.placement)
+    .map((r) => r.placement!);
+  return (
+    freeSpot(size, canvasBounds, others) ??
+    freeSpot(size, { width: canvasBounds.width, height: canvasBounds.height * 3 }, others)
+  );
+}
+
+/** Adds a picture to the board, sized to its own shape. */
+export async function addImage(
+  s: Snapshot,
+  spaceId: string,
+  file: Blob,
+  at?: { x: number; y: number },
+) {
+  const image = await readImage(file);
+  const width = 288;
+  const height = Math.max(96, Math.ceil(((image.height / image.width) * width) / GRID) * GRID);
+  const others = s.resources
+    .filter((r) => r.spaceId === spaceId && r.placement)
+    .map((r) => r.placement!);
+  const wanted = at && { x: Math.max(0, snap(at.x)), y: Math.max(0, snap(at.y)), width, height };
+  const placement =
+    wanted && fits(wanted, { width: 1e6, height: 1e6 }, others)
+      ? wanted
+      : boardSpot(s, spaceId, { width, height });
+  if (!placement) throw new Error('There is no room on the board for this picture.');
+  return api<Resource>('/resources', {
+    body: { spaceId, kind: 'image', title: 'Image', body: image.dataUrl, placement },
+  });
+}
 
 export function Canvas() {
   const { s, space, ui, setUi, run } = useWorkspace();
@@ -78,6 +127,17 @@ export function Canvas() {
     if (!placement) return;
     setDraft({ placement, resourceId: null, text: '' });
   };
+  const point = (clientX: number, clientY: number) => {
+    const rect = stage.current!.getBoundingClientRect();
+    return {
+      x: clientX - rect.left + stage.current!.scrollLeft,
+      y: clientY - rect.top + stage.current!.scrollTop,
+    };
+  };
+  const dropImages = (files: FileList | File[], at?: { x: number; y: number }) => {
+    for (const file of files)
+      if (file.type.startsWith('image/')) void run(() => addImage(s, space.id, file, at));
+  };
   const onStageKey = (e: React.KeyboardEvent) => {
     if (e.target !== stage.current || e.key !== 'Enter') return;
     e.preventDefault();
@@ -135,6 +195,19 @@ export function Canvas() {
       onPointerDown={onStagePointerDown}
       onClick={onStageClick}
       onKeyDown={onStageKey}
+      onPaste={(e) => {
+        if ((e.target as Element).tagName === 'TEXTAREA' && !e.clipboardData.files.length) return;
+        if (e.clipboardData.files.length) {
+          e.preventDefault();
+          dropImages(e.clipboardData.files);
+        }
+      }}
+      onDragOver={(e) => e.dataTransfer.types.includes('Files') && e.preventDefault()}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        dropImages(e.dataTransfer.files, point(e.clientX, e.clientY));
+      }}
     >
       {items.length === 0 && !draft && <p className="canvas-hint">Click anywhere to write</p>}
       {items.map((item) => {
@@ -254,7 +327,7 @@ function CanvasItem({
   bounds: { width: number; height: number };
   blockers: Placement[];
 }) {
-  const { s, space, setUi, run, user, discuss, openResource } = useWorkspace();
+  const { s, space, setUi, run, user, discuss, openConversation } = useWorkspace();
   const activeJobs = s.jobs.filter(
     (j) =>
       j.targetResourceId === item.id &&
@@ -337,7 +410,7 @@ function CanvasItem({
           </button>
         )}
       </div>
-      {item.kind === 'note' ? (
+      {item.kind === 'note' && (
         <NoteText
           initial={item.body}
           remote={editing ? undefined : item.body}
@@ -348,8 +421,14 @@ function CanvasItem({
           onCommit={commit}
           label={`Note${item.visibility === 'private' ? ' (private)' : ''}`}
         />
-      ) : (
-        <button className="doc-card" onClick={() => openResource(item.id)}>
+      )}
+      {item.kind === 'doc' && (
+        <button
+          className="doc-card"
+          onClick={() =>
+            setUi({ readerId: item.id, selectedId: item.id, agentId: null, wide: true })
+          }
+        >
           <FileText size={15} />
           <strong>{item.title}</strong>
           <span>
@@ -362,6 +441,16 @@ function CanvasItem({
           </span>
         </button>
       )}
+      {item.kind === 'image' && <img className="board-image" src={item.body} alt={item.title} />}
+      {item.kind === 'pin' && <PinCard item={item} onOpen={openConversation} />}
+      {item.kind === 'plan' && (
+        <section className="plan-card" aria-label="Plan">
+          <header>
+            <ListChecks size={15} /> <strong>Plan</strong>
+          </header>
+          <PlanList spaceId={item.spaceId} />
+        </section>
+      )}
       {(agents.length > 0 || viewers.length > 0 || editor) && (
         <div className="item-presence">
           {agents.map((a) => (
@@ -373,7 +462,7 @@ function CanvasItem({
             </span>
           ))}
           {editor && !viewers.some((v) => v.id === editor.id) && (
-            <span className="item-edited" style={{ color: editor.color }}>
+            <span className="item-edited" style={nameStyle(editor.color)}>
               {editor.name} edited
             </span>
           )}
@@ -385,6 +474,61 @@ function CanvasItem({
         </span>
       )}
     </div>
+  );
+}
+
+function PinCard({ item, onOpen }: { item: Resource; onOpen: (conversationId: string) => void }) {
+  const { s, user, run, notify } = useWorkspace();
+  let pin: PinBody | null = null;
+  try {
+    pin = JSON.parse(item.body) as PinBody;
+  } catch {
+    pin = null;
+  }
+  if (!pin) return null;
+  // The message itself, where it can still be read; the stored quote otherwise.
+  const live = s.messages.find((m) => m.id === pin.messageId);
+  const author = user(live?.authorId ?? pin.authorId);
+  const conversation = s.conversations.find((c) => c.id === pin.conversationId);
+  const already = s.goals.some(
+    (g) => g.spaceId === item.spaceId && g.sourceMessageId === pin.messageId,
+  );
+  return (
+    <section className="pin-card" aria-label="Pinned message">
+      <header>
+        <Pin size={13} />
+        <strong style={nameStyle(author?.kind === 'human' ? author.color : undefined)}>
+          {author?.name ?? 'Someone'}
+        </strong>
+        <small>
+          {conversation ? `from ${conversationLabel(s, conversation).label}` : 'pinned'}
+        </small>
+      </header>
+      <p>{live?.text ?? pin.quote}</p>
+      <footer>
+        {conversation && (
+          <button onClick={() => onOpen(conversation.id)}>
+            <MessageSquareText size={12} /> Open
+          </button>
+        )}
+        <button
+          disabled={already}
+          onClick={() =>
+            void run(() =>
+              api('/goals', {
+                body: {
+                  spaceId: item.spaceId,
+                  title: (live?.text ?? pin.quote).slice(0, 200),
+                  sourceMessageId: pin.messageId,
+                },
+              }),
+            ).then((done) => done && notify('Added to the plan.'))
+          }
+        >
+          <ListPlus size={12} /> {already ? 'In the plan' : 'Add to plan'}
+        </button>
+      </footer>
+    </section>
   );
 }
 

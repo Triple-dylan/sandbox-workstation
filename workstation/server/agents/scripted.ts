@@ -76,6 +76,17 @@ export const scriptedRuntime: AgentRuntime = {
       if (!related.length) return { skip: true };
       return { reply: `This may help: ${related.map((r) => `**${r.title}**`).join(', ')}.` };
     }
+    const newAgent = text.match(
+      /\b(?:create|make|add|set up|spin up)\s+(?:a |an |another )?(?:new )?agent\b(?:\s+(?:called|named))?\s*[:“"']?([^"”'\n,.]*?)["”']?(?:\s*(?:,|\.)?\s*(?:to|for|that|who)\s+([^\n]+))?$/i,
+    );
+    if (newAgent) {
+      const name = (newAgent[1] || '').trim() || 'New agent';
+      const purpose = (newAgent[2] || '').trim().replace(/[.!?]+$/, '');
+      return {
+        reply: `I can add an agent called **${name}**${purpose ? ` to ${purpose}` : ''}. A person needs to approve it first.`,
+        proposal: { kind: 'create-agent', title: name, body: purpose },
+      };
+    }
     const create = text.match(
       /\b(?:create|draft|write|make|start)\s+(?:a |an |the )?(?:new )?(?:doc|document|page|brief|plan|note)\b(?:\s+(?:called|titled|named|for|about))?\s*[:“"']?([^"”'\n]*)/i,
     );

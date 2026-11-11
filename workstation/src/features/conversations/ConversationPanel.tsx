@@ -1,5 +1,7 @@
+import { nameStyle } from '../agents/Character.tsx';
 import { useEffect, useRef, useState } from 'react';
-import { Check, CornerDownRight, Quote, X } from 'lucide-react';
+import { Check, CornerDownRight, Pin, Quote, X } from 'lucide-react';
+import { boardSpot } from '../canvas/Canvas.tsx';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../../data/client.ts';
@@ -74,7 +76,24 @@ export function ConversationPanel({ conversationId }: { conversationId: string }
 }
 
 function MessageView({ m }: { m: Message }) {
-  const { s, user, resource, openResource, run } = useWorkspace();
+  const { s, space, user, resource, openResource, run, notify } = useWorkspace();
+  const pinned = s.resources.some(
+    (r) => r.kind === 'pin' && r.spaceId === space.id && r.body.includes(`"${m.id}"`),
+  );
+  const pin = async () => {
+    const placement = boardSpot(s, space.id, { width: 312, height: 144 });
+    const made = await run(() =>
+      api('/resources', {
+        body: {
+          spaceId: space.id,
+          kind: 'pin',
+          body: JSON.stringify({ messageId: m.id }),
+          placement,
+        },
+      }),
+    );
+    if (made) notify(`Pinned to the ${space.name} board.`);
+  };
   const author = user(m.authorId);
   const addressed = user(m.addressedTo);
   const anchored = m.anchor ? resource(m.anchor.resourceId) : undefined;
@@ -86,7 +105,7 @@ function MessageView({ m }: { m: Message }) {
       </span>
       <div className="message-body">
         <header>
-          <strong style={{ color: author?.kind === 'human' ? author.color : undefined }}>
+          <strong style={nameStyle(author?.kind === 'human' ? author.color : undefined)}>
             {author?.name ?? 'Someone'}
           </strong>
           {addressed && (
@@ -96,6 +115,15 @@ function MessageView({ m }: { m: Message }) {
           )}
           {m.runtime && <span className="tag subtle">{m.runtime}</span>}
           <time dateTime={m.createdAt}>{time(m.createdAt)}</time>
+          <button
+            className="message-pin"
+            aria-label={pinned ? 'Pinned to the board' : 'Pin to the board'}
+            title={pinned ? 'Pinned to the board' : 'Pin to the board'}
+            disabled={pinned}
+            onClick={() => void pin()}
+          >
+            <Pin size={12} />
+          </button>
         </header>
         {m.anchor && (
           <button
@@ -113,7 +141,10 @@ function MessageView({ m }: { m: Message }) {
         {approval && (
           <div className="approval">
             <div>
-              <strong>Proposed: {approval.proposal.title}</strong>
+              <strong>
+                {approval.proposal.kind === 'create-agent' ? 'New agent' : 'Proposed'}:{' '}
+                {approval.proposal.title}
+              </strong>
               <small>{approval.proposal.body.slice(0, 160)}</small>
             </div>
             {approval.status === 'pending' ? (

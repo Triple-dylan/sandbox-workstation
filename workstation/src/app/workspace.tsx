@@ -16,6 +16,10 @@ export type Ui = {
   theme: 'system' | 'light' | 'dark';
   /** Navigation sheet beside the rail. */
   nav: boolean;
+  /** The create sheet beside the rail. */
+  create: boolean;
+  /** A document opened from the board fills the work area; the board folds into a shelf. */
+  wide: boolean;
   /** Project tools (agent, orientation, people) at the right edge. */
   tools: boolean;
 };
@@ -31,6 +35,8 @@ export const initialUi: Ui = {
   drafts: {},
   theme: 'system',
   nav: false,
+  create: false,
+  wide: false,
   tools: true,
 };
 

@@ -3,7 +3,7 @@ import { Check, Lock, MessageSquareText, Square, Users, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Character, agentState } from './Character.tsx';
-import { privateAgentConversation } from '../conversations/audience.ts';
+import { myAgents } from '../conversations/audience.ts';
 import type { Job } from '../../../shared/types.ts';
 
 const verb: Record<Job['kind'], string> = {
@@ -36,7 +36,7 @@ export function AgentPanel({ agentId }: { agentId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
   const personal = agent.role === 'personal';
-  const mine = personal ? privateAgentConversation(s) : undefined;
+  const mine = personal ? myAgents(s).find((m) => m.agent.id === agent.id) : undefined;
   const home = personal
     ? mine?.conversation
     : s.conversations.find((c) => c.kind === 'channel' && c.spaceId === agent.spaceId);
@@ -96,7 +96,10 @@ export function AgentPanel({ agentId }: { agentId: string }) {
         {approvals.map((a) => (
           <div key={a.id} className="approval">
             <div>
-              <strong>Wants to create “{a.proposal.title}”</strong>
+              <strong>
+                Wants to {a.proposal.kind === 'create-agent' ? 'add an agent called' : 'create'} “
+                {a.proposal.title}”
+              </strong>
               <small>{a.proposal.body.replace(/[#*_`]/g, '').slice(0, 140)}</small>
             </div>
             <div className="approval-actions">
@@ -178,6 +181,20 @@ export function AgentPanel({ agentId }: { agentId: string }) {
           <span>Name</span>
           <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
         </label>
+        <div className="agent-hues" role="radiogroup" aria-label="Colour">
+          {[20, 60, 110, 160, 200, 240, 280, 330].map((hue) => (
+            <button
+              key={hue}
+              role="radio"
+              aria-checked={Math.abs((agent.character?.hue ?? -99) - hue) < 20}
+              aria-label={`Colour ${hue}`}
+              style={{ background: `hsl(${hue} 42% 52%)` }}
+              onClick={() =>
+                void run(() => api(`/agents/${agent.id}`, { method: 'PATCH', body: { hue } }))
+              }
+            />
+          ))}
+        </div>
         <label>
           <span>What it is for</span>
           <input

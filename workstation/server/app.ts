@@ -197,6 +197,43 @@ export function createApp(options: AppOptions) {
       store.markRead(me.id, str('conversationId'));
       return send(res, 200, { ok: true });
     }
+    if (path === '/api/agents' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.newAgent(me.id, {
+          name: str('name'),
+          purpose: str('purpose'),
+          instructions: str('instructions'),
+          spaceId: str('spaceId') || null,
+        }),
+      );
+    if (path === '/api/goals' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.createGoal(me.id, {
+          spaceId: str('spaceId'),
+          title: str('title'),
+          sourceMessageId: str('sourceMessageId') || null,
+        }),
+      );
+    if (segments[0] === 'goals' && segments[1] && method === 'PATCH')
+      return send(
+        res,
+        200,
+        store.updateGoal(me.id, segments[1], {
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...('ownerId' in input ? { ownerId: input.ownerId ? String(input.ownerId) : null } : {}),
+          ...('agentId' in input ? { agentId: input.agentId ? String(input.agentId) : null } : {}),
+          ...('due' in input ? { due: input.due ? String(input.due) : null } : {}),
+          ...(typeof input.done === 'boolean' ? { done: input.done } : {}),
+        }),
+      );
+    if (segments[0] === 'goals' && segments[1] && method === 'DELETE') {
+      store.deleteGoal(me.id, segments[1]);
+      return send(res, 200, { ok: true });
+    }
     if (segments[0] === 'agents' && segments[1] && method === 'PATCH')
       return send(
         res,
@@ -205,6 +242,7 @@ export function createApp(options: AppOptions) {
           ...(typeof input.name === 'string' ? { name: input.name } : {}),
           ...(typeof input.purpose === 'string' ? { purpose: input.purpose } : {}),
           ...(typeof input.instructions === 'string' ? { instructions: input.instructions } : {}),
+          ...(typeof input.hue === 'number' ? { hue: input.hue } : {}),
         }),
       );
     if (path === '/api/folders' && method === 'POST')
@@ -223,7 +261,7 @@ export function createApp(options: AppOptions) {
         200,
         store.createResource(me.id, {
           spaceId: str('spaceId'),
-          kind: input.kind === 'doc' ? 'doc' : 'note',
+          kind: (['doc', 'pin', 'image', 'plan'] as const).find((k) => k === input.kind) ?? 'note',
           title: str('title'),
           body: str('body'),
           visibility: input.visibility === 'private' ? 'private' : 'space',

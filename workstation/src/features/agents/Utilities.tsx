@@ -1,5 +1,8 @@
+import { nameStyle } from './Character.tsx';
 import { useState } from 'react';
-import { Check, Compass, Square, UserPlus } from 'lucide-react';
+import { Check, Compass, ListChecks, Square, UserPlus } from 'lucide-react';
+import { PlanList } from '../plan/Plan.tsx';
+import { boardSpot } from '../canvas/Canvas.tsx';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from './Character.tsx';
@@ -26,6 +29,7 @@ export function Utilities() {
   return (
     <div className="utilities">
       <AgentCard />
+      <GoalsCard />
       {space.kind === 'project' && <OrientationCard />}
       {space.kind === 'project' && <PeopleCard />}
     </div>
@@ -56,7 +60,7 @@ function AgentCard() {
       <header>
         <Character agent={agent} size={40} state={state} />
         <div>
-          <h2>{space.kind === 'project' ? agent.name : 'Your agent'}</h2>
+          <h2>{agent.name}</h2>
           <small>
             {stateLine} · {s.runtime.label}
             {s.runtime.model ? ` (${s.runtime.model})` : ''}
@@ -67,7 +71,9 @@ function AgentCard() {
         <ul className="card-list" aria-label="Waiting for approval">
           {approvals.map((a) => (
             <li key={a.id} className="approval-row">
-              <span>Create “{a.proposal.title}”?</span>
+              <span>
+                {a.proposal.kind === 'create-agent' ? 'Add agent' : 'Create'} “{a.proposal.title}”?
+              </span>
               <button
                 className="primary"
                 aria-label={`Approve ${a.proposal.title}`}
@@ -132,6 +138,34 @@ function AgentCard() {
             : 'Only you can see this agent and what you ask it.'}
         </p>
       )}
+    </section>
+  );
+}
+
+function GoalsCard() {
+  const { s, space, setUi, run } = useWorkspace();
+  const total = s.goals.filter((g) => g.spaceId === space.id);
+  const open = total.filter((g) => !g.done).length;
+  const openPlan = async () => {
+    const existing = s.resources.find((r) => r.spaceId === space.id && r.kind === 'plan');
+    if (!existing?.placement) {
+      const placement = boardSpot(s, space.id, { width: 408, height: 312 });
+      await run(() =>
+        api('/resources', { body: { spaceId: space.id, kind: 'plan', body: '', placement } }),
+      );
+    }
+    setUi({ surface: 'canvas', readerId: null, wide: false, selectedId: existing?.id ?? null });
+  };
+  return (
+    <section className="card" aria-label="Goals">
+      <header>
+        <ListChecks size={16} />
+        <h2>Goals</h2>
+        <button className="link" onClick={() => void openPlan()}>
+          {total.length ? `Open plan${open > 4 ? ` · ${open} open` : ''}` : 'Start a plan'}
+        </button>
+      </header>
+      {total.length > 0 && <PlanList spaceId={space.id} compact />}
     </section>
   );
 }
@@ -212,7 +246,7 @@ function PeopleCard() {
                   <Avatar user={m} size={18} />
                   <i className="presence-dot on" />
                 </span>
-                <span className="truncate" style={{ color: m.color }}>
+                <span className="truncate" style={nameStyle(m.color)}>
                   {m.name} (you)
                 </span>
               </li>
@@ -230,7 +264,7 @@ function PeopleCard() {
                 <Avatar user={m} size={18} />
                 <i className={`presence-dot ${p ? 'on' : ''}`} />
               </span>
-              <span className="truncate" style={{ color: m.color }}>
+              <span className="truncate" style={nameStyle(m.color)}>
                 {m.name}
               </span>
               <small>{p ? (where ? `on ${where}` : 'online') : 'away'}</small>
