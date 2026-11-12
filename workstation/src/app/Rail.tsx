@@ -157,28 +157,6 @@ export function Rail() {
         >
           <Plus size={18} />
         </button>
-        <hr />
-        {roster.map((agent) => (
-          <button
-            key={agent.id}
-            className="rail-agent"
-            aria-label={`${agent.name}, ${agent.role === 'personal' ? 'private to you' : 'shared with this project'}`}
-            title={`${agent.name} · ${agent.role === 'personal' ? 'private to you' : 'shared'}`}
-            aria-pressed={ui.agentId === agent.id}
-            onClick={() =>
-              setUi({
-                readerId: null,
-                wide: false,
-                agentId: ui.agentId === agent.id ? null : agent.id,
-              })
-            }
-          >
-            <Character agent={agent} size={22} state={agentState(agent.id, s.jobs)} />
-            {agent.role === 'personal' && (
-              <Lock className="rail-private" size={9} aria-hidden="true" />
-            )}
-          </button>
-        ))}
         <span className="rail-gap" />
         <button
           aria-label="Project tools"

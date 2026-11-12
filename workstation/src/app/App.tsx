@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Lock, Users } from 'lucide-react';
 import { api, useSession } from '../data/client.ts';
 import type { Snapshot } from '../../shared/types.ts';
 import { Join } from './Join.tsx';
@@ -167,6 +168,16 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           ) : (
             <Graph />
           )}
+          <button
+            className={`where ${space.kind}`}
+            aria-label={`${space.name}, ${space.kind === 'personal' ? 'only you can see this space' : 'shared space'}. Switch space`}
+            title="Switch space"
+            onClick={() => setUi({ nav: !ui.nav, create: false, find: false })}
+          >
+            {space.kind === 'personal' ? <Lock size={12} /> : <Users size={12} />}
+            <strong>{space.name}</strong>
+            <span>{space.kind === 'personal' ? 'Only you' : 'Shared'}</span>
+          </button>
           <div className="dock">
             {notice ? (
               <div className="notice" role="status">

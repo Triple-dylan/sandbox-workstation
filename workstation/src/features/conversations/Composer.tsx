@@ -1,16 +1,18 @@
 import { nameStyle } from '../agents/Character.tsx';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, ChevronDown, X } from 'lucide-react';
+import { ArrowUp, ChevronDown, Lock, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { Conversation, Message } from '../../../shared/types.ts';
-import { Actor } from '../agents/Character.tsx';
+import { Actor, Character, agentState } from '../agents/Character.tsx';
 import {
   audienceKey,
   audienceOptions,
   defaultAudience,
   describeAudience,
   conversationLabel,
+  myAgents,
+  projectAgentsOf,
   stillValid,
   type Audience,
 } from './audience.ts';
@@ -58,6 +60,26 @@ export function Composer() {
     !(sharedAsk && about.visibility === 'private')
       ? about
       : null;
+  // The agents you can talk to here, always in view. Choosing one is choosing who you talk to.
+  const channel = s.conversations.find((c) => c.kind === 'channel' && c.spaceId === space.id);
+  const roster = [
+    ...(channel
+      ? projectAgentsOf(s, space.id).map((agent) => ({
+          agent,
+          audience: { kind: 'instruct', conversationId: channel.id, agentId: agent.id } as Audience,
+        }))
+      : []),
+    ...myAgents(s).map((m) => ({
+      agent: m.agent,
+      audience: {
+        kind: 'private-agent',
+        conversationId: m.conversation.id,
+        agentId: m.agent.id,
+      } as Audience,
+    })),
+  ];
+  const talkingTo =
+    audience && 'agentId' in audience ? (audience as { agentId: string }).agentId : null;
   const choose = (a: Audience) => {
     setUi((old) => ({ audience: { ...old.audience, [space.id]: a } }));
     setMenuOpen(false);
@@ -180,6 +202,32 @@ export function Composer() {
             ))}
           </div>
         )}
+        {roster.length > 0 && (
+          <div className="agent-dock" role="group" aria-label="Agents here">
+            {roster.map(({ agent, audience: target }) => {
+              const active = talkingTo === agent.id;
+              return (
+                <button
+                  type="button"
+                  key={agent.id}
+                  className={active ? 'active' : ''}
+                  aria-pressed={active}
+                  aria-label={`${active ? 'Open' : 'Talk to'} ${agent.name}${agent.role === 'personal' ? ', private to you' : ''}`}
+                  title={`${agent.name} · ${agent.role === 'personal' ? 'private to you' : 'shared'}${active ? ' · click to open' : ''}`}
+                  onClick={() =>
+                    active
+                      ? setUi({ agentId: agent.id, readerId: null, wide: false })
+                      : choose(target)
+                  }
+                >
+                  <Character agent={agent} size={20} state={agentState(agent.id, s.jobs)} />
+                  {active && <span>{agent.name}</span>}
+                  {agent.role === 'personal' && <Lock size={9} aria-hidden="true" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="composer-row">
         <textarea
@@ -207,7 +255,7 @@ export function Composer() {
 
 /** The newest unread message from someone else, shown above the composer while no conversation is open. */
 export function Peek() {
-  const { s, ui, user, openConversation } = useWorkspace();
+  const { s, ui, user, openConversation, run } = useWorkspace();
   if (ui.conversationId && !ui.nav) return null;
   const latest = s.messages
     .filter((m) => m.authorId !== s.me.id && m.createdAt > (s.lastRead[m.conversationId] ?? ''))
@@ -216,21 +264,31 @@ export function Peek() {
   const author = latest && user(latest.authorId);
   if (!latest || !conversation || !author) return null;
   return (
-    <button className="peek" onClick={() => openConversation(conversation.id)}>
-      <Actor user={author} jobs={s.jobs} size={26} />
-      <span className="peek-body">
-        <span className="peek-head">
-          <strong style={nameStyle(author.kind === 'human' ? author.color : undefined)}>
-            {author.name}
-          </strong>
-          <small>
-            {conversation.kind === 'dm' || conversation.kind === 'agent-private'
-              ? 'to you'
-              : `in ${conversationLabel(s, conversation).label}`}
-          </small>
+    <div className="peek">
+      <button className="peek-open" onClick={() => openConversation(conversation.id)}>
+        <Actor user={author} jobs={s.jobs} size={26} />
+        <span className="peek-body">
+          <span className="peek-head">
+            <strong style={nameStyle(author.kind === 'human' ? author.color : undefined)}>
+              {author.name}
+            </strong>
+            <small>
+              {conversation.kind === 'dm' || conversation.kind === 'agent-private'
+                ? 'to you'
+                : `in ${conversationLabel(s, conversation).label}`}
+            </small>
+          </span>
+          <span className="peek-text">{latest.text.replace(/[#*_`>]/g, '').slice(0, 220)}</span>
         </span>
-        <span className="peek-text">{latest.text.replace(/[#*_`>]/g, '').slice(0, 220)}</span>
-      </span>
-    </button>
+      </button>
+      <button
+        className="peek-dismiss"
+        aria-label="Mark as read"
+        title="Mark as read"
+        onClick={() => void run(() => api('/reads', { body: { conversationId: conversation.id } }))}
+      >
+        <X size={13} />
+      </button>
+    </div>
   );
 }

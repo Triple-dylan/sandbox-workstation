@@ -14,6 +14,9 @@ const ready = (async () => {
   }
 })();
 let unavailable = false;
+/** While the example project is being created nobody has asked for anything, so nothing is sent. */
+let quietUntil = 0;
+export const stayQuiet = (ms: number) => (quietUntil = Date.now() + ms);
 
 export const claudeRuntime: AgentRuntime = {
   id: 'claude',
@@ -21,6 +24,7 @@ export const claudeRuntime: AgentRuntime = {
   async run(task) {
     // Routine upkeep fires on a timer after edits; that must not spend the viewer's usage.
     if (task.kind === 'maintenance') return scriptedRuntime.run(task);
+    if (task.kind === 'proactive' && Date.now() < quietUntil) return { skip: true };
     await ready;
     if (!sample || unavailable) throw new BudgetExceeded('Claude is not available in this view.');
     try {

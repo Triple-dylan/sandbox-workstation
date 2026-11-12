@@ -416,10 +416,14 @@ function CanvasItem({
     .filter((p) => p.online && p.resourceId === item.id)
     .map((p) => user(p.userId)!)
     .filter(Boolean);
-  const editor =
-    item.updatedBy !== s.me.id && Date.now() - Date.parse(item.updatedAt) < 8000
-      ? user(item.updatedBy)
-      : undefined;
+  const fresh = item.updatedBy !== s.me.id && Date.now() - Date.parse(item.updatedAt) < 8000;
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!fresh) return;
+    const timer = setTimeout(() => tick((n) => n + 1), 8200);
+    return () => clearTimeout(timer);
+  }, [fresh, item.updatedAt]);
+  const editor = fresh ? user(item.updatedBy) : undefined;
   const save = useRef<ReturnType<typeof setTimeout> | null>(null);
   const commit = (text: string, height: number) => {
     if (save.current) clearTimeout(save.current);

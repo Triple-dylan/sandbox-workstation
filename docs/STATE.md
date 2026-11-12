@@ -16,11 +16,15 @@ _Updated 2026-11-11._ What is being built and why is in `docs/PLAN.md`.
 
 **Graph.** The CampaignOS/DropDeployment constellation: the space pinned at the centre, folders on a tilted ring, files orbiting their folder, gentle simmer. Click a folder to focus it and dim the rest; click a document to read it beside the graph. Private items are dashed, with a legend. Dotted relations join items that mention each other. An Everything view shows every space you can see as a hub, private ones dashed; clicking a space steps into it. People and working agents appear at the item they are touching.
 
-**Agents.** A roster: shared project agents and private personal agents, each a `thinking-orbs` orb in its own colour whose animation is its real job state. Selecting one shows its work and what it last said, then its name, colour, purpose and standing instructions, all editable. New agents are made from Create or by asking an agent; a person approves the second route. Agents can also propose documents and plan steps, and can be retired. Asking an agent while an item is selected sends that item along as visible context. Agents keep the project orientation current, may speak unprompted in shared conversations, and need approval for consequential shared changes.
+**Where you are.** A pill at the bottom left always names the space and says whether it is shared or only yours; it opens the space switcher.
+
+**Agents.** They live with the message bar: every agent you can talk to here sits at its right edge, and choosing one chooses who you are talking to. A roster: shared project agents and private personal agents, each a `thinking-orbs` orb in its own colour whose animation is its real job state. Selecting one shows its work and what it last said, then its name, colour, purpose and standing instructions, all editable. New agents are made from Create or by asking an agent; a person approves the second route. Agents can also propose documents and plan steps, and can be retired. Asking an agent while an item is selected sends that item along as visible context. Agents keep the project orientation current, may speak unprompted in shared conversations, and need approval for consequential shared changes.
 
 **Plan and goals.** Ordered steps with an owner, an agent and a date, reorderable. The board's plan and the Goals card are the same records. A pinned message can become a step and keeps its link to the message.
 
 **Conversation.** One message bar with an explicit audience: channels, threads, direct messages, private agent chats, asking or delegating to any agent, and discussing a selected item. History opens beside the work. The newest unread reply shows above the message bar. Any message can be pinned to the board.
+
+**Right-hand cards.** Only what is waiting for you (approvals), goals, the orientation and who is here. No activity logs.
 
 **Create.** One sheet beside the rail: document, image, plan, folder, channel, agent, project.
 

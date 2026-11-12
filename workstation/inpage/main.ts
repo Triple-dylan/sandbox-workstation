@@ -4,10 +4,10 @@
 import { ready } from './shims/sqlite.ts';
 import { handler } from './shims/node.ts';
 import { createApp } from '../server/app.ts';
-import { claudeRuntime } from './claude-runtime.ts';
+import { claudeRuntime, stayQuiet } from './claude-runtime.ts';
 import { seedExample } from './example.ts';
 
-const TOKEN = 'sw-inpage-session-v6';
+const TOKEN = 'sw-inpage-session-v8';
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);
@@ -91,7 +91,10 @@ globalThis.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
     return done.then((response) => {
       try {
         const me = app.store.userForToken(token);
-        if (response.ok && me) seedExample(app.store, me.id);
+        if (response.ok && me) {
+          stayQuiet(4000);
+          seedExample(app.store, me.id);
+        }
       } catch (error) {
         console.warn('Example project was not created', error);
       }
