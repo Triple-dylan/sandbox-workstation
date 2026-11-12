@@ -230,6 +230,12 @@ export function createApp(options: AppOptions) {
           ...(typeof input.done === 'boolean' ? { done: input.done } : {}),
         }),
       );
+    if (segments[0] === 'goals' && segments[1] && segments[2] === 'move' && method === 'POST') {
+      store.moveGoal(me.id, segments[1], input.direction === 'up' ? 'up' : 'down');
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'agents' && segments[1] && segments[2] === 'retire' && method === 'POST')
+      return send(res, 200, store.retireAgent(me.id, segments[1]));
     if (segments[0] === 'goals' && segments[1] && method === 'DELETE') {
       store.deleteGoal(me.id, segments[1]);
       return send(res, 200, { ok: true });

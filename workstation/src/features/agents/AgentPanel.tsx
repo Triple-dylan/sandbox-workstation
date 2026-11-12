@@ -1,3 +1,4 @@
+import { proposalText } from './proposal.ts';
 import { useEffect, useState } from 'react';
 import { Check, Lock, MessageSquareText, Square, Users, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
@@ -28,6 +29,7 @@ export function AgentPanel({ agentId }: { agentId: string }) {
   const [purpose, setPurpose] = useState(agent.purpose ?? '');
   const [instructions, setInstructions] = useState(agent.instructions ?? '');
   const [saved, setSaved] = useState(false);
+  const [retiring, setRetiring] = useState(false);
   useEffect(() => {
     setName(agent.name);
     setPurpose(agent.purpose ?? '');
@@ -96,10 +98,7 @@ export function AgentPanel({ agentId }: { agentId: string }) {
         {approvals.map((a) => (
           <div key={a.id} className="approval">
             <div>
-              <strong>
-                Wants to {a.proposal.kind === 'create-agent' ? 'add an agent called' : 'create'} “
-                {a.proposal.title}”
-              </strong>
+              <strong>{proposalText(a.proposal).title}</strong>
               <small>{a.proposal.body.replace(/[#*_`]/g, '').slice(0, 140)}</small>
             </div>
             <div className="approval-actions">
@@ -215,7 +214,7 @@ export function AgentPanel({ agentId }: { agentId: string }) {
         </label>
         <p className="card-empty">
           {personal
-            ? 'It sees only what you can see, and only you see what it does.'
+            ? `It sees what you can see (${s.spaces.map((x) => x.name).join(', ')}), and only you see what it says and does.`
             : 'It sees what is shared with the project, never private items. Shared changes it proposes need a person to approve them.'}{' '}
           Replies come from the {s.runtime.label.toLowerCase()}
           {s.runtime.model ? ` (${s.runtime.model})` : ''}.
@@ -225,6 +224,18 @@ export function AgentPanel({ agentId }: { agentId: string }) {
             Save changes
           </button>
           {saved && <span role="status">Saved</span>}
+          <button
+            className="agent-retire"
+            onClick={() => {
+              if (!retiring) return setRetiring(true);
+              void run(() => api(`/agents/${agent.id}/retire`, { body: {} })).then(
+                (done) => done && setUi({ agentId: null }),
+              );
+            }}
+            onBlur={() => setRetiring(false)}
+          >
+            {retiring ? 'Retire now? Click again' : 'Retire'}
+          </button>
         </div>
       </div>
     </section>

@@ -87,6 +87,16 @@ export const scriptedRuntime: AgentRuntime = {
         proposal: { kind: 'create-agent', title: name, body: purpose },
       };
     }
+    const step = text.match(
+      /\b(?:add|put)\s+(?:a |another )?(?:step|goal|task|item)\b(?:\s+(?:to (?:the )?plan|called|for|to))?\s*[:“"']?([^"”'\n]+)/i,
+    );
+    if (step && step[1].trim().length > 2) {
+      const title = step[1].trim().replace(/[.!?]+$/, '');
+      return {
+        reply: `I can add **${title}** to the plan once someone approves it.`,
+        proposal: { kind: 'add-step', title, body: '' },
+      };
+    }
     const create = text.match(
       /\b(?:create|draft|write|make|start)\s+(?:a |an |the )?(?:new )?(?:doc|document|page|brief|plan|note)\b(?:\s+(?:called|titled|named|for|about))?\s*[:“"']?([^"”'\n]*)/i,
     );

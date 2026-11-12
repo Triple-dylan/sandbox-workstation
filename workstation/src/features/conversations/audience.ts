@@ -27,19 +27,15 @@ const channelsOf = (s: Snapshot, spaceId: Id) =>
   s.conversations.filter((c) => c.kind === 'channel' && c.spaceId === spaceId);
 
 export function privateAgentConversation(s: Snapshot) {
-  const agent = s.users.find(
-    (u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id,
-  );
-  const conversation =
-    agent &&
-    s.conversations.find((c) => c.kind === 'agent-private' && c.participantIds.includes(agent.id));
-  return agent && conversation ? { agent, conversation } : null;
+  return myAgents(s)[0] ?? null;
 }
 
 /** Every private agent of mine, each with its own private conversation. */
 export function myAgents(s: Snapshot) {
   return s.users
-    .filter((u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id)
+    .filter(
+      (u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id && !u.retired,
+    )
     .flatMap((agent) => {
       const conversation = s.conversations.find(
         (c) => c.kind === 'agent-private' && c.participantIds.includes(agent.id),
@@ -49,11 +45,13 @@ export function myAgents(s: Snapshot) {
 }
 
 export function projectAgentsOf(s: Snapshot, spaceId: Id): User[] {
-  return s.users.filter((u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === spaceId);
+  return s.users.filter(
+    (u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === spaceId && !u.retired,
+  );
 }
 
 export function projectAgentOf(s: Snapshot, spaceId: Id): User | undefined {
-  return s.users.find((u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === spaceId);
+  return projectAgentsOf(s, spaceId)[0];
 }
 
 export function audienceOptions(

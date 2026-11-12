@@ -1,3 +1,4 @@
+import { proposalText } from './proposal.ts';
 import { nameStyle } from './Character.tsx';
 import { useState } from 'react';
 import { Check, Compass, ListChecks, Square, UserPlus } from 'lucide-react';
@@ -71,9 +72,7 @@ function AgentCard() {
         <ul className="card-list" aria-label="Waiting for approval">
           {approvals.map((a) => (
             <li key={a.id} className="approval-row">
-              <span>
-                {a.proposal.kind === 'create-agent' ? 'Add agent' : 'Create'} “{a.proposal.title}”?
-              </span>
+              <span>{proposalText(a.proposal).ask}</span>
               <button
                 className="primary"
                 aria-label={`Approve ${a.proposal.title}`}

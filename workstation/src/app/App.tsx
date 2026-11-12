@@ -57,6 +57,16 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     return () => query.removeEventListener('change', apply);
   }, [ui.theme]);
   useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setUi((old) => ({ find: !old.find, nav: false, create: false }));
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [setUi]);
+  useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(''), 5000);
     return () => clearTimeout(timer);
@@ -115,7 +125,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       notify: setNotice,
       run,
       openConversation: (id) => {
-        setUi({ conversationId: id, nav: false, create: false });
+        setUi({ conversationId: id, nav: false, create: false, find: false });
         void api('/reads', { body: { conversationId: id } }).then(refresh, () => {});
       },
       openResource: (id) => setUi({ readerId: id, selectedId: id, agentId: null, wide: false }),
@@ -135,7 +145,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     <WorkspaceContext.Provider value={workspace}>
       <div className="shell">
         <Rail />
-        {!ui.nav && !ui.create && ui.conversationId && (
+        {!ui.nav && !ui.create && !ui.find && ui.conversationId && (
           <ConversationPanel key={ui.conversationId} conversationId={ui.conversationId} />
         )}
         <main className="surface" aria-label={ui.surface === 'canvas' ? 'Canvas' : 'Graph'}>

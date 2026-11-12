@@ -53,7 +53,9 @@ const toUser = (r: Row): User => ({
   ...(r.owner_id ? { ownerId: r.owner_id } : {}),
   ...(r.space_id ? { spaceId: r.space_id } : {}),
   ...(r.role ? { role: r.role } : {}),
-  ...(r.kind === 'agent' ? { purpose: r.purpose ?? '', instructions: r.instructions ?? '' } : {}),
+  ...(r.kind === 'agent'
+    ? { purpose: r.purpose ?? '', instructions: r.instructions ?? '', retired: !!r.retired }
+    : {}),
 });
 const toResource = (r: Row): Resource => ({
   id: r.id,
@@ -254,6 +256,15 @@ export class Store {
     this.changed();
     return this.user(agentId)!;
   }
+  /** Retiring stops new work and ongoing responsibilities; the agent's history stays readable. */
+  retireAgent(actorId: Id, agentId: Id) {
+    this.updateAgent(actorId, agentId, {});
+    this.run('update users set retired = 1 where id = ?', agentId);
+    this.run('update assignments set active = 0 where agent_id = ?', agentId);
+    this.run('update goals set agent_id = null where agent_id = ?', agentId);
+    this.changed();
+    return this.user(agentId)!;
+  }
   createSession(userId: Id) {
     if (!this.user(userId) || this.user(userId)!.kind !== 'human')
       throw new InputError('Unknown person.');
@@ -361,7 +372,7 @@ export class Store {
   }
   projectAgent(spaceId: Id) {
     const row = this.get(
-      `select * from users where kind = 'agent' and role = 'project' and space_id = ? order by created_at, rowid`,
+      `select * from users where kind = 'agent' and role = 'project' and space_id = ? and retired = 0 order by created_at, rowid`,
       spaceId,
     );
     return row ? toUser(row) : null;
@@ -369,7 +380,7 @@ export class Store {
   /** Every agent that belongs to a project; the first is the one that keeps its context current. */
   projectAgents(spaceId: Id) {
     return this.all(
-      `select * from users where kind = 'agent' and role = 'project' and space_id = ? order by created_at, rowid`,
+      `select * from users where kind = 'agent' and role = 'project' and space_id = ? and retired = 0 order by created_at, rowid`,
       spaceId,
     ).map(toUser);
   }
@@ -405,6 +416,12 @@ export class Store {
     this.changed();
     return this.user(agentId)!;
   }
+  membersOf(spaceId: Id) {
+    return this.all(
+      'select u.name, u.kind from members m join users u on u.id = m.user_id where m.space_id = ?',
+      spaceId,
+    ).map((r) => ({ name: r.name as string, kind: r.kind as 'human' | 'agent' }));
+  }
   personalSpace(userId: Id) {
     const row = this.get(`select id from spaces where kind = 'personal' and owner_id = ?`, userId);
     return row ? (row.id as Id) : null;
@@ -416,7 +433,7 @@ export class Store {
   }
   personalAgent(userId: Id) {
     const row = this.get(
-      `select * from users where kind = 'agent' and role = 'personal' and owner_id = ? order by created_at, rowid`,
+      `select * from users where kind = 'agent' and role = 'personal' and owner_id = ? and retired = 0 order by created_at, rowid`,
       userId,
     );
     return row ? toUser(row) : null;
@@ -761,7 +778,7 @@ export class Store {
     if (conversation.kind === 'agent-private')
       for (const p of conversation.participantIds) {
         const u = this.user(p);
-        if (u?.kind === 'agent') agents.push(u);
+        if (u?.kind === 'agent' && !u.retired) agents.push(u);
       }
     if (
       (conversation.kind === 'channel' || conversation.kind === 'discussion') &&
@@ -980,6 +997,8 @@ export class Store {
       });
       resultResourceId = resource.id;
     }
+    if (decision === 'approved' && approval.proposal.kind === 'add-step')
+      this.createGoal(actorId, { spaceId: space.id, title: approval.proposal.title });
     // An agent asked for by conversation joins the roster only once a person approves it.
     if (decision === 'approved' && approval.proposal.kind === 'create-agent')
       this.newAgent(actorId, {
@@ -1103,6 +1122,19 @@ export class Store {
     );
     this.changed();
     return this.goals(row.space_id).find((g) => g.id === goalId)!;
+  }
+  /** Moves a step one place earlier or later in its plan. */
+  moveGoal(actorId: Id, goalId: Id, direction: 'up' | 'down') {
+    const row = this.get('select space_id from goals where id = ?', goalId);
+    if (!row) throw new AccessError('Not available.');
+    this.requireMember(actorId, row.space_id);
+    const order = this.goals(row.space_id);
+    const index = order.findIndex((g) => g.id === goalId);
+    const other = order[index + (direction === 'up' ? -1 : 1)];
+    if (!other) return;
+    this.run('update goals set position = ? where id = ?', other.position, goalId);
+    this.run('update goals set position = ? where id = ?', order[index].position, other.id);
+    this.changed();
   }
   deleteGoal(actorId: Id, goalId: Id) {
     const row = this.get('select space_id from goals where id = ?', goalId);

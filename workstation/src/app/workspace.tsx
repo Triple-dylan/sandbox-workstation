@@ -18,6 +18,10 @@ export type Ui = {
   nav: boolean;
   /** The create sheet beside the rail. */
   create: boolean;
+  /** The find sheet beside the rail. */
+  find: boolean;
+  /** Graph shows this space, or every space you can see. */
+  graphScope: 'space' | 'everything';
   /** A document opened from the board fills the work area; the board folds into a shelf. */
   wide: boolean;
   /** Project tools (agent, orientation, people) at the right edge. */
@@ -36,6 +40,8 @@ export const initialUi: Ui = {
   theme: 'system',
   nav: false,
   create: false,
+  find: false,
+  graphScope: 'space',
   wide: false,
   tools: true,
 };

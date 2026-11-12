@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
-import { NOTES_GROUP, graphOf, type GraphNode } from './tree.ts';
+import { NOTES_GROUP, graphOf, overviewOf, relationsOf, type GraphNode } from './tree.ts';
 import {
   createCampaignOsSimulation,
   enforceHierarchyOrbits,
@@ -38,7 +38,13 @@ const ROOT_LEASH = 46;
 const QUIET_LABELS = 28;
 
 /** Constellation model from CampaignOS: centre pinned, folder hubs on a tilted ring, members orbiting their hub. */
-function build(nodes: GraphNode[], previous: Map<string, { x: number; y: number }>) {
+function build(
+  nodes: GraphNode[],
+  previous: Map<string, { x: number; y: number }>,
+  relations: { source: string; target: string }[] = [],
+  /** Extra room between a hub and its members, for maps with few, long-named hubs. */
+  room = 1,
+) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const children = new Map<string, GraphNode[]>();
   for (const n of nodes)
@@ -107,7 +113,7 @@ function build(nodes: GraphNode[], previous: Map<string, { x: number; y: number 
       const spread = kids.length === 1 ? 0 : (i / (kids.length - 1) - 0.5) * Math.PI * 1.25;
       const hierarchyAngle = outward + spread;
       const hierarchyRadius =
-        STRUCTURAL_MEMBER_DISTANCE +
+        STRUCTURAL_MEMBER_DISTANCE * room +
         p.radius +
         Math.floor(i / 9) * 46 +
         (kids.length > 5 ? (i % 2) * 34 : 0);
@@ -126,6 +132,9 @@ function build(nodes: GraphNode[], previous: Map<string, { x: number; y: number 
   const links: ForceSimLink[] = sim
     .filter((n) => n.data.parentId && byId.has(n.data.parentId))
     .map((n) => ({ source: n.data.parentId!, target: n.id, structural: true }));
+  for (const r of relations)
+    if (made.has(r.source) && made.has(r.target))
+      links.push({ source: r.source, target: r.target, structural: false });
   return { sim, links };
 }
 
@@ -151,18 +160,35 @@ export function Graph() {
     return () => observer.disconnect();
   }, []);
 
+  const everything = ui.graphScope === 'everything' && s.spaces.length > 1;
   const structure = s.resources
-    .filter((r) => r.spaceId === space.id)
+    .filter((r) => everything || r.spaceId === space.id)
     .map((r) => `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}`)
     .join('|');
-  // Rebuild only when the tree's shape changes, not on every edit or presence update.
+  const mentions = everything
+    ? ''
+    : s.resources
+        .filter((r) => r.spaceId === space.id && r.kind !== 'image')
+        .map((r) => r.body.length)
+        .join(',');
+  // Rebuild only when the tree's shape changes, not on every keystroke or presence update.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tree = useMemo(() => graphOf(s, space), [structure, space.id, space.name]);
+  const tree = useMemo(
+    () => (everything ? overviewOf(s) : graphOf(s, space)),
+    [structure, space.id, space.name, everything],
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const relations = useMemo(() => (everything ? [] : relationsOf(s, space)), [structure, mentions]);
+  const rootId = tree.nodes[0].id;
   useEffect(() => {
     setFocus(null);
     places.current.clear();
-  }, [space.id]);
-  const graph = useMemo(() => build(tree.nodes, places.current), [tree]);
+  }, [space.id, everything]);
+  const graph = useMemo(
+    () => build(tree.nodes, places.current, relations, everything ? 1.5 : 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tree, relations],
+  );
 
   useEffect(() => {
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -216,6 +242,13 @@ export function Graph() {
 
   const activate = (n: SimNode) => {
     if (n.data.kind === 'root') return setFocus(null);
+    // In the everything view a space is a doorway: step into it.
+    if (everything && n.data.spaceId && n.data.kind !== 'doc')
+      return setUi({ spaceId: n.data.spaceId, graphScope: 'space', readerId: null });
+    if (everything && n.data.spaceId && n.data.resourceId) {
+      setUi({ spaceId: n.data.spaceId, graphScope: 'space' });
+      return openResource(n.data.resourceId);
+    }
     if (n.data.kind === 'folder' || n.data.kind === 'group')
       return setFocus((f) => (f === n.id ? null : n.id));
     if (!n.data.resourceId) return;
@@ -265,10 +298,10 @@ export function Graph() {
   };
 
   const anchorFor = (resourceId: string | null) =>
-    (resourceId && byId.get(resourceId)) || byId.get(space.id);
+    (resourceId && byId.get(resourceId)) || byId.get(everything ? '' : rootId);
   const working = s.jobs.filter(
     (j) =>
-      j.spaceId === space.id &&
+      (everything || j.spaceId === space.id) &&
       (j.status === 'running' || j.status === 'queued' || j.status === 'awaiting_approval'),
   );
   const visitors = s.presence.filter(
@@ -308,12 +341,12 @@ export function Graph() {
           const far = level(a) === 'far' || level(b) === 'far';
           return (
             <line
-              key={`${a.id}-${b.id}`}
+              key={`${a.id}-${b.id}-${l.structural ? 's' : 'r'}`}
               x1={sx(a)}
               y1={sy(a)}
               x2={sx(b)}
               y2={sy(b)}
-              className={`graph-link ${far ? 'far' : ''} ${b.data.private ? 'is-private' : ''}`}
+              className={`graph-link ${far ? 'far' : ''} ${b.data.private ? 'is-private' : ''} ${l.structural ? '' : 'relation'}`}
             />
           );
         })}
@@ -357,7 +390,7 @@ export function Graph() {
         );
       })}
       {working.map((j, i) => {
-        const n = anchorFor(j.targetResourceId);
+        const n = anchorFor(j.targetResourceId) ?? byId.get(j.spaceId);
         const agent = user(j.agentId);
         if (!n || !agent) return null;
         return (
@@ -385,16 +418,33 @@ export function Graph() {
           </span>
         );
       })}
-      {space.kind === 'project' && (
-        <p className="graph-legend">
-          <span>
-            <i className="legend-shared" /> Shared with {space.name}
-          </span>
-          <span>
-            <i className="legend-private" /> Only you{privateCount ? ` · ${privateCount}` : ''}
-          </span>
-        </p>
+      {s.spaces.length > 1 && (
+        <div className="graph-scope" role="group" aria-label="What the graph shows">
+          <button aria-pressed={!everything} onClick={() => setUi({ graphScope: 'space' })}>
+            {space.name}
+          </button>
+          <button aria-pressed={everything} onClick={() => setUi({ graphScope: 'everything' })}>
+            Everything
+          </button>
+        </div>
       )}
+      <p className="graph-legend">
+        <span>
+          <i className="legend-shared" />{' '}
+          {everything ? 'Shared' : space.kind === 'project' ? `Shared with ${space.name}` : 'Yours'}
+        </span>
+        {(everything || space.kind === 'project') && (
+          <span>
+            <i className="legend-private" /> Only you
+            {!everything && privateCount ? ` · ${privateCount}` : ''}
+          </span>
+        )}
+        {relations.length > 0 && (
+          <span>
+            <i className="legend-relation" /> Mentions
+          </span>
+        )}
+      </p>
     </div>
   );
 }

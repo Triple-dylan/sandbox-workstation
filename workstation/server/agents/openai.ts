@@ -1,3 +1,4 @@
+import { agentInstructions as instructions, readResult } from './prompt.ts';
 import { BudgetExceeded, type AgentResult, type AgentRuntime, type AgentTask } from './runtime.ts';
 
 type Options = {
@@ -9,16 +10,6 @@ type Options = {
   fetch?: typeof fetch;
   baseUrl?: string;
 };
-
-const instructions = `You are an agent inside a shared workstation where people and agents work together.
-Respond with a single JSON object: {"reply": string, "proposal"?: {"kind":"create-doc","title":string,"body":string}, "orientation"?: string, "skip"?: boolean}.
-Rules:
-- Use only the context provided. Never invent people, files, or results.
-- "reply" is a short, useful chat message (markdown allowed).
-- Only include "proposal" when asked to create a document. It will need human approval.
-- For kind "maintenance" or "delegation" about keeping context current, return "orientation": a concise markdown orientation (purpose, shared resources, decisions, open questions, recent discussion) and an empty reply for maintenance.
-- For kind "proactive", set "skip": true unless you have something specific and helpful to add; then reply briefly.
-- Private context you were given is only for the requester; don't suggest sharing it.`;
 
 export function createOpenAIRuntime(options: Options): AgentRuntime {
   const request = options.fetch ?? fetch;
@@ -61,18 +52,7 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
       } catch {
         parsed = { reply: String(data?.choices?.[0]?.message?.content ?? '') };
       }
-      const result: AgentResult = { tokens };
-      if (parsed.skip === true) result.skip = true;
-      if (typeof parsed.reply === 'string' && parsed.reply.trim())
-        result.reply = parsed.reply.slice(0, 6000);
-      if (typeof parsed.orientation === 'string' && parsed.orientation.trim())
-        result.orientation = parsed.orientation.slice(0, 20_000);
-      if (parsed.proposal?.kind === 'create-doc' && typeof parsed.proposal.title === 'string')
-        result.proposal = {
-          kind: 'create-doc',
-          title: parsed.proposal.title.slice(0, 120),
-          body: String(parsed.proposal.body ?? '').slice(0, 20_000),
-        };
+      const result: AgentResult = { ...readResult(parsed), tokens };
       return result;
     },
   };

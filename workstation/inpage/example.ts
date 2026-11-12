@@ -84,7 +84,7 @@ export function seedExample(store, meId: string) {
     jon.id,
     design.id,
     'Signage brief',
-    '# Signage brief\n\nOne A-frame, one table banner. Hand-lettered look, two colours.',
+    '# Signage brief\n\nOne A-frame, one table banner. Hand-lettered look, two colours. Follow the Table layout and use the Glaze names.',
   );
   doc(
     jon.id,
@@ -97,7 +97,7 @@ export function seedExample(store, meId: string) {
     meId,
     money.id,
     'Budget',
-    '# Budget\n\n| Item | Cost |\n| --- | --- |\n| Stall fee | $180 |\n| Clay and glaze | $240 |\n| Packaging | $58 |\n| Signage | $90 |\n| **Total** | **$568** |',
+    '# Budget\n\n| Item | Cost |\n| --- | --- |\n| Stall fee | $180 |\n| Clay and glaze | $240 |\n| Packaging | $58 |\n| Signage | $90 |\n| **Total** | **$568** |\n\nPackaging comes from the Vendor shortlist. Prices are in the Price list.',
     { x: 96, y: 480, width: 288, height: 120 },
   );
   doc(meId, money.id, 'Price list', '# Price list\n\n- Cups: $28\n- Bowls: $36\n- Vases: $60');
@@ -105,7 +105,7 @@ export function seedExample(store, meId: string) {
     maya.id,
     market.id,
     'Dock Street rules',
-    '# Dock Street rules\n\nLoad in from 7am. No open flames. Card payments required.',
+    '# Dock Street rules\n\nLoad in from 7am. No open flames. Card payments required. See the Stall confirmation.',
   );
   doc(
     maya.id,

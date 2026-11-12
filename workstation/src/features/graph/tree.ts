@@ -13,6 +13,8 @@ export type GraphNode = SimulationNodeDatum & {
   role?: Resource['role'];
   /** Direct children, including ones hidden while this node is folded. */
   childCount: number;
+  /** In the everything view: the space this node belongs to, entered when it is clicked. */
+  spaceId?: string;
 };
 export type GraphLink = { source: string; target: string };
 
@@ -64,6 +66,66 @@ export function graphOf(s: Snapshot, space: Space): { nodes: GraphNode[]; links:
   for (const n of nodes) {
     n.depth = depthOf(n);
     if (n.parentId) byId.get(n.parentId)!.childCount++;
+  }
+  const links = nodes.filter((n) => n.parentId).map((n) => ({ source: n.parentId!, target: n.id }));
+  return { nodes, links };
+}
+
+/** Items that mention another item by name. These are drawn as quiet relations, not containment. */
+export function relationsOf(s: Snapshot, space: Space): GraphLink[] {
+  const items = s.resources.filter((r) => r.spaceId === space.id);
+  const named = items.filter(
+    (r) => (r.kind === 'doc' || r.kind === 'folder') && r.title.length >= 5,
+  );
+  const links: GraphLink[] = [];
+  for (const from of items) {
+    if (from.role || (from.kind !== 'doc' && from.kind !== 'note' && from.kind !== 'pin')) continue;
+    const text = (from.kind === 'pin' ? from.title : from.body).toLowerCase();
+    for (const to of named)
+      if (to.id !== from.id && to.id !== from.parentId && text.includes(to.title.toLowerCase()))
+        links.push({ source: from.id, target: to.id });
+  }
+  return links.slice(0, 60);
+}
+
+/** Every space you can see as one map: spaces as hubs, their folders and loose documents around them. */
+export function overviewOf(s: Snapshot): { nodes: GraphNode[]; links: GraphLink[] } {
+  const root: GraphNode = {
+    id: 'everything',
+    label: 'Everything you can see',
+    kind: 'root',
+    parentId: null,
+    depth: 0,
+    childCount: s.spaces.length,
+  };
+  const nodes: GraphNode[] = [root];
+  for (const space of s.spaces) {
+    const items = s.resources.filter((r) => r.spaceId === space.id);
+    const tops = items.filter(
+      (r) => !r.parentId && (r.kind === 'folder' || r.kind === 'doc') && r.role !== 'orientation',
+    );
+    nodes.push({
+      id: space.id,
+      label: space.name,
+      kind: 'folder',
+      parentId: root.id,
+      depth: 1,
+      private: space.kind === 'personal',
+      childCount: items.filter((r) => r.kind !== 'folder').length,
+      spaceId: space.id,
+    });
+    for (const r of tops.slice(0, 9))
+      nodes.push({
+        id: r.id,
+        label: r.title,
+        kind: r.kind,
+        resourceId: r.kind === 'doc' ? r.id : undefined,
+        parentId: space.id,
+        depth: 2,
+        private: space.kind === 'personal' || r.visibility === 'private',
+        childCount: items.filter((x) => x.parentId === r.id).length,
+        spaceId: space.id,
+      });
   }
   const links = nodes.filter((n) => n.parentId).map((n) => ({ source: n.parentId!, target: n.id }));
   return { nodes, links };

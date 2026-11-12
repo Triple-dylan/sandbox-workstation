@@ -4,10 +4,10 @@
 import { ready } from './shims/sqlite.ts';
 import { handler } from './shims/node.ts';
 import { createApp } from '../server/app.ts';
-import { scriptedRuntime } from '../server/agents/scripted.ts';
+import { claudeRuntime } from './claude-runtime.ts';
 import { seedExample } from './example.ts';
 
-const TOKEN = 'sw-inpage-session-v4';
+const TOKEN = 'sw-inpage-session-v5';
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);
@@ -118,6 +118,6 @@ globalThis.EventSource = class {
 let app: ReturnType<typeof createApp>;
 (async () => {
   await ready();
-  app = createApp({ dbPath: ':memory:', staticDir: null, runtime: scriptedRuntime, env: {} });
+  app = createApp({ dbPath: ':memory:', staticDir: null, runtime: claudeRuntime, env: {} });
   await import('../src/main.tsx');
 })();

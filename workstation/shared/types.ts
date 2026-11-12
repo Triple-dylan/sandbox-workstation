@@ -15,6 +15,8 @@ export type User = {
   /** Agents only: what it is for, and standing instructions. Editable by its owner or project members. */
   purpose?: string;
   instructions?: string;
+  /** A retired agent keeps its history but takes no new work. */
+  retired?: boolean;
 };
 
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
@@ -97,8 +99,12 @@ export type Assignment = {
   createdAt: string;
 };
 
-/** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. */
-export type Proposal = { kind: 'create-doc' | 'create-agent'; title: string; body: string };
+/** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. add-step: title is a new step for the plan. */
+export type Proposal = {
+  kind: 'create-doc' | 'create-agent' | 'add-step';
+  title: string;
+  body: string;
+};
 export type Approval = {
   id: Id;
   jobId: Id;

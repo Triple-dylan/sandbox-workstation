@@ -5,6 +5,7 @@ import {
   Layers,
   LayoutGrid,
   PanelLeft,
+  Search,
   LogOut,
   MessageSquareText,
   Moon,
@@ -19,6 +20,7 @@ import { useWorkspace } from './workspace.tsx';
 import { Avatar, Character, agentState } from '../features/agents/Character.tsx';
 import { myAgents, projectAgentsOf } from '../features/conversations/audience.ts';
 import { CreateSheet } from './CreateSheet.tsx';
+import { FindSheet } from './FindSheet.tsx';
 import type { Conversation, Space } from '../../shared/types.ts';
 
 export function Rail() {
@@ -134,16 +136,24 @@ export function Rail() {
           aria-label="Spaces and conversations"
           title="Spaces and conversations"
           aria-expanded={ui.nav}
-          onClick={() => setUi({ nav: !ui.nav, create: false })}
+          onClick={() => setUi({ nav: !ui.nav, create: false, find: false })}
         >
           <PanelLeft size={17} />
           {totalUnread > 0 && <span className="unread dot" aria-label={`${totalUnread} unread`} />}
         </button>
         <button
+          aria-label="Find"
+          title="Find (Ctrl or ⌘ K)"
+          aria-expanded={ui.find}
+          onClick={() => setUi({ find: !ui.find, nav: false, create: false })}
+        >
+          <Search size={17} />
+        </button>
+        <button
           aria-label="Create"
           title="Create"
           aria-expanded={ui.create}
-          onClick={() => setUi({ create: !ui.create, nav: false })}
+          onClick={() => setUi({ create: !ui.create, nav: false, find: false })}
         >
           <Plus size={18} />
         </button>
@@ -178,12 +188,17 @@ export function Rail() {
         >
           <Layers size={17} />
         </button>
-        <button aria-label="Account" title={s.me.name} onClick={() => setUi({ nav: !ui.nav })}>
+        <button
+          aria-label="Account"
+          title={s.me.name}
+          onClick={() => setUi({ nav: !ui.nav, create: false, find: false })}
+        >
           <Avatar user={s.me} size={24} />
         </button>
       </div>
-      {ui.create && <CreateSheet />}
-      {ui.nav && !ui.create && (
+      {ui.find && <FindSheet />}
+      {ui.create && !ui.find && <CreateSheet />}
+      {ui.nav && !ui.create && !ui.find && (
         <div className="sheet nav-sheet">
           <div className="rail-scroll">
             <section aria-label="Spaces">

@@ -67,7 +67,7 @@ export function openDb(path: string): Db {
   db.exec('pragma journal_mode = wal; pragma foreign_keys = on;');
   db.exec(schema);
   // Added after the first databases were created; ignore the error where the column already exists.
-  for (const column of ['purpose text', 'instructions text'])
+  for (const column of ['purpose text', 'instructions text', 'retired integer not null default 0'])
     try {
       db.exec(`alter table users add column ${column}`);
     } catch {

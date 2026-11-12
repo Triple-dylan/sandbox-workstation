@@ -1,6 +1,6 @@
 import { nameStyle } from '../agents/Character.tsx';
 import { useState } from 'react';
-import { MessageSquareText, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, MessageSquareText, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { Goal, Id } from '../../../shared/types.ts';
@@ -15,7 +15,9 @@ export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: 
   const goals = s.goals.filter((g) => g.spaceId === spaceId);
   const members = s.members.filter((m) => m.spaceId === spaceId).map((m) => user(m.userId)!);
   const people = members.filter((u) => u?.kind === 'human');
-  const agents = members.filter((u) => u?.kind === 'agent');
+  const agents = members.filter((u) => u?.kind === 'agent' && !u.retired);
+  const move = (goal: Goal, direction: 'up' | 'down') =>
+    void run(() => api(`/goals/${goal.id}/move`, { body: { direction } }));
   const patch = (goal: Goal, body: Record<string, unknown>) =>
     void run(() => api(`/goals/${goal.id}`, { method: 'PATCH', body }));
   const add = async () => {
@@ -31,7 +33,7 @@ export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: 
         <p className="card-empty">No steps yet.{compact ? '' : ' Add the first one below.'}</p>
       )}
       <ol>
-        {shown.map((g) => {
+        {shown.map((g, index) => {
           const source = g.sourceMessageId && s.messages.find((m) => m.id === g.sourceMessageId);
           return (
             <li key={g.id} className={g.done ? 'done' : ''}>
@@ -98,6 +100,23 @@ export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: 
                     value={g.due ?? ''}
                     onChange={(e) => patch(g, { due: e.target.value || null })}
                   />
+                  <button
+                    className="plan-move"
+                    aria-label={`Move ${g.title} earlier`}
+                    title="Earlier"
+                    disabled={index === 0}
+                    onClick={() => move(g, 'up')}
+                  >
+                    <ArrowUp size={12} />
+                  </button>
+                  <button
+                    aria-label={`Move ${g.title} later`}
+                    title="Later"
+                    disabled={index === shown.length - 1}
+                    onClick={() => move(g, 'down')}
+                  >
+                    <ArrowDown size={12} />
+                  </button>
                   <button
                     aria-label={`Remove ${g.title}`}
                     title="Remove"

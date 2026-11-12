@@ -13,6 +13,16 @@ export type AgentTask = {
     orientation: string | null;
     resources: { title: string; kind: string; excerpt: string }[];
     recent: { author: string; text: string; at: string }[];
+    /** The space's plan, in order. */
+    plan: {
+      step: string;
+      owner: string | null;
+      agent: string | null;
+      due: string | null;
+      done: boolean;
+    }[];
+    /** Who is in the space: people and agents. */
+    members: { name: string; kind: 'human' | 'agent' }[];
   };
 };
 

@@ -68,6 +68,7 @@ export class AgentEngine {
     const addressed = message.addressedTo ? this.store.user(message.addressedTo) : agentInPrivate;
     const delegate = message.delegated;
     const request = message.text;
+    if (addressed?.kind === 'agent' && addressed.retired) return;
     if (addressed?.kind === 'agent') {
       const spaceId = this.spaceFor(addressed);
       if (!spaceId) return;
@@ -223,6 +224,14 @@ export class AgentEngine {
           excerpt: (r.kind === 'pin' ? r.title : r.body).replace(/\s+/g, ' ').slice(0, 400),
         })),
         recent,
+        plan: this.store.goals(spaceId).map((g) => ({
+          step: g.title,
+          owner: g.ownerId ? (this.store.user(g.ownerId)?.name ?? null) : null,
+          agent: g.agentId ? (this.store.user(g.agentId)?.name ?? null) : null,
+          due: g.due,
+          done: g.done,
+        })),
+        members: this.store.membersOf(spaceId),
       },
     };
   }

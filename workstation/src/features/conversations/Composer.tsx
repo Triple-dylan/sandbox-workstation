@@ -19,6 +19,7 @@ export function Composer() {
   const { s, ui, setUi, space, resource, run, openConversation } = useWorkspace();
   const [menuOpen, setMenuOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const chosen = ui.audience[space.id];
   const audience = chosen && stillValid(s, chosen) ? chosen : defaultAudience(s, space.id);
@@ -38,6 +39,25 @@ export function Composer() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
+  // Talking to an agent while something is selected: the item rides along as context, visibly.
+  // It never changes who the message goes to, and a private item is never attached to a shared ask.
+  const about = resource(ui.readerId ?? ui.selectedId);
+  const toAgent =
+    audience?.kind === 'private-agent' ||
+    audience?.kind === 'instruct' ||
+    audience?.kind === 'delegate';
+  const sharedAsk =
+    toAgent &&
+    s.conversations.find((c) => c.id === (audience as { conversationId: string }).conversationId)
+      ?.kind !== 'agent-private';
+  const context =
+    toAgent &&
+    about &&
+    about.kind !== 'folder' &&
+    about.id !== dismissed &&
+    !(sharedAsk && about.visibility === 'private')
+      ? about
+      : null;
   const choose = (a: Audience) => {
     setUi((old) => ({ audience: { ...old.audience, [space.id]: a } }));
     setMenuOpen(false);
@@ -66,6 +86,15 @@ export function Composer() {
         };
       } else {
         conversationId = audience.conversationId;
+        if (context)
+          anchor = {
+            resourceId: context.id,
+            quote:
+              window.getSelection()?.toString().trim().slice(0, 200) ||
+              (context.kind === 'note' || context.kind === 'doc'
+                ? context.body.replace(/\s+/g, ' ').slice(0, 200)
+                : context.title),
+          };
       }
       const addressedTo =
         audience.kind === 'instruct' || audience.kind === 'delegate' ? audience.agentId : null;
@@ -115,6 +144,18 @@ export function Composer() {
           >
             <X size={13} />
           </button>
+        )}
+        {context && (
+          <span className="context-chip" title="Sent to the agent as context">
+            About: {context.title.slice(0, 30)}
+            <button
+              type="button"
+              aria-label="Do not include this item"
+              onClick={() => setDismissed(context.id)}
+            >
+              <X size={11} />
+            </button>
+          </span>
         )}
         {menuOpen && (
           <div className="audience-menu" role="listbox" aria-label="Send to">

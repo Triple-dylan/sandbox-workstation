@@ -1,3 +1,4 @@
+import { proposalText } from '../agents/proposal.ts';
 import { nameStyle } from '../agents/Character.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { Check, CornerDownRight, Pin, Quote, X } from 'lucide-react';
@@ -141,10 +142,7 @@ function MessageView({ m }: { m: Message }) {
         {approval && (
           <div className="approval">
             <div>
-              <strong>
-                {approval.proposal.kind === 'create-agent' ? 'New agent' : 'Proposed'}:{' '}
-                {approval.proposal.title}
-              </strong>
+              <strong>{proposalText(approval.proposal).title}</strong>
               <small>{approval.proposal.body.slice(0, 160)}</small>
             </div>
             {approval.status === 'pending' ? (
