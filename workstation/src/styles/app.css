@@ -2276,3 +2276,155 @@ button.primary,
   padding: 0 !important;
   display: inline-grid;
 }
+
+/* ---------- document editing ---------- */
+.reader-title {
+  border: 0 !important;
+  padding: 2px 0;
+}
+.reader-title:focus {
+  outline: none;
+}
+.reader-state {
+  color: var(--ink-3);
+}
+.reader-tools {
+  align-items: center;
+  gap: 10px;
+}
+.reader-tools .format {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--wash);
+}
+.reader-tools .format button {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+}
+.reader-tools .format button:hover {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+.reader-tools .format button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.reader-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+.reader-body {
+  cursor: text;
+}
+.reader-body .tiptap {
+  outline: none;
+  min-height: 100%;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.reader-body .tiptap > * + * {
+  margin-top: 0.6em;
+}
+.reader-body .tiptap h1 {
+  font-size: 24px;
+  letter-spacing: -0.02em;
+  margin-top: 0.9em;
+}
+.reader-body .tiptap h2 {
+  font-size: 19px;
+  margin-top: 1em;
+}
+.reader-body .tiptap h3 {
+  font-size: 16px;
+}
+.reader-body .tiptap p {
+  margin: 0;
+}
+.reader-body .tiptap blockquote {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--ink-3);
+  color: var(--ink-2);
+}
+.reader-body .tiptap ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 2px;
+}
+.reader-body .tiptap ul[data-type='taskList'] li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+.reader-body .tiptap ul[data-type='taskList'] li > label {
+  margin-top: 3px;
+}
+.reader-body .tiptap ul[data-type='taskList'] li > div {
+  flex: 1;
+}
+.reader-body .tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.reader-body .tiptap th,
+.reader-body .tiptap td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.reader-body .tiptap th {
+  background: var(--wash);
+  font-weight: 650;
+}
+.reader-body .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--ink-3);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.revisions li {
+  margin-bottom: 8px;
+}
+
+/* ---------- heading notes, named agents, slimmer conversation ---------- */
+.note-text.heading {
+  font-size: 26px;
+  line-height: 36px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.canvas-item.kind-note:has(.note-text.heading) {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.item-tools button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.agent-dock button span {
+  font-weight: 500;
+  color: var(--ink-2);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-dock button.active span {
+  font-weight: 650;
+  color: var(--ink);
+}
+.conversation {
+  width: 300px;
+}

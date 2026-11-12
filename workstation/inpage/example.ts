@@ -5,7 +5,8 @@ export function seedExample(store, meId: string) {
   const mine = store.personalSpace(meId);
   const own = (kind, body, placement, title) =>
     store.createResource(meId, { spaceId: mine, kind, title, body, placement });
-  own('note', 'Things I am thinking about this week', { x: 96, y: 96, width: 336, height: 48 });
+  const week = own('note', 'This week', { x: 96, y: 96, width: 336, height: 48 });
+  store.updateResource(meId, week.id, { style: 'heading' });
   own('note', 'Pop-up shop: am I pricing the vases too low?', {
     x: 96,
     y: 192,
@@ -47,13 +48,18 @@ export function seedExample(store, meId: string) {
     store.createFolder(who, { spaceId, title, parentId });
   const doc = (who, parentId, title, body, placement = null) =>
     store.createResource(who, { spaceId, kind: 'doc', title, body, parentId, placement });
-  const note = (who, body, x, y, width = 336, visibility = 'space') =>
+  const note = (who, body, x, y, width = 336, visibility = 'space', height = 0) =>
     store.createResource(who, {
       spaceId,
       kind: 'note',
       body,
       visibility,
-      placement: { x, y, width, height: 24 * Math.max(2, Math.ceil(body.length / 36) + 1) },
+      placement: {
+        x,
+        y,
+        width,
+        height: height || 24 * Math.max(2, Math.ceil(body.length / 36) + 1),
+      },
     });
 
   const vendors = folder(maya.id, 'Vendors');
@@ -114,11 +120,16 @@ export function seedExample(store, meId: string) {
     '# Stall confirmation\n\nCorner stall 14, both days. Deposit $60 due Friday.',
   );
 
+  const heading = note(meId, 'Pop-up shop, June 14', 96, 96, 336, 'space', 48);
+  store.updateResource(meId, heading.id, { style: 'heading' });
   note(
     meId,
-    'Pop-up shop, June 14. Two days at the Dock Street market. 40 pieces, three glazes, one table.',
+    'Two days at the Dock Street market. 40 pieces, three glazes, one table.',
     96,
-    96,
+    144,
+    336,
+    'space',
+    72,
   );
   note(jon.id, 'I can drive both days. Need the load list by June 10.', 456, 336, 168);
   note(

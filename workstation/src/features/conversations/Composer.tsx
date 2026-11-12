@@ -221,7 +221,9 @@ export function Composer() {
                   }
                 >
                   <Character agent={agent} size={20} state={agentState(agent.id, s.jobs)} />
-                  {active && <span>{agent.name}</span>}
+                  {(active || roster.length <= 3) && (
+                    <span>{agent.name.replace(/\s+agent$/i, '').slice(0, 18)}</span>
+                  )}
                   {agent.role === 'personal' && <Lock size={9} aria-hidden="true" />}
                 </button>
               );

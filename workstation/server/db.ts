@@ -76,5 +76,10 @@ export function openDb(path: string): Db {
     } catch {
       // Already there.
     }
+  try {
+    db.exec('alter table resources add column style text');
+  } catch {
+    // Already there.
+  }
   return db;
 }

@@ -68,6 +68,7 @@ const toResource = (r: Row): Resource => ({
   ownerId: r.owner_id,
   placement: parse<Placement>(r.placement),
   ...(r.role ? { role: r.role } : {}),
+  ...(r.style === 'heading' ? { style: 'heading' as const } : {}),
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
 });
@@ -598,6 +599,7 @@ export class Store {
       body?: string;
       placement?: Placement | null;
       visibility?: Resource['visibility'];
+      style?: 'heading' | null;
     },
   ) {
     const resource = this.resource(resourceId);
@@ -628,6 +630,8 @@ export class Store {
           : resource.placement,
       visibility: patch.visibility ?? resource.visibility,
     };
+    if (patch.style !== undefined && resource.kind === 'note')
+      this.run('update resources set style = ? where id = ?', patch.style, resourceId);
     if (patch.placement !== undefined) {
       if (patch.placement === null)
         this.run('delete from placements where resource_id = ?', resourceId);

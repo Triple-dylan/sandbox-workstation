@@ -12,7 +12,9 @@ _Updated 2026-11-11._ What is being built and why is in `docs/PLAN.md`.
 
 **Spaces.** A private Personal space for each person, plus shared projects. Every item is private or shared; sharing changes the same item. One access check on the server governs what any person or agent can see.
 
-**Board (canvas).** Click empty space and type. Objects: notes, documents, images (paste, drop or pick), a plan, and pinned messages. Everything moves and resizes on a 24px grid without overlapping. Each person has their own arrangement of a shared board; content is shared, position is not. Removing something offers Undo. Private items on a shared board carry a dashed "Only you" outline and are invisible to others. Opening a document from the board fills the work area and folds the board into a shelf beside it; closing returns to the board.
+**Documents.** Always editable in place with headings, lists, checklists, quotes and tables; saved as you type; stored as Markdown so agents and history read the same text. Earlier versions can be restored.
+
+**Board (canvas).** Click empty space and type. A note can be made a heading. Objects: notes, documents, images (paste, drop or pick), a plan, and pinned messages. Everything moves and resizes on a 24px grid without overlapping. Each person has their own arrangement of a shared board; content is shared, position is not. Removing something offers Undo. Private items on a shared board carry a dashed "Only you" outline and are invisible to others. Opening a document from the board fills the work area and folds the board into a shelf beside it; closing returns to the board.
 
 **Graph.** The CampaignOS/DropDeployment constellation: the space pinned at the centre, folders on a tilted ring, files orbiting their folder, gentle simmer. Click a folder to focus it and dim the rest; click a document to read it beside the graph. Private items are dashed, with a legend. Dotted relations join items that mention each other. An Everything view shows every space you can see as a hub, private ones dashed; clicking a space steps into it. People and working agents appear at the item they are touching.
 
@@ -35,7 +37,7 @@ _Updated 2026-11-11._ What is being built and why is in `docs/PLAN.md`.
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
 - Routine context upkeep (the orientation document) uses the local template, not a model, so it never spends usage on a timer.
 - Board images are stored inline and resent with every update; fine locally, not for production.
-- Documents edit as Markdown text, not a rich editor. No sheets, slides or browser surfaces.
+- No sheets, slides or browser surfaces. Two people typing in the same document at once: the last save wins.
 - No real accounts or hosting. Sign-in is "pick a name".
 - The graph's relations come from one item mentioning another by title; there are no typed links yet.
 - No Claude runtime on the local server yet (OpenAI only there).

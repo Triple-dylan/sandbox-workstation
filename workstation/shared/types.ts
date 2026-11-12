@@ -33,6 +33,8 @@ export type Resource = {
   title: string;
   body: string;
   visibility: 'space' | 'private';
+  /** Notes only: a heading reads larger on the board. */
+  style?: 'heading';
   ownerId: Id;
   /** Where this item sits on the viewer's own arrangement of the board. */
   placement: Placement | null;

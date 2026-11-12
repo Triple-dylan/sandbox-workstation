@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   FileText,
   GripVertical,
+  Heading,
   ListChecks,
   ListPlus,
   Lock,
@@ -457,6 +458,23 @@ function CanvasItem({
         <button className="grip" aria-label="Move" onPointerDown={onMove}>
           <GripVertical size={14} />
         </button>
+        {item.kind === 'note' && (
+          <button
+            aria-label={item.style === 'heading' ? 'Make normal text' : 'Make a heading'}
+            title={item.style === 'heading' ? 'Normal text' : 'Heading'}
+            aria-pressed={item.style === 'heading'}
+            onClick={() =>
+              void run(() =>
+                api(`/resources/${item.id}`, {
+                  method: 'PATCH',
+                  body: { style: item.style === 'heading' ? null : 'heading' },
+                }),
+              )
+            }
+          >
+            <Heading size={14} />
+          </button>
+        )}
         <button aria-label="Discuss" title="Discuss this" onClick={() => discuss(item.id)}>
           <MessageSquareText size={14} />
         </button>
@@ -508,6 +526,7 @@ function CanvasItem({
             if (on) setUi({ selectedId: item.id });
           }}
           onCommit={commit}
+          heading={item.style === 'heading'}
           label={`Note${item.visibility === 'private' ? ' (private)' : ''}`}
         />
       )}
@@ -631,6 +650,7 @@ function NoteText({
   onBlur,
   onFocusChange,
   label = 'New note',
+  heading = false,
 }: {
   floating?: Placement;
   initial: string;
@@ -640,6 +660,7 @@ function NoteText({
   onBlur?: (text: string) => void;
   onFocusChange?: (focused: boolean) => void;
   label?: string;
+  heading?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState(initial);
@@ -651,13 +672,13 @@ function NoteText({
     if (!el) return;
     el.style.height = '0px';
     el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
+  }, [text, heading]);
   const height = () =>
     Math.max(48, Math.ceil(((ref.current?.scrollHeight ?? 24) + 24) / GRID) * GRID);
   return (
     <textarea
       ref={ref}
-      className="note-text"
+      className={`note-text ${heading ? 'heading' : ''}`}
       style={
         floating
           ? { position: 'absolute', left: floating.x, top: floating.y, width: floating.width }

@@ -293,6 +293,7 @@ export function createApp(options: AppOptions) {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
             ...(typeof input.body === 'string' ? { body: input.body } : {}),
             ...('placement' in input ? { placement: placement(input.placement) } : {}),
+            ...('style' in input ? { style: input.style === 'heading' ? 'heading' : null } : {}),
             ...(input.visibility === 'private' || input.visibility === 'space'
               ? { visibility: input.visibility }
               : {}),
