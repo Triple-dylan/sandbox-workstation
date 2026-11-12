@@ -2,12 +2,24 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-12 (later) — rebuilt from basics
+
+- **Structure.** One list on the left, one page or two side by side in the middle, the person's own agent as a floating bar. Dylan approved six drawn screens: "rebuild around these. do your due dilligence to ensure that interactions and fuctionality across is good to go".
+- **The canvas is a kind of page**, alongside documents, sheets and decks, which can also sit on a canvas as live cards. "Customizable and malleable is important."
+- **The graph is a private view, not a shared room**, so it has only the agent bar. A person asks their agent about the graph and stays there.
+- **Comments and highlights on pages can be addressed to agents**, which answer with a suggested edit to accept or decline.
+- **Pages carry their own feed**; there is no permanent chat rail on the right.
+- **Agents are used natively everywhere, equally to teammates.**
+- **A canvas is arranged together.** This replaces the earlier assumption that each person arranges a shared board for themselves.
+- *Assumed:* what comes out of a private conversation with your agent (a saved page, an accepted draft) is private to you until you share it. A space agent handed work by your agent does not see your private conversation.
+- *Assumed:* the first thing a space shows is Catch up. Dylan was unsure what should fill the middle first.
+
 ## 2026-11-12
 
 - **No scripted agents presented as the product.** Dylan: "who decided we are making fake interactions. I did provide a api key to use for this demo." The scripted runtime was the Cursor demo's default, not his decision. Agents must answer from a live model wherever one is reachable; scripted output is only a labelled fallback.
 - **Priority:** "the main priority is sorting out what all of the interfaces and ui/ux is like." Build everything else; wire the provided key for testing and demos.
 - The key Dylan provided lives in the gitignored root `.env` on his machine and is read by the local server. It is not in this repository or the cloud build environment. The published preview uses Claude through the page instead.
-- *Assumed for review:* each person arranges a shared board for themselves; an item a teammate adds that would land on your arrangement is moved to free space for you only.
+- *Superseded later the same day:* each person arranging a shared board for themselves.
 
 ## 2026-11-11 — review and interview
 

@@ -10,40 +10,36 @@ Agents automatically gather, organize, update and hand over useful context as wo
 
 ## Shell
 
-- One harness with two primary surfaces: **Canvas** and **Graph**. Both have the left rail and a floating composer. There are no overview or hero pages, no workspace title, logo or marketing copy, and no top-menu clutter.
-- A project opens straight into work. A fresh canvas is **blank but usable**: no preloaded demo content or fake dashboard.
-- Controls, rail, graph and utility chrome are **monochrome**, in light and dark glass that follows the OS. Readable neutral contrast. Content and participant identity may carry color.
-- Modules and popups must **never overlap**. There is no workspace zoom.
-- Right-side utilities (sources/context, agent, goals) are independent, can show together, size to their content and **never scroll**. Long content links to a complete view.
-- Conversations do not belong in the right utility region.
+_Rewritten 2026-11-12 after the from-basics rethink; see `DECISIONS.md`._
+
+- One list on the left: the space, Graph, Catch up, pages by folder, channels, people and agents. One page in the middle, or two side by side. The person's own agent as a floating bar at the bottom.
+- No overview or hero pages, no marketing copy, no permanent chat rail.
+- Controls are **monochrome**, in light and dark that follow the viewer. Readable contrast everywhere. Content and participant identity may carry colour.
+- Nothing ever covers work it cannot be dismissed from. Layouts are defined for wide, medium and narrow windows.
 - There are no fake identities, demo fluff, or simulated "working" states presented as real.
 
-## Canvas
+## Pages
 
-- Bounded workspace with grid snapping, placement feedback and collision checks. Content follows the pointer while dragging; Escape cancels.
-- **Click empty canvas to type at that spot.** No text box, card or editor window is spawned. An unused caret saves nothing.
-- One document viewer at a time. Browser, agent and other module types are independent of it.
-- Shared content and personal layout are separate. Collaborative projects have common modules, and each person can adjust their own view. Personal presets are part of the product.
-- Lightweight sequential goals and milestones: a human owner, an agent assignment and a simple deadline. Not a project-management suite.
+- Four kinds: **document, sheet, deck, canvas**. Each is private or shared, lives in a folder, and has its own feed.
+- **Canvas:** a wide board with text, stickies, shapes, sections, arrows, pictures and other pages as live cards. Arranged together by everyone on it. Lightweight sequential goals (a human owner, an agent, a date) can sit on it; not a project-management suite.
+- **Comments and highlights** attach to text in a document or to a piece on a canvas. They can be addressed to an agent, which replies with a suggested edit.
+- A private page can be opened to named people or agents without sharing it with the whole space.
 
 ## Graph
 
-- Full-surface, with always-on physics and magnetism (no toggle). The central node is anchored, moves only slightly when dragged and returns to its place.
-- It shows folders, resources, relationships and permitted activity. Folder nesting manages density. Node types are meaningful, not identical boxes. There is no decorative center glyph.
-- Selecting a folder or document opens the explorer or reader **while staying on the graph**. Reading documents on Graph is required.
-- Agents appear as **avatars at the resources they are actively using**. Document edits do not reshape the graph.
+- A person's own view of everything they can see in a space, private and shared. Always-on physics; the central node is anchored and returns to its place.
+- Folders and pages are nodes; relations are drawn quietly. Private pages are visibly marked.
+- Filters, saved views and saved questions keep a large corpus easy to sift.
+- Choosing a page keeps you on the graph. Asking your agent lights the pages an answer came from.
+- Agents appear at the pages they are working on.
 
 ## Conversations
 
-- Five first-message situations must all work:
-  1. a workspace instruction
-  2. a private ask to an agent
-  3. a message to a person (one-to-one, no project required)
-  4. discussion of selected work
-  5. delegation of ongoing work
-- The audience is always explicit. Opening a document never silently changes the recipient. Drafts are kept per conversation and thread.
-- Private and collaborative conversations, channels and nested threads. Profile pictures and colored names for people.
-- Shared agents may reply **unsolicited** as well as on request, inside authorized existing conversations or threads.
+- Channels, direct messages, threads and conversations with an agent are pages.
+- All five first-message situations work: a workspace instruction, a private ask to an agent, a message to a person, discussion of selected work, delegation of ongoing work.
+- Who a message goes to is always explicit. What is on screen sets what your own agent looks at, never who receives a message.
+- Channels pin pages; a message can carry a live piece of a page.
+- Shared agents may reply **unsolicited** as well as on request, inside conversations they may read.
 
 ## Agents
 

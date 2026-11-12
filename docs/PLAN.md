@@ -19,12 +19,15 @@ A shared brain you can see and work in. The brain is folders and files, some pri
 
 ## The parts
 
-1. **Brain.** Folders and files are the truth. Every item is private or shared. Sharing changes the original item; history and origin are kept.
-2. **Graph.** Not necessarily the home (Dylan, 2026-11-11). It is how you traverse the shared context of a workspace, and it must show what is private versus shared. The map of the brain, in the CampaignOS/DropDeployment style: hubs, constellation physics, simmer, folders as places, files opening in place. It shows which person and which agent is touching what, from real events only. Agents orbit outside the knowledge, not inside it.
-3. **Canvas.** A living board per space for laying out work: notes typed directly, images, documents, a plan, pinned messages, agent results. Everything on it is a real item in the brain. Opening an item grows it into a working view.
-4. **Agents.** A roster of named agents: personal ones private to you, project ones shared. Each is a `thinking-orbs` orb with real states. Selecting one shows its work and conversation first, settings second. They can be created by asking or by a Create action, and edited (name, purpose, instructions, where it works, autonomy). They maintain context automatically, may speak unprompted, and need approval for consequential shared changes. *To evaluate in the running app (Dylan, 2026-11-11):* how agents are visible and present across every view, and how private and group agents interact.
-5. **Conversation.** One message bar with an explicit audience. Direct messages, channels, threads, private agent chats and group chats with several agents. History sits beside the work. Open to evolve (Dylan, 2026-11-11).
-6. **Together.** Shared workspaces: several people live in one space, each with their own arrangement.
+Settled with Dylan on 2026-11-12 from six drawn screens ("rebuild around these").
+
+1. **Brain.** Folders and pages are the truth. Every page is private or shared; a private page can be opened to named people or agents. Sharing changes the original; history and origin are kept.
+2. **Pages.** Documents, sheets, decks and canvases. A canvas is one kind of page, not the home: a Lucid-like board where the other pages can sit as live cards. Every page carries its own feed.
+3. **Channels.** Conversations are pages too, in the Discord/Teams sense: channels, direct messages, threads, pinned pages, live pieces of a page inside a message.
+4. **Graph.** Not the home. It is each person's own view for traversing everything they can see in a space, private and shared, and for asking their agent about it without being sent somewhere else. Filters and saved views are how a large corpus stays easy.
+5. **Agents.** A roster of named agents, each a `thinking-orbs` orb with real states. Your own agent is the floating bar on every screen: private, an orchestrator that answers about what is on screen, hands work to the space's agents and drafts replies for you to send. Space agents are shared, addressed deliberately in channels and in comments on pages, and suggest changes a person accepts.
+6. **Catch up.** A private feed per space: what needs you and what changed.
+7. **Together.** Shared spaces. People and agents work in the same pages; a canvas is arranged together.
 
 ## How it gets built
 
