@@ -3,6 +3,7 @@ import { Lock, Users } from 'lucide-react';
 import { api, useSession } from '../data/client.ts';
 import type { Snapshot } from '../../shared/types.ts';
 import { Join } from './Join.tsx';
+import { applyTheme } from './theme.ts';
 import { initialUi, WorkspaceContext, type Ui, type Workspace } from './workspace.tsx';
 import { Rail } from './Rail.tsx';
 import { Canvas } from '../features/canvas/Canvas.tsx';
@@ -56,15 +57,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     [],
   );
   useEffect(() => localStorage.setItem(UI_KEY, JSON.stringify(ui)), [ui]);
-  useEffect(() => {
-    const query = matchMedia('(prefers-color-scheme: dark)');
-    const apply = () =>
-      (document.documentElement.dataset.theme =
-        ui.theme === 'system' ? (query.matches ? 'dark' : 'light') : ui.theme);
-    apply();
-    query.addEventListener('change', apply);
-    return () => query.removeEventListener('change', apply);
-  }, [ui.theme]);
+  useEffect(() => applyTheme(ui.theme), [ui.theme]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {

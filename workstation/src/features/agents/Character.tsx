@@ -1,3 +1,4 @@
+import { isDark } from '../../app/theme.ts';
 import { ThinkingOrb, type OrbState } from 'thinking-orbs';
 import type { Job, User } from '../../../shared/types.ts';
 
@@ -22,7 +23,7 @@ const stateLabel: Record<AgentState, string> = {
 
 /** The orb's ink: the agent's own hue, kept restrained and readable in either theme. */
 function tint(hue: number) {
-  const dark = document.documentElement.dataset.theme === 'dark';
+  const dark = isDark();
   const s = dark ? 0.8 : 0.45;
   const l = dark ? 0.88 : 0.38;
   const a = s * Math.min(l, 1 - l);

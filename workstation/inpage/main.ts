@@ -7,7 +7,7 @@ import { createApp } from '../server/app.ts';
 import { claudeRuntime, stayQuiet } from './claude-runtime.ts';
 import { seedExample } from './example.ts';
 
-const TOKEN = 'sw-inpage-session-v9';
+const TOKEN = 'sw-inpage-session-v10';
 const read = (k: string) => {
   try {
     return localStorage.getItem(k);

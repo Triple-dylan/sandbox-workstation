@@ -2428,3 +2428,97 @@ button.primary,
 .conversation {
   width: 300px;
 }
+
+/* ---------- form controls take their colours from the theme ----------
+   Never from browser defaults, autofill or a host page's reset: every field states its own ink and
+   paper, so text can never end up dark on dark or light on light. */
+input,
+textarea,
+select {
+  color: var(--ink);
+  caret-color: var(--ink);
+  -webkit-text-fill-color: currentColor;
+}
+.join-card input,
+.rail-form input,
+.create-form input,
+.agent-panel input,
+.agent-panel textarea,
+.reply-box input {
+  color: var(--ink);
+  background: var(--paper);
+}
+.find-sheet > header input,
+.composer textarea,
+.note-text,
+.plan-title,
+.plan-add input,
+.reader-title {
+  color: var(--ink);
+  background: transparent;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+  -webkit-text-fill-color: var(--ink-3);
+  opacity: 1;
+}
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  box-shadow: 0 0 0 1000px var(--paper) inset;
+  transition: background-color 99999s;
+}
+select option {
+  background: var(--paper);
+  color: var(--ink);
+}
+.plan-meta select,
+.plan-meta input[type='date'] {
+  color: var(--ink-2);
+  background: var(--wash);
+}
+.plan li.done .plan-title {
+  color: var(--ink-3);
+}
+/* Buttons with an outline read as ink on the surface they sit on. */
+.approval-actions button:not(.primary),
+.reader-tools button:not(.primary),
+.card-list button:not(.primary),
+.add-people button,
+.join-profiles button,
+.pin-card footer button,
+.agent-line button,
+.notice button,
+.create-scope button,
+.shelf-row,
+.audience-menu button,
+.message-pin,
+.reply-open {
+  background-color: transparent;
+}
+.approval-actions button:not(.primary),
+.reader-tools .reader-actions button,
+.card-list button:not(.primary),
+.add-people button,
+.join-profiles button,
+.notice button {
+  color: var(--ink);
+}
+button.primary,
+.join-card .primary,
+.agent-save .primary,
+.agent-talk.primary,
+.create-form .primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+.join-card .primary:disabled {
+  background: var(--wash-2);
+  color: var(--ink-3);
+  border-color: transparent;
+  opacity: 1;
+}
