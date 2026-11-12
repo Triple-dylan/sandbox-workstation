@@ -1,6 +1,14 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
-import { ORB_FORMS } from '../shared/types.ts';
+import {
+  CANVAS_KINDS,
+  ORB_FORMS,
+  PAGE_KINDS,
+  REACTIONS,
+  SHAPES,
+  STICKY_COLORS,
+  isPage,
+} from '../shared/types.ts';
 import type {
   Anchor,
   Approval,
@@ -36,14 +44,30 @@ const id = () => randomUUID();
 const json = (value: unknown) => (value == null ? null : JSON.stringify(value));
 export const titleFrom = (body: string) =>
   body.trim().split('\n')[0].trim().slice(0, 60) || 'Untitled';
-const parse = <T>(value: unknown): T | null =>
-  typeof value === 'string' ? JSON.parse(value) : null;
+const parse = <T>(value: unknown): T | null => {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
 
 const humanColors = ['#b4443c', '#2f6fb3', '#2f8a57', '#8a55b5', '#b86a1f', '#1f8a8a', '#b03f7c'];
 const shapes: Character['shape'][] = ['round', 'tall', 'wide'];
 const eyes: Character['eyes'][] = ['dot', 'arc'];
 
 type Row = Record<string, any>;
+const styleFor = (kind: string, style: unknown): string | null => {
+  if (kind === 'note') return style === 'heading' ? 'heading' : null;
+  if (kind === 'sticky')
+    return (STICKY_COLORS as readonly string[]).includes(style as string)
+      ? (style as string)
+      : 'yellow';
+  if (kind === 'shape')
+    return (SHAPES as readonly string[]).includes(style as string) ? (style as string) : 'rect';
+  return null;
+};
 
 const toUser = (r: Row): User => ({
   id: r.id,
@@ -69,7 +93,7 @@ const toResource = (r: Row): Resource => ({
   ownerId: r.owner_id,
   placement: parse<Placement>(r.placement),
   ...(r.role ? { role: r.role } : {}),
-  ...(r.style === 'heading' ? { style: 'heading' as const } : {}),
+  ...(r.style ? { style: r.style as string } : {}),
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
 });
@@ -85,6 +109,10 @@ const toMessage = (r: Row): Message => ({
   jobId: r.job_id,
   approvalId: r.approval_id,
   runtime: r.runtime,
+  resolved: !!r.resolved,
+  embed: parse<Message['embed']>(r.embed),
+  sourceIds: parse<Id[]>(r.sources) ?? [],
+  reactions: [],
   createdAt: r.created_at,
 });
 const toJob = (r: Row): Job => ({
@@ -135,6 +163,30 @@ export class Store {
   readonly db: Db;
   constructor(db: Db) {
     this.db = db;
+    // Earlier versions kept loose pieces on one board per space. They now live on a canvas page.
+    const loose = this.all(
+      `select distinct space_id, owner_id from resources where deleted = 0 and parent_id is null and kind in ('note','pin','image','plan')`,
+    );
+    for (const spaceId of new Set(loose.map((r) => r.space_id as Id))) {
+      const space = this.space(spaceId);
+      if (!space) continue;
+      const board = this.insertResource(space.ownerId, {
+        spaceId,
+        kind: 'canvas',
+        title: 'Board',
+        body: '',
+        visibility: space.kind === 'personal' ? 'private' : 'space',
+      });
+      this.run(
+        `update resources set parent_id = ? where space_id = ? and deleted = 0 and parent_id is null and kind in ('note','pin','image','plan')`,
+        board.id,
+        spaceId,
+      );
+      this.run(
+        `update resources set placement = null where space_id = ? and kind in ('doc','folder')`,
+        spaceId,
+      );
+    }
   }
 
   onChange(listener: (event: ChangeEvent) => void) {
@@ -315,10 +367,45 @@ export class Store {
   }
   canReadResource(userId: Id, resource: Resource) {
     const who = this.principal(userId);
-    return (
-      this.isMember(userId, resource.spaceId) &&
-      (resource.visibility === 'space' || resource.ownerId === who || resource.ownerId === userId)
+    if (!this.isMember(userId, resource.spaceId)) return false;
+    if ((CANVAS_KINDS as readonly string[]).includes(resource.kind)) {
+      // A piece on a canvas is seen by whoever can open the canvas, unless the piece itself is private.
+      const canvas = resource.parentId ? this.resource(resource.parentId) : null;
+      if (!canvas || canvas.kind !== 'canvas' || !this.canReadResource(userId, canvas))
+        return false;
+      return (
+        resource.visibility === 'space' ||
+        canvas.visibility === 'private' ||
+        resource.ownerId === who ||
+        resource.ownerId === userId
+      );
+    }
+    if (resource.visibility === 'space' || resource.ownerId === who || resource.ownerId === userId)
+      return true;
+    // A private page can be opened to named people or agents without sharing it with everyone.
+    return !!this.get(
+      'select 1 from grants where resource_id = ? and user_id in (?, ?)',
+      resource.id,
+      userId,
+      who,
     );
+  }
+  grantsOf(resourceId: Id) {
+    return this.all('select user_id from grants where resource_id = ?', resourceId).map(
+      (r) => r.user_id as Id,
+    );
+  }
+  /** The owner opens a private page to one more person or agent in the same space, or closes it again. */
+  setGrant(actorId: Id, resourceId: Id, userId: Id, on: boolean) {
+    const resource = this.resource(resourceId);
+    if (!resource || resource.ownerId !== actorId)
+      throw new AccessError('Only the owner can do this.');
+    const who = this.user(userId);
+    if (!who || !this.isMember(userId, resource.spaceId))
+      throw new InputError('They are not in this space.');
+    if (on) this.run('insert or ignore into grants values (?, ?)', resourceId, userId);
+    else this.run('delete from grants where resource_id = ? and user_id = ?', resourceId, userId);
+    this.changed();
   }
   canReadConversation(userId: Id, conversation: Conversation) {
     const who = this.principal(userId);
@@ -528,19 +615,34 @@ export class Store {
     actorId: Id,
     input: {
       spaceId: Id;
-      kind: 'note' | 'doc' | 'pin' | 'image' | 'plan';
+      kind: Exclude<Resource['kind'], 'folder'>;
       title?: string;
       body: string;
       visibility?: Resource['visibility'];
       parentId?: Id | null;
       placement?: Placement | null;
+      style?: string | null;
     },
   ) {
     const space = this.requireMember(actorId, input.spaceId);
+    if ((CANVAS_KINDS as readonly string[]).includes(input.kind) && !input.parentId)
+      throw new InputError('Choose a canvas to put this on.');
+    if (
+      !(PAGE_KINDS as readonly string[]).includes(input.kind) &&
+      !(CANVAS_KINDS as readonly string[]).includes(input.kind)
+    )
+      throw new InputError('Unknown kind of item.');
     if (input.parentId) {
+      // Pages go in folders; canvas pieces go on a canvas.
       const parent = this.resource(input.parentId);
-      if (!parent || parent.spaceId !== space.id || parent.kind !== 'folder')
-        throw new InputError('Unknown folder.');
+      const wanted = isPage(input.kind) ? 'folder' : 'canvas';
+      if (
+        !parent ||
+        parent.spaceId !== space.id ||
+        parent.kind !== wanted ||
+        !this.canReadResource(actorId, parent)
+      )
+        throw new InputError(wanted === 'folder' ? 'Unknown folder.' : 'Unknown canvas.');
     }
     let body = String(input.body ?? '').slice(0, input.kind === 'image' ? 900_000 : 50_000);
     let title = (input.title ?? '').trim().slice(0, 120);
@@ -567,13 +669,48 @@ export class Store {
         throw new InputError('That is not an image this board can show.');
       title = title || 'Image';
     } else if (input.kind === 'plan') {
-      const existing = this.resourcesIn(space.id).find((r) => r.kind === 'plan');
+      const existing = this.resourcesIn(space.id).find(
+        (r) => r.kind === 'plan' && r.parentId === (input.parentId ?? null),
+      );
       if (existing)
         return this.updateResource(actorId, existing.id, { placement: input.placement });
       body = '';
       title = 'Plan';
       visibility = space.kind === 'personal' ? 'private' : 'space';
-    } else title = title || titleFrom(body);
+    } else if (input.kind === 'sheet') {
+      const rows = parse<{ rows?: unknown }>(body)?.rows;
+      if (!Array.isArray(rows))
+        body = json({ rows: Array.from({ length: 8 }, () => ['', '', '', '']) })!;
+      title = title || 'Untitled sheet';
+    } else if (input.kind === 'deck') {
+      const slides = parse<{ slides?: unknown }>(body)?.slides;
+      if (!Array.isArray(slides)) body = json({ slides: [{ title: title || 'Title', body: '' }] })!;
+      title = title || 'Untitled deck';
+    } else if (input.kind === 'canvas') {
+      body = '';
+      title = title || 'Untitled canvas';
+    } else if (input.kind === 'embed') {
+      const target = this.resource(parse<{ resourceId?: string }>(body)?.resourceId ?? '');
+      if (
+        !target ||
+        target.spaceId !== space.id ||
+        !isPage(target.kind) ||
+        !this.canReadResource(actorId, target)
+      )
+        throw new InputError('That page cannot be placed here.');
+      body = json({ resourceId: target.id })!;
+      title = target.title;
+      // A card showing a private page is itself private, so it never reveals the page exists.
+      if (target.visibility === 'private') visibility = 'private';
+    } else if (input.kind === 'arrow') {
+      const ends = parse<{ from?: string; to?: string }>(body);
+      const from = this.resource(ends?.from ?? '');
+      const to = this.resource(ends?.to ?? '');
+      if (!from || !to || from.parentId !== input.parentId || to.parentId !== input.parentId)
+        throw new InputError('An arrow joins two things on the same canvas.');
+      body = json({ from: from.id, to: to.id })!;
+      title = 'Arrow';
+    } else title = title || (input.kind === 'doc' ? 'Untitled' : titleFrom(body) || input.kind);
     const resource = this.insertResource(actorId, {
       spaceId: space.id,
       kind: input.kind,
@@ -583,6 +720,11 @@ export class Store {
       parentId: input.parentId ?? null,
       placement: input.placement ?? null,
     });
+    const style = styleFor(input.kind, input.style);
+    if (style) {
+      this.run('update resources set style = ? where id = ?', style, resource.id);
+      resource.style = style;
+    }
     this.changed({ type: 'resource', resource, actorId });
     return resource;
   }
@@ -616,19 +758,29 @@ export class Store {
       body?: string;
       placement?: Placement | null;
       visibility?: Resource['visibility'];
-      style?: 'heading' | null;
+      style?: string | null;
+      parentId?: Id | null;
     },
   ) {
     const resource = this.resource(resourceId);
     if (!resource || !this.canReadResource(actorId, resource))
       throw new AccessError('Not available.');
-    if (resource.kind === 'folder') throw new InputError('Folders cannot be edited.');
+    if (resource.kind === 'folder') {
+      const title = (patch.title ?? '').trim().slice(0, 80);
+      if (!title || resource.role) throw new InputError('Folders can only be renamed.');
+      this.run('update resources set title = ? where id = ?', title, resourceId);
+      this.changed();
+      return this.resource(resourceId)!;
+    }
     if (patch.visibility && patch.visibility !== resource.visibility) {
       if (resource.ownerId !== actorId) throw new AccessError('Only the owner can change sharing.');
       if (this.space(resource.spaceId)!.kind === 'personal')
         throw new InputError('Personal space items are always private.');
     }
-    const body = patch.body !== undefined ? patch.body.slice(0, 50_000) : resource.body;
+    const body =
+      patch.body !== undefined
+        ? patch.body.slice(0, resource.kind === 'image' ? 900_000 : 200_000)
+        : resource.body;
     // A note keeps following its first line until someone gives it a title of its own.
     const followsBody = resource.kind === 'note' && resource.title === titleFrom(resource.body);
     const next = {
@@ -639,27 +791,25 @@ export class Store {
             ? titleFrom(body)
             : resource.title,
       body,
-      // Arrangement is personal: a person's move is theirs alone. The stored placement is only
-      // where an item first appears for people who have not arranged it.
-      placement:
-        patch.placement !== undefined && (resource.placement === null || patch.placement === null)
-          ? patch.placement
-          : resource.placement,
+      // A canvas is arranged together: moving a piece moves it for everyone on the canvas.
+      placement: patch.placement !== undefined ? patch.placement : resource.placement,
       visibility: patch.visibility ?? resource.visibility,
     };
-    if (patch.style !== undefined && resource.kind === 'note')
-      this.run('update resources set style = ? where id = ?', patch.style, resourceId);
-    if (patch.placement !== undefined) {
-      if (patch.placement === null)
-        this.run('delete from placements where resource_id = ?', resourceId);
-      else
-        this.run(
-          'insert or replace into placements values (?, ?, ?)',
-          this.principal(actorId),
-          resourceId,
-          json(patch.placement),
-        );
+    if (patch.parentId !== undefined && isPage(resource.kind)) {
+      const folder = patch.parentId ? this.resource(patch.parentId) : null;
+      if (
+        patch.parentId &&
+        (!folder || folder.kind !== 'folder' || folder.spaceId !== resource.spaceId)
+      )
+        throw new InputError('Unknown folder.');
+      this.run('update resources set parent_id = ? where id = ?', patch.parentId, resourceId);
     }
+    if (patch.style !== undefined)
+      this.run(
+        'update resources set style = ? where id = ?',
+        styleFor(resource.kind, patch.style),
+        resourceId,
+      );
     const at = now();
     this.run(
       'update resources set title = ?, body = ?, placement = ?, visibility = ?, updated_at = ?, updated_by = ? where id = ?',
@@ -713,7 +863,35 @@ export class Store {
       actorId,
       resourceId,
     );
+    // Arrows joined to it, and cards or pins showing it, go with it.
+    for (const other of this.resourcesIn(resource.spaceId)) {
+      const link = other.kind === 'arrow' || other.kind === 'embed' ? parse<any>(other.body) : null;
+      if (link && [link.from, link.to, link.resourceId].includes(resourceId))
+        this.run('update resources set deleted = 1 where id = ?', other.id);
+    }
+    this.run('delete from channel_pins where resource_id = ?', resourceId);
     this.changed();
+  }
+  /** One cell of a sheet. Two people editing different cells never overwrite each other. */
+  setCell(actorId: Id, resourceId: Id, row: number, col: number, value: string) {
+    const sheet = this.resource(resourceId);
+    if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
+      throw new AccessError('Not available.');
+    if (
+      !Number.isInteger(row) ||
+      !Number.isInteger(col) ||
+      row < 0 ||
+      col < 0 ||
+      row > 499 ||
+      col > 51
+    )
+      throw new InputError('That cell is outside the sheet.');
+    const rows = parse<{ rows: string[][] }>(sheet.body)?.rows ?? [];
+    const width = Math.max(col + 1, ...rows.map((r) => r.length), 1);
+    while (rows.length <= row) rows.push([]);
+    for (const r of rows) while (r.length < width) r.push('');
+    rows[row][col] = String(value ?? '').slice(0, 2000);
+    return this.updateResource(actorId, resourceId, { body: json({ rows })! });
   }
   revisions(actorId: Id, resourceId: Id) {
     const resource = this.resource(resourceId);
@@ -746,7 +924,46 @@ export class Store {
         'select user_id from participants where conversation_id = ?',
         row.id,
       ).map((p) => p.user_id),
+      pinnedIds: this.all(
+        'select resource_id from channel_pins where conversation_id = ?',
+        row.id,
+      ).map((p) => p.resource_id),
     } as Conversation;
+  }
+  /** Pins a page along the top of a channel, or takes it down. */
+  setPin(actorId: Id, conversationId: Id, resourceId: Id, on: boolean) {
+    const conversation = this.conversation(conversationId);
+    const resource = this.resource(resourceId);
+    if (!conversation || !this.canReadConversation(actorId, conversation))
+      throw new AccessError('Not available.');
+    if (!resource || !this.canReadResource(actorId, resource) || resource.visibility !== 'space')
+      throw new InputError('Only shared pages can be pinned.');
+    if (on)
+      this.run('insert or ignore into channel_pins values (?, ?)', conversationId, resourceId);
+    else
+      this.run(
+        'delete from channel_pins where conversation_id = ? and resource_id = ?',
+        conversationId,
+        resourceId,
+      );
+    this.changed();
+  }
+  /** Marks a comment dealt with, or reopens it. Anyone who can read the conversation may. */
+  resolveMessage(actorId: Id, messageId: Id, resolved: boolean) {
+    const row = this.get('select conversation_id from messages where id = ?', messageId);
+    const conversation = row && this.conversation(row.conversation_id);
+    if (!conversation || !this.canReadConversation(actorId, conversation))
+      throw new AccessError('Not available.');
+    this.run('update messages set resolved = ? where id = ?', resolved ? 1 : 0, messageId);
+    this.changed();
+  }
+  /** The stored context of a message: what its sender was looking at. */
+  messageContext(messageId: Id) {
+    const row = this.get('select context from messages where id = ?', messageId);
+    return (
+      parse<{ resourceIds: Id[]; spaceId?: Id | null; conversationIds?: Id[] }>(row?.context) ??
+      null
+    );
   }
   private createConversation(
     kind: Conversation['kind'],
@@ -838,11 +1055,24 @@ export class Store {
   postMessage(
     actorId: Id,
     request: SendRequest,
-    extra: { jobId?: Id; approvalId?: Id; runtime?: string } = {},
+    extra: {
+      jobId?: Id;
+      approvalId?: Id;
+      runtime?: string;
+      sourceIds?: Id[];
+      relay?: boolean;
+    } = {},
   ) {
     const conversation = this.conversation(request.conversationId);
-    if (!conversation || !this.canReadConversation(actorId, conversation))
+    // relay: an agent answering in someone's private conversation because their own agent asked it to.
+    if (!conversation || (!extra.relay && !this.canReadConversation(actorId, conversation)))
       throw new AccessError('Not available.');
+    if (request.embed) {
+      const piece = this.resource(request.embed.resourceId);
+      if (!piece || !this.canReadResource(actorId, piece)) throw new AccessError('Not available.');
+      if (piece.visibility === 'private' && conversation.kind !== 'agent-private')
+        throw new InputError('Share this page before putting part of it in a conversation.');
+    }
     const text = String(request.text ?? '')
       .trim()
       .slice(0, 8000);
@@ -873,7 +1103,7 @@ export class Store {
     }
     const messageId = id();
     this.run(
-      'insert into messages values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       messageId,
       conversation.id,
       actorId,
@@ -890,6 +1120,17 @@ export class Store {
       extra.runtime ?? null,
       now(),
       delegated ? 1 : 0,
+      json(request.embed ?? null),
+      json(extra.sourceIds?.length ? extra.sourceIds : null),
+      json(
+        request.context
+          ? {
+              resourceIds: (request.context.resourceIds ?? []).slice(0, 12),
+              spaceId: request.context.spaceId ?? null,
+              conversationIds: (request.context.conversationIds ?? []).slice(0, 4),
+            }
+          : null,
+      ),
     );
     const message = toMessage(this.get('select * from messages where id = ?', messageId)!);
     if (actor.kind === 'human') this.markRead(actorId, conversation.id);
@@ -901,7 +1142,42 @@ export class Store {
       'select * from (select *, rowid as seq from messages where conversation_id = ? order by created_at desc, rowid desc limit ?) order by created_at, seq',
       conversationId,
       limit,
-    ).map(toMessage);
+    )
+      .map(toMessage)
+      .map((m) => {
+        const byEmoji = new Map<string, Id[]>();
+        for (const r of this.all(
+          'select emoji, user_id from reactions where message_id = ? order by rowid',
+          m.id,
+        ))
+          byEmoji.set(r.emoji, [...(byEmoji.get(r.emoji) ?? []), r.user_id]);
+        return byEmoji.size
+          ? { ...m, reactions: [...byEmoji].map(([emoji, userIds]) => ({ emoji, userIds })) }
+          : m;
+      });
+  }
+  toggleReaction(actorId: Id, messageId: Id, emoji: string) {
+    const row = this.get('select conversation_id from messages where id = ?', messageId);
+    const conversation = row && this.conversation(row.conversation_id);
+    if (!conversation || !this.canReadConversation(actorId, conversation))
+      throw new AccessError('Not available.');
+    if (!(REACTIONS as readonly string[]).includes(emoji))
+      throw new InputError('Unknown reaction.');
+    const has = this.get(
+      'select 1 from reactions where message_id = ? and user_id = ? and emoji = ?',
+      messageId,
+      actorId,
+      emoji,
+    );
+    if (has)
+      this.run(
+        'delete from reactions where message_id = ? and user_id = ? and emoji = ?',
+        messageId,
+        actorId,
+        emoji,
+      );
+    else this.run('insert into reactions values (?, ?, ?)', messageId, actorId, emoji);
+    this.changed();
   }
   markRead(userId: Id, conversationId: Id) {
     const conversation = this.conversation(conversationId);
@@ -1032,16 +1308,46 @@ export class Store {
     const space = this.requireMember(actorId, approval.spaceId);
     if (this.user(actorId)?.kind !== 'human') throw new AccessError('People decide approvals.');
     if (approval.status !== 'pending') throw new InputError('Already decided.');
+    const job = this.job(approval.jobId);
+    const from = job?.conversationId ? this.conversation(job.conversationId) : null;
+    if (from && !this.canReadConversation(actorId, from)) throw new AccessError('Not available.');
+    // What comes out of a private conversation stays private to the person until they share it.
+    const personal = from?.kind === 'agent-private' || from?.kind === 'dm';
     let resultResourceId: Id | null = null;
     if (decision === 'approved' && approval.proposal.kind === 'create-doc') {
-      const resource = this.insertResource(approval.agentId, {
+      const resource = this.insertResource(personal ? actorId : approval.agentId, {
         spaceId: space.id,
         kind: 'doc',
         title: approval.proposal.title.slice(0, 120) || 'Untitled',
         body: approval.proposal.body.slice(0, 50_000),
-        visibility: space.kind === 'personal' ? 'private' : 'space',
+        visibility: space.kind === 'personal' || personal ? 'private' : 'space',
       });
       resultResourceId = resource.id;
+      const canvas = this.resource(approval.proposal.resourceId ?? '');
+      if (canvas?.kind === 'canvas') {
+        const below = this.resourcesIn(space.id)
+          .filter((r) => r.parentId === canvas.id && r.placement)
+          .reduce((y, r) => Math.max(y, r.placement!.y + r.placement!.height), 0);
+        this.insertResource(personal ? actorId : approval.agentId, {
+          spaceId: space.id,
+          kind: 'embed',
+          title: resource.title,
+          body: json({ resourceId: resource.id })!,
+          visibility: resource.visibility,
+          parentId: canvas.id,
+          placement: { x: 48, y: below + 24, width: 288, height: 144 },
+        });
+      }
+    }
+    if (decision === 'approved' && approval.proposal.kind === 'edit-doc') {
+      const page = this.resource(approval.proposal.resourceId ?? '');
+      if (!page || !this.canReadResource(actorId, page)) throw new AccessError('Not available.');
+      if (!approval.proposal.title || !page.body.includes(approval.proposal.title))
+        throw new InputError('The page has changed since this was suggested. Ask again.');
+      this.updateResource(approval.agentId, page.id, {
+        body: page.body.replace(approval.proposal.title, approval.proposal.body),
+      });
+      resultResourceId = page.id;
     }
     if (decision === 'approved' && approval.proposal.kind === 'add-step')
       this.createGoal(actorId, { spaceId: space.id, title: approval.proposal.title });
@@ -1214,22 +1520,12 @@ export class Store {
     const members = this.all('select * from members')
       .filter((m) => spaceIds.has(m.space_id))
       .map((m) => ({ spaceId: m.space_id, userId: m.user_id, role: m.role }) as Member);
-    const mine = new Map(
-      this.all('select resource_id, placement from placements where user_id = ?', userId).map(
-        (r) => [r.resource_id as Id, parse<Placement>(r.placement)],
-      ),
-    );
+    const grants = new Map<Id, Id[]>();
+    for (const g of this.all('select resource_id, user_id from grants'))
+      grants.set(g.resource_id, [...(grants.get(g.resource_id) ?? []), g.user_id]);
     const resources = spaces
       .flatMap((s) => this.readableResources(userId, s.id))
-      .map((r) =>
-        r.placement
-          ? {
-              ...r,
-              placement: mine.get(r.id) ?? r.placement,
-              ownPlacement: mine.has(r.id) || r.ownerId === userId,
-            }
-          : r,
-      );
+      .map((r) => (grants.has(r.id) ? { ...r, grants: grants.get(r.id) } : r));
     const conversations = this.all('select id from conversations order by created_at, rowid')
       .map((r) => this.conversation(r.id)!)
       .filter((c) => this.canReadConversation(userId, c));
@@ -1259,7 +1555,14 @@ export class Store {
       'select * from approvals order by created_at desc, rowid desc limit 200',
     )
       .map(toApproval)
-      .filter((a) => spaceIds.has(a.spaceId));
+      // A suggestion made in a private conversation is seen only by the people in it.
+      .filter((a) => {
+        const job = this.job(a.jobId);
+        return (
+          spaceIds.has(a.spaceId) &&
+          (!job?.conversationId || conversationIds.has(job.conversationId))
+        );
+      });
     const lastRead = Object.fromEntries(
       this.all('select conversation_id, last_read_at from reads where user_id = ?', userId).map(
         (r) => [r.conversation_id, r.last_read_at],
@@ -1271,6 +1574,8 @@ export class Store {
         ...p,
         spaceId: p.spaceId && spaceIds.has(p.spaceId) ? p.spaceId : null,
         resourceId: p.resourceId && resourceIds.has(p.resourceId) ? p.resourceId : null,
+        conversationId:
+          p.conversationId && conversationIds.has(p.conversationId) ? p.conversationId : null,
       }));
     return {
       version: this.version,

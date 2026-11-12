@@ -12,7 +12,7 @@ export type AgentTask = {
   context: {
     orientation: string | null;
     resources: { title: string; kind: string; excerpt: string }[];
-    recent: { author: string; text: string; at: string }[];
+    recent: { author: string; text: string; at: string; where?: string }[];
     /** The space's plan, in order. */
     plan: {
       step: string;
@@ -23,6 +23,10 @@ export type AgentTask = {
     }[];
     /** Who is in the space: people and agents. */
     members: { name: string; kind: 'human' | 'agent' }[];
+    /** What the requester was looking at or had selected, in full. Answer from these first. */
+    focus: { title: string; kind: string; body: string }[];
+    /** Other agents this agent may hand work to, by name. */
+    colleagues: { name: string; purpose: string }[];
   };
 };
 
@@ -35,6 +39,10 @@ export type AgentResult = {
   orientation?: string;
   /** Runtime decided not to speak (proactive checks). */
   skip?: boolean;
+  /** Titles of the pages the reply drew on. */
+  sources?: string[];
+  /** Pass part of the job to a colleague, by name. */
+  handoff?: { to: string; request: string };
   tokens?: number;
 };
 

@@ -54,6 +54,15 @@ create table if not exists reads (
 create table if not exists placements (
   user_id text not null, resource_id text not null, placement text not null, primary key (user_id, resource_id)
 );
+create table if not exists channel_pins (
+  conversation_id text not null, resource_id text not null, primary key (conversation_id, resource_id)
+);
+create table if not exists grants (
+  resource_id text not null, user_id text not null, primary key (resource_id, user_id)
+);
+create table if not exists reactions (
+  message_id text not null, user_id text not null, emoji text not null, primary key (message_id, user_id, emoji)
+);
 create table if not exists goals (
   id text primary key, space_id text not null, title text not null, owner_id text, agent_id text, due text,
   done integer not null default 0, position integer not null, source_message_id text, created_by text not null,
@@ -76,10 +85,17 @@ export function openDb(path: string): Db {
     } catch {
       // Already there.
     }
-  try {
-    db.exec('alter table resources add column style text');
-  } catch {
-    // Already there.
-  }
+  for (const change of [
+    'alter table resources add column style text',
+    'alter table messages add column resolved integer not null default 0',
+    'alter table messages add column embed text',
+    'alter table messages add column sources text',
+    'alter table messages add column context text',
+  ])
+    try {
+      db.exec(change);
+    } catch {
+      // Already there.
+    }
   return db;
 }

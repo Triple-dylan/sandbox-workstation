@@ -37,18 +37,18 @@ test('privacy: private notes, project membership and DMs are only visible to the
   const personal = snap(dylan.id).spaces.find((s) => s.kind === 'personal')!;
   const diary = store.createResource(dylan.id, {
     spaceId: personal.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'pricing idea',
   });
   assert.equal(diary.visibility, 'private');
   const shared = store.createResource(dylan.id, {
     spaceId: project.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'Launch checklist',
   });
   const privateInProject = store.createResource(dylan.id, {
     spaceId: project.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'draft only for me',
     visibility: 'private',
   });
@@ -115,7 +115,7 @@ test('situation 2: a private ask is answered privately using what the asker can 
   const personal = snap(dylan.id).spaces.find((s) => s.kind === 'personal')!;
   store.createResource(dylan.id, {
     spaceId: personal.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'Pricing experiment: tiered plans',
   });
   const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
@@ -134,7 +134,7 @@ test('situation 4: discussing selected work anchors to the resource and respects
   const { app, store, dylan, maya, sam, project, general, snap } = setup();
   const note = store.createResource(dylan.id, {
     spaceId: project.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'Ship on Friday',
   });
   const discussion = store.openDiscussion(dylan.id, note.id);
@@ -149,7 +149,7 @@ test('situation 4: discussing selected work anchors to the resource and respects
   assert.ok(!snap(sam.id).conversations.some((c) => c.id === discussion.id));
   const mine = store.createResource(dylan.id, {
     spaceId: project.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'mine',
     visibility: 'private',
   });
@@ -362,6 +362,7 @@ test('goals: lightweight steps that only members can see or change', async () =>
 
 test('pins point at a message; a pin of a private conversation never becomes shared', async () => {
   const { store, dylan, maya, sam, project, general, snap } = setup();
+  const canvas = store.createResource(dylan.id, { spaceId: project.id, kind: 'canvas', body: '' });
   const said = store.postMessage(maya.id, {
     conversationId: general.id,
     text: 'Deposit due Friday',
@@ -369,26 +370,32 @@ test('pins point at a message; a pin of a private conversation never becomes sha
   const pin = store.createResource(dylan.id, {
     spaceId: project.id,
     kind: 'pin',
+    parentId: canvas.id,
     body: JSON.stringify({ messageId: said.id }),
   });
   assert.equal(pin.visibility, 'space');
   assert.equal(JSON.parse(pin.body).quote, 'Deposit due Friday');
-  // A direct message pinned onto the shared board stays visible to its pinner only.
+  // A direct message pinned onto a shared canvas stays visible to its pinner only.
   const dm = store.openDm(maya.id, dylan.id);
   const whisper = store.postMessage(maya.id, { conversationId: dm.id, text: 'between us' });
   const privatePin = store.createResource(dylan.id, {
     spaceId: project.id,
     kind: 'pin',
+    parentId: canvas.id,
     body: JSON.stringify({ messageId: whisper.id }),
     visibility: 'space',
   });
   assert.equal(privatePin.visibility, 'private');
   assert.ok(!snap(maya.id).resources.some((r) => r.id === privatePin.id));
+  assert.ok(snap(maya.id).resources.some((r) => r.id === pin.id));
   // Someone who cannot read the conversation cannot pin from it, and it cannot feed a shared plan.
+  const samSpace = snap(sam.id).spaces[0].id;
+  const samCanvas = store.createResource(sam.id, { spaceId: samSpace, kind: 'canvas', body: '' });
   assert.throws(() =>
     store.createResource(sam.id, {
-      spaceId: snap(sam.id).spaces[0].id,
+      spaceId: samSpace,
       kind: 'pin',
+      parentId: samCanvas.id,
       body: JSON.stringify({ messageId: whisper.id }),
     }),
   );
@@ -400,7 +407,7 @@ test('pins point at a message; a pin of a private conversation never becomes sha
   assert.equal(step.sourceMessageId, null);
 });
 
-test('folders and the plan: folders hold documents, and a space has one plan on its board', async () => {
+test('pages: documents, sheets, decks and canvases live in folders; a canvas has one plan', async () => {
   const { store, dylan, maya, project } = setup();
   const folder = store.createFolder(dylan.id, { spaceId: project.id, title: 'Vendors' });
   const doc = store.createResource(maya.id, {
@@ -411,44 +418,321 @@ test('folders and the plan: folders hold documents, and a space has one plan on 
     parentId: folder.id,
   });
   assert.equal(doc.parentId, folder.id);
-  const first = store.createResource(dylan.id, { spaceId: project.id, kind: 'plan', body: '' });
+  const sheet = store.createResource(dylan.id, { spaceId: project.id, kind: 'sheet', body: '' });
+  assert.equal(JSON.parse(sheet.body).rows.length, 8);
+  const deck = store.createResource(dylan.id, { spaceId: project.id, kind: 'deck', body: '' });
+  assert.equal(JSON.parse(deck.body).slides.length, 1);
+  const canvas = store.createResource(dylan.id, { spaceId: project.id, kind: 'canvas', body: '' });
+  // Pages move between folders; canvas pieces need a canvas.
+  assert.equal(
+    store.updateResource(dylan.id, sheet.id, { parentId: folder.id }).parentId,
+    folder.id,
+  );
+  assert.throws(
+    () => store.createResource(dylan.id, { spaceId: project.id, kind: 'sticky', body: 'x' }),
+    /canvas/,
+  );
+  assert.throws(
+    () =>
+      store.createResource(dylan.id, {
+        spaceId: project.id,
+        kind: 'sticky',
+        body: 'x',
+        parentId: folder.id,
+      }),
+    /canvas/,
+  );
+  const first = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'plan',
+    body: '',
+    parentId: canvas.id,
+  });
   const second = store.createResource(maya.id, {
     spaceId: project.id,
     kind: 'plan',
     body: '',
+    parentId: canvas.id,
     placement: { x: 24, y: 24, width: 384, height: 312 },
   });
   assert.equal(second.id, first.id);
   assert.equal(second.placement?.x, 24);
+  // Renaming a folder is allowed; nothing else about it is.
+  assert.equal(
+    store.updateResource(dylan.id, folder.id, { title: 'Suppliers' }).title,
+    'Suppliers',
+  );
 });
 
-test('arrangement is personal: moving something changes only your own board', async () => {
+test('a canvas is arranged together, and its pieces follow who can open it', async () => {
   const { store, dylan, maya, project, snap } = setup();
-  const note = store.createResource(dylan.id, {
-    spaceId: project.id,
-    kind: 'note',
-    body: 'Shared note',
-    placement: { x: 96, y: 96, width: 336, height: 48 },
+  const canvas = store.createResource(dylan.id, { spaceId: project.id, kind: 'canvas', body: '' });
+  const piece = (kind: 'sticky' | 'shape' | 'frame' | 'note', body: string, style?: string) =>
+    store.createResource(dylan.id, {
+      spaceId: project.id,
+      kind,
+      body,
+      style,
+      parentId: canvas.id,
+      placement: { x: 96, y: 96, width: 168, height: 96 },
+    });
+  const sticky = piece('sticky', 'Ask Jon', 'pink');
+  const shape = piece('shape', 'Decide', 'diamond');
+  assert.equal(sticky.style, 'pink');
+  assert.equal(shape.style, 'diamond');
+  assert.equal(piece('sticky', 'x', 'nonsense').style, 'yellow');
+  const seen = (userId: string, id: string) => snap(userId).resources.find((r) => r.id === id);
+  // Moving a piece moves it for everyone.
+  store.updateResource(maya.id, sticky.id, {
+    placement: { x: 480, y: 240, width: 168, height: 96 },
   });
-  const seen = (userId: string) => snap(userId).resources.find((r) => r.id === note.id)!;
-  // Maya first sees it where Dylan put it, flagged as not yet arranged by her.
-  assert.equal(seen(maya.id).placement?.x, 96);
-  assert.equal(seen(maya.id).ownPlacement, false);
-  assert.equal(seen(dylan.id).ownPlacement, true);
-  store.updateResource(maya.id, note.id, { placement: { x: 480, y: 240, width: 336, height: 48 } });
-  assert.equal(seen(maya.id).placement?.x, 480);
-  assert.equal(seen(maya.id).ownPlacement, true);
-  assert.equal(seen(dylan.id).placement?.x, 96);
-  // Content stays shared.
-  store.updateResource(maya.id, note.id, { body: 'Edited by Maya' });
-  assert.equal(seen(dylan.id).body, 'Edited by Maya');
+  assert.equal(seen(dylan.id, sticky.id)!.placement?.x, 480);
+  // Arrows join two pieces on the same canvas, and go when either end goes.
+  const arrow = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'arrow',
+    parentId: canvas.id,
+    body: JSON.stringify({ from: sticky.id, to: shape.id }),
+  });
+  const other = store.createResource(dylan.id, { spaceId: project.id, kind: 'canvas', body: '' });
+  assert.throws(() =>
+    store.createResource(dylan.id, {
+      spaceId: project.id,
+      kind: 'arrow',
+      parentId: other.id,
+      body: JSON.stringify({ from: sticky.id, to: shape.id }),
+    }),
+  );
+  store.deleteResource(dylan.id, shape.id);
+  assert.equal(seen(dylan.id, arrow.id), undefined);
+  // A page placed on the canvas as a live card: a private page gives a private card.
+  const mine = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Draft',
+    body: 'secret',
+    visibility: 'private',
+  });
+  const card = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'embed',
+    parentId: canvas.id,
+    body: JSON.stringify({ resourceId: mine.id }),
+  });
+  assert.equal(card.visibility, 'private');
+  assert.equal(seen(maya.id, card.id), undefined);
+  // Making the canvas private hides every piece on it.
+  store.updateResource(dylan.id, canvas.id, { visibility: 'private' });
+  assert.equal(seen(maya.id, sticky.id), undefined);
+  assert.ok(seen(dylan.id, sticky.id));
+  assert.throws(() => store.updateResource(maya.id, sticky.id, { body: 'x' }), /Not available/);
+});
+
+test('a private page can be opened to one person or agent without sharing it with everyone', async () => {
+  const { store, dylan, maya, sam, project, agent, snap } = setup();
+  const page = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Offer',
+    body: 'numbers',
+    visibility: 'private',
+  });
+  const can = (userId: string) => snap(userId).resources.some((r) => r.id === page.id);
+  assert.equal(can(maya.id), false);
+  assert.throws(() => store.setGrant(maya.id, page.id, maya.id, true), /owner/);
+  assert.throws(() => store.setGrant(dylan.id, page.id, sam.id, true), /not in this space/);
+  store.setGrant(dylan.id, page.id, maya.id, true);
+  assert.equal(can(maya.id), true);
+  assert.deepEqual(snap(dylan.id).resources.find((r) => r.id === page.id)!.grants, [maya.id]);
+  assert.equal(store.canReadResource(agent.id, page), false);
+  store.setGrant(dylan.id, page.id, agent.id, true);
+  assert.equal(store.canReadResource(agent.id, page), true);
+  store.setGrant(dylan.id, page.id, maya.id, false);
+  assert.equal(can(maya.id), false);
+});
+
+test('channels: pinned pages, reactions, live pieces of a page, and sheet cells', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Stall', '180'],
+      ],
+    }),
+  });
+  store.setPin(maya.id, general.id, sheet.id, true);
+  assert.deepEqual(snap(dylan.id).conversations.find((c) => c.id === general.id)!.pinnedIds, [
+    sheet.id,
+  ]);
+  const secret = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    body: 'x',
+    visibility: 'private',
+  });
+  assert.throws(() => store.setPin(dylan.id, general.id, secret.id, true), /shared/);
+  assert.throws(() => store.setPin(sam.id, general.id, sheet.id, true), /Not available/);
+  // Part of a page inside a message; never a private page in a shared conversation.
+  const said = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'Rows here',
+    embed: { resourceId: sheet.id, from: 0, to: 1 },
+  });
+  assert.deepEqual(said.embed, { resourceId: sheet.id, from: 0, to: 1 });
+  assert.throws(
+    () =>
+      store.postMessage(dylan.id, {
+        conversationId: general.id,
+        text: 'x',
+        embed: { resourceId: secret.id },
+      }),
+    /Share this page/,
+  );
+  store.toggleReaction(maya.id, said.id, '👍');
+  store.toggleReaction(dylan.id, said.id, '👍');
+  const reacted = () => snap(dylan.id).messages.find((m) => m.id === said.id)!.reactions;
+  assert.deepEqual(reacted(), [{ emoji: '👍', userIds: [maya.id, dylan.id] }]);
+  store.toggleReaction(maya.id, said.id, '👍');
+  assert.deepEqual(reacted(), [{ emoji: '👍', userIds: [dylan.id] }]);
+  assert.throws(() => store.toggleReaction(sam.id, said.id, '👍'), /Not available/);
+  // Two people changing different cells keep both changes; the sheet grows to fit.
+  store.setCell(dylan.id, sheet.id, 1, 1, '200');
+  store.setCell(maya.id, sheet.id, 2, 0, 'Clay');
+  assert.deepEqual(JSON.parse(store.resource(sheet.id)!.body).rows, [
+    ['Item', 'Cost'],
+    ['Stall', '200'],
+    ['Clay', ''],
+  ]);
+  assert.throws(() => store.setCell(sam.id, sheet.id, 0, 0, 'x'), /Not available/);
+  // Removing the page takes its pin down.
+  store.deleteResource(dylan.id, sheet.id);
+  assert.deepEqual(snap(dylan.id).conversations.find((c) => c.id === general.id)!.pinnedIds, []);
+});
+
+test('comments on a page: an agent suggests an edit to the highlighted text, a person accepts it', async () => {
+  const { store, engine, dylan, maya, project, agent, snap } = setup();
+  const page = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Shortlist',
+    body: '# Shortlist\n\nPaperie costs $58 for 50 boxes.',
+  });
+  const feed = store.openDiscussion(dylan.id, page.id);
+  const comment = store.postMessage(dylan.id, {
+    conversationId: feed.id,
+    text: 'replace this with: Paperie costs $61 for 50 boxes.',
+    addressedTo: agent.id,
+    anchor: { resourceId: page.id, quote: 'Paperie costs $58 for 50 boxes.' },
+  });
+  await engine.idle();
+  const reply = snap(maya.id).messages.find((m) => m.replyTo === comment.id)!;
+  assert.ok(reply.approvalId);
+  assert.deepEqual(reply.sourceIds, [page.id]);
+  const approval = snap(maya.id).approvals.find((a) => a.id === reply.approvalId)!;
+  assert.equal(approval.proposal.kind, 'edit-doc');
+  assert.equal(approval.proposal.resourceId, page.id);
+  store.decideApproval(maya.id, approval.id, 'approved');
+  assert.match(store.resource(page.id)!.body, /\$61 for 50 boxes/);
+  assert.equal(store.resource(page.id)!.updatedBy, agent.id);
+  store.resolveMessage(maya.id, comment.id, true);
+  assert.equal(snap(dylan.id).messages.find((m) => m.id === comment.id)!.resolved, true);
+  // If the text has moved on, the suggestion says so instead of guessing.
+  const again = store.postMessage(dylan.id, {
+    conversationId: feed.id,
+    text: 'replace this with: $70',
+    addressedTo: agent.id,
+    anchor: { resourceId: page.id, quote: '$61 for 50 boxes' },
+  });
+  await engine.idle();
+  store.updateResource(dylan.id, page.id, { body: '# Shortlist\n\nAll change.' });
+  const second = snap(dylan.id).messages.find((m) => m.replyTo === again.id)!;
+  assert.throws(() => store.decideApproval(dylan.id, second.approvalId!, 'approved'), /changed/);
+});
+
+test('your own agent: answers from what you are looking at, hands work on, and keeps it private', async () => {
+  const seenTasks: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      seenTasks.push(task);
+      if (task.agent.role === 'personal' && /vendors/.test(task.request))
+        return {
+          reply: 'I handed that to the project agent.',
+          handoff: { to: task.context.colleagues[0].name, request: 'Compare the vendors' },
+        };
+      if (task.conversation.kind === 'handoff')
+        return {
+          reply: 'Paperie is cheapest.',
+          sources: ['Shortlist'],
+          proposal: { kind: 'create-doc', title: 'Vendor comparison', body: '# Comparison' },
+        };
+      if (task.kind === 'maintenance') return {};
+      return { reply: 'ok', sources: task.context.focus.map((f) => f.title) };
+    },
+  };
+  const { store, engine, dylan, maya, project, general, agent, snap } = setup(runtime);
+  const page = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Shortlist',
+    body: 'Paperie $58. Boxwell $74.',
+  });
+  store.postMessage(maya.id, { conversationId: general.id, text: 'We decided on Paperie' });
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'what is this page',
+    context: { resourceIds: [page.id], spaceId: project.id, conversationIds: [general.id] },
+  });
+  await engine.idle();
+  const asked = seenTasks.find((t) => t.request === 'what is this page');
+  assert.equal(asked.spaceName, 'Launch');
+  assert.equal(asked.context.focus[0].body, 'Paperie $58. Boxwell $74.');
+  assert.ok(asked.context.recent.some((m: any) => m.text === 'We decided on Paperie'));
+  assert.equal(asked.context.colleagues[0].name, agent.name);
+  assert.deepEqual(
+    snap(dylan.id)
+      .messages.filter((m) => m.conversationId === mine.id)
+      .at(-1)!.sourceIds,
+    [page.id],
+  );
+
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'compare the vendors',
+    context: { resourceIds: [page.id], spaceId: project.id },
+  });
+  await engine.idle();
+  const thread = snap(dylan.id).messages.filter((m) => m.conversationId === mine.id);
+  const relayed = thread.at(-1)!;
+  assert.equal(relayed.authorId, agent.id, 'the colleague answers in the private conversation');
+  assert.equal(relayed.text, 'Paperie is cheapest.');
+  // The colleague never saw the private conversation itself.
+  const handed = seenTasks.find((t) => t.conversation.kind === 'handoff');
+  assert.deepEqual(handed.context.recent, []);
+  // Nobody else sees the conversation, the job or the suggestion that came out of it.
+  const other = snap(maya.id);
+  assert.ok(!other.messages.some((m) => m.conversationId === mine.id));
+  assert.ok(!other.approvals.some((a) => a.id === relayed.approvalId));
+  assert.throws(() => store.decideApproval(maya.id, relayed.approvalId!, 'approved'));
+  // Accepting it makes a page that is private to the person who asked.
+  const decided = store.decideApproval(dylan.id, relayed.approvalId!, 'approved');
+  const made = store.resource(decided.resultResourceId!)!;
+  assert.equal(made.visibility, 'private');
+  assert.equal(made.ownerId, dylan.id);
+  assert.ok(!snap(maya.id).resources.some((r) => r.id === made.id));
 });
 
 test('a removed item can be brought back by the person who removed it', async () => {
   const { store, dylan, maya, project, snap } = setup();
   const note = store.createResource(dylan.id, {
     spaceId: project.id,
-    kind: 'note',
+    kind: 'doc',
     body: 'Keep me',
   });
   store.deleteResource(dylan.id, note.id);

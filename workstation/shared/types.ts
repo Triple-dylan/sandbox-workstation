@@ -41,8 +41,38 @@ export type User = {
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
-/** note: text typed on the board. pin: a message kept on the board. image: a picture. plan: the space's goals shown on the board. */
-export type ResourceKind = 'folder' | 'note' | 'doc' | 'pin' | 'image' | 'plan';
+/** Pages: things you open and work in. Each has its own editor. */
+export const PAGE_KINDS = ['doc', 'sheet', 'deck', 'canvas'] as const;
+export type PageKind = (typeof PAGE_KINDS)[number];
+/**
+ * Things that live on a canvas page. note: typed text. sticky, shape, frame: drawing pieces.
+ * arrow: a connector between two pieces. embed: another page shown as a live card.
+ * pin: a message kept on the canvas. image: a picture. plan: the space's goals.
+ */
+export const CANVAS_KINDS = [
+  'note',
+  'sticky',
+  'shape',
+  'frame',
+  'arrow',
+  'embed',
+  'pin',
+  'image',
+  'plan',
+] as const;
+export type CanvasKind = (typeof CANVAS_KINDS)[number];
+export type ResourceKind = 'folder' | PageKind | CanvasKind;
+export const isPage = (kind: ResourceKind): kind is PageKind =>
+  (PAGE_KINDS as readonly string[]).includes(kind);
+
+/** A sheet's stored form: rows of cells. A cell beginning with "=" is a formula. */
+export type SheetBody = { rows: string[][] };
+/** A deck's stored form. */
+export type DeckBody = { slides: { title: string; body: string }[] };
+/** What an embed on a canvas points at. */
+export type EmbedBody = { resourceId: Id };
+/** A connector on a canvas, between two pieces on the same canvas. */
+export type ArrowBody = { from: Id; to: Id };
 export type Placement = { x: number; y: number; width: number; height: number };
 export type Resource = {
   id: Id;
@@ -52,13 +82,13 @@ export type Resource = {
   title: string;
   body: string;
   visibility: 'space' | 'private';
-  /** Notes only: a heading reads larger on the board. */
-  style?: 'heading';
+  /** note: 'heading'. sticky: its colour. shape: 'rect' | 'ellipse' | 'diamond'. */
+  style?: string;
   ownerId: Id;
-  /** Where this item sits on the viewer's own arrangement of the board. */
+  /** Where a canvas piece sits on its canvas. The arrangement is shared by everyone on the canvas. */
   placement: Placement | null;
-  /** False when the viewer has not arranged this item yet and is seeing where its creator put it. */
-  ownPlacement?: boolean;
+  /** People and agents given access to a private page, beyond its owner. */
+  grants?: Id[];
   /** Orientation doc maintained by the project agent. */
   role?: 'orientation' | 'resources';
   updatedAt: string;
@@ -73,6 +103,8 @@ export type Conversation = {
   title: string;
   resourceId: Id | null;
   participantIds: Id[];
+  /** Pages pinned along the top of a channel. */
+  pinnedIds: Id[];
 };
 
 export type Anchor = { resourceId: Id; quote: string };
@@ -91,6 +123,13 @@ export type Message = {
   approvalId: Id | null;
   /** Which agent runtime produced this message (agents only). */
   runtime: string | null;
+  /** A comment on a page that has been dealt with. */
+  resolved: boolean;
+  /** A live piece of a page shown inside the message. Rows apply to sheets. */
+  embed: { resourceId: Id; from?: number; to?: number } | null;
+  /** The pages an agent's answer drew on. */
+  sourceIds: Id[];
+  reactions: { emoji: string; userIds: Id[] }[];
   createdAt: string;
 };
 
@@ -125,9 +164,12 @@ export type Assignment = {
 
 /** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. add-step: title is a new step for the plan. */
 export type Proposal = {
-  kind: 'create-doc' | 'create-agent' | 'add-step';
+  /** edit-doc: title is the exact text to replace in the page, body is what replaces it. */
+  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc';
   title: string;
   body: string;
+  /** edit-doc: the page to change. create-doc: the canvas to put the new page on, if any. */
+  resourceId?: Id;
 };
 export type Approval = {
   id: Id;
@@ -162,8 +204,9 @@ export type PinBody = { messageId: Id; conversationId: Id; authorId: Id; quote: 
 export type Presence = {
   userId: Id;
   spaceId: Id | null;
-  surface: 'canvas' | 'graph' | null;
+  /** The page or conversation they have open. */
   resourceId: Id | null;
+  conversationId: Id | null;
   editing: boolean;
   online: boolean;
 };
@@ -194,4 +237,13 @@ export type SendRequest = {
   delegate?: boolean;
   anchor?: Anchor | null;
   replyTo?: Id | null;
+  embed?: { resourceId: Id; from?: number; to?: number } | null;
+  /** What the sender was looking at: pages in view or selected, and the space. Context, never a recipient. */
+  context?: { resourceIds: Id[]; spaceId?: Id | null; conversationIds?: Id[] } | null;
 };
+
+export const STICKY_COLORS = ['yellow', 'pink', 'blue', 'green'] as const;
+export const SHAPES = ['rect', 'ellipse', 'diamond'] as const;
+export const REACTIONS = ['👍', '✅', '👀', '🎉', '❤️'] as const;
+/** A teammate's pointer on a canvas, sent live and never stored. */
+export type Cursor = { userId: Id; resourceId: Id; x: number; y: number };

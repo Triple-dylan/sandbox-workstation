@@ -87,6 +87,24 @@ export const scriptedRuntime: AgentRuntime = {
         proposal: { kind: 'create-agent', title: name, body: purpose },
       };
     }
+    const swap = text.match(/replace (?:it |this )?with[:\s]+["“]?([^"”\n]+)["”]?/i);
+    if (task.anchor && swap)
+      return {
+        reply: `I suggested the change on **${task.anchor.title}**. It needs approval.`,
+        proposal: { kind: 'edit-doc', title: task.anchor.quote, body: swap[1].trim() },
+        sources: [task.anchor.title],
+      };
+    const pass = text.match(
+      /\b(?:ask|hand(?: this)? to|have)\s+([A-Z][\w' -]{1,30}?)\s+(?:to\s+)?(.{4,})/,
+    );
+    const colleague =
+      pass &&
+      task.context.colleagues.find((c) => c.name.toLowerCase() === pass[1].trim().toLowerCase());
+    if (pass && colleague)
+      return {
+        reply: `I handed that to **${colleague.name}**.`,
+        handoff: { to: colleague.name, request: pass[2].trim() },
+      };
     const step = text.match(
       /\b(?:add|put)\s+(?:a |another )?(?:step|goal|task|item)\b(?:\s+(?:to (?:the )?plan|called|for|to))?\s*[:“"']?([^"”'\n]+)/i,
     );
@@ -117,6 +135,21 @@ export const scriptedRuntime: AgentRuntime = {
         proposal: { kind: 'create-doc', title, body },
       };
     }
+    const focus = task.context.focus;
+    if (focus.length && /\b(summary|summari[sz]e|this|these|selected|compare)\b/i.test(text))
+      return {
+        reply: focus
+          .map(
+            (f) =>
+              `**${f.title}**: ${f.body
+                .replace(/[#*_|>-]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 160)}`,
+          )
+          .join('\n\n'),
+        sources: focus.map((f) => f.title),
+      };
     if (/\b(summary|summari[sz]e|status|catch me up|what'?s (new|happening))\b/i.test(text)) {
       const { resources, recent } = task.context;
       return {
@@ -135,10 +168,11 @@ export const scriptedRuntime: AgentRuntime = {
     if (found.length)
       return {
         reply: `Here's what I can see that matches:\n${found.map((r) => `- **${r.title}** — ${r.excerpt.slice(0, 90) || r.kind}`).join('\n')}`,
+        sources: found.map((r) => r.title),
       };
     return {
       reply:
-        "I'm running on the scripted demo runtime, so I only understand a few requests: “create a doc called …”, “summarize”, “find …”, or delegations such as “keep the orientation up to date”. Add an OpenAI key to give me real answers.",
+        "I'm running on the scripted demo runtime, so I only understand a few requests: “create a doc called …”, “summarize”, “find …”, or delegations such as “keep the orientation up to date”. Connect a model to get real answers.",
     };
   },
 };

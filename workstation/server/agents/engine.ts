@@ -70,7 +70,11 @@ export class AgentEngine {
     const request = message.text;
     if (addressed?.kind === 'agent' && addressed.retired) return;
     if (addressed?.kind === 'agent') {
-      const spaceId = this.spaceFor(addressed);
+      const looking = this.store.messageContext(message.id)?.spaceId;
+      const spaceId =
+        addressed.role === 'personal' && looking && this.store.isMember(addressed.id, looking)
+          ? looking
+          : this.spaceFor(addressed);
       if (!spaceId) return;
       if (delegate) {
         const assignment = this.store.createAssignment({
@@ -80,7 +84,15 @@ export class AgentEngine {
           instruction: request,
           createdBy: message.authorId,
         });
-        await this.runJob(addressed, conversation, 'delegation', request, message, assignment.id);
+        await this.runJob(
+          addressed,
+          conversation,
+          'delegation',
+          request,
+          message,
+          assignment.id,
+          spaceId,
+        );
         return;
       }
       await this.runJob(
@@ -89,6 +101,8 @@ export class AgentEngine {
         message.addressedTo ? 'instruction' : 'ask',
         request,
         message,
+        null,
+        spaceId,
       );
       return;
     }
@@ -104,6 +118,26 @@ export class AgentEngine {
       this.lastProactive.set(conversation.id, Date.now());
       await this.runJob(agent, conversation, 'proactive', message.text, message);
     }
+  }
+
+  /** A page's content as plain text an agent can read, whatever its kind. */
+  private readable(r: { kind: string; title: string; body: string }): string {
+    try {
+      if (r.kind === 'embed') {
+        const target = this.store.resource(JSON.parse(r.body).resourceId);
+        return target ? `${target.title}\n${this.readable(target)}` : r.title;
+      }
+      if (r.kind === 'arrow' || r.kind === 'plan' || r.kind === 'image') return r.title;
+      if (r.kind === 'sheet')
+        return (JSON.parse(r.body).rows as string[][]).map((row) => row.join(' | ')).join('\n');
+      if (r.kind === 'deck')
+        return (JSON.parse(r.body).slides as { title: string; body: string }[])
+          .map((s, i) => `Slide ${i + 1}: ${s.title}\n${s.body}`)
+          .join('\n\n');
+    } catch {
+      return r.title;
+    }
+    return r.kind === 'pin' || r.kind === 'canvas' ? r.title : r.body;
   }
 
   private spaceFor(agent: User) {
@@ -163,16 +197,18 @@ export class AgentEngine {
     conversation: Conversation | null,
     spaceId: Id,
     trigger: Message | null,
+    relay = false,
   ): AgentTask {
     const space = this.store.space(spaceId)!;
-    const spaces = agent.role === 'personal' ? this.store.memberSpaces(agent.id) : [spaceId];
+    const spaces =
+      agent.role === 'personal'
+        ? this.store.memberSpaces(this.store.principal(agent.id))
+        : [spaceId];
     const resources = spaces
       .flatMap((id) => this.store.readableResources(agent.id, id))
       .filter(
         (r) =>
-          r.kind !== 'folder' &&
-          r.kind !== 'image' &&
-          r.kind !== 'plan' &&
+          ['doc', 'sheet', 'deck', 'canvas', 'note', 'sticky', 'pin'].includes(r.kind) &&
           r.role !== 'orientation',
       );
     const orientation = this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation');
@@ -183,8 +219,21 @@ export class AgentEngine {
             .conversations.filter(
               (c) => c.spaceId === spaceId && (c.kind === 'channel' || c.kind === 'discussion'),
             )
-        : conversation
-          ? [conversation]
+        : conversation && !relay
+          ? [
+              conversation,
+              // Its owner's agent also hears the conversations in view, with its owner's access.
+              ...(agent.role === 'personal' && trigger
+                ? (this.store.messageContext(trigger.id)?.conversationIds ?? [])
+                    .map((id) => this.store.conversation(id))
+                    .filter(
+                      (c): c is Conversation =>
+                        !!c &&
+                        c.id !== conversation.id &&
+                        this.store.canReadConversation(agent.id, c),
+                    )
+                : []),
+            ]
           : [];
     const recent = shared
       .flatMap((c) => this.store.messages(c.id, 40))
@@ -195,8 +244,28 @@ export class AgentEngine {
         author: this.store.user(m.authorId)?.name ?? 'Someone',
         text: m.text,
         at: m.createdAt,
+        where: shared.find((c) => c.id === m.conversationId)?.title || 'private',
       }));
     const anchorResource = trigger?.anchor ? this.store.resource(trigger.anchor.resourceId) : null;
+    const looking = trigger ? this.store.messageContext(trigger.id) : null;
+    const focusIds = [
+      ...(anchorResource ? [anchorResource.id] : []),
+      ...(conversation?.kind === 'discussion' && conversation.resourceId
+        ? [conversation.resourceId]
+        : []),
+      ...(looking?.resourceIds ?? []),
+    ];
+    const focus = [...new Set(focusIds)]
+      .map((id) => this.store.resource(id))
+      .filter((r): r is NonNullable<typeof r> => !!r && this.store.canReadResource(agent.id, r))
+      .filter((r) => !['image', 'folder', 'arrow', 'plan'].includes(r.kind))
+      .slice(0, 8)
+      .map((r) => ({ title: r.title, kind: r.kind, body: this.readable(r).slice(0, 6000) }));
+    const colleagueSpace = looking?.spaceId ?? spaceId;
+    const colleagues = this.store
+      .projectAgents(colleagueSpace)
+      .filter((a) => a.id !== agent.id && this.store.isMember(agent.id, colleagueSpace))
+      .map((a) => ({ name: a.name, purpose: a.purpose ?? '' }));
     return {
       kind,
       agent: {
@@ -208,7 +277,9 @@ export class AgentEngine {
       spaceName: space.name,
       requester: trigger ? (this.store.user(trigger.authorId)?.name ?? null) : null,
       request,
-      conversation: { kind: conversation?.kind ?? 'none', title: conversation?.title ?? '' },
+      conversation: relay
+        ? { kind: 'handoff', title: '' }
+        : { kind: conversation?.kind ?? 'none', title: conversation?.title ?? '' },
       anchor:
         anchorResource && trigger?.anchor
           ? { title: anchorResource.title, quote: trigger.anchor.quote }
@@ -221,7 +292,7 @@ export class AgentEngine {
         resources: resources.map((r) => ({
           title: r.title,
           kind: r.kind,
-          excerpt: (r.kind === 'pin' ? r.title : r.body).replace(/\s+/g, ' ').slice(0, 400),
+          excerpt: this.readable(r).replace(/\s+/g, ' ').slice(0, 400),
         })),
         recent,
         plan: this.store.goals(spaceId).map((g) => ({
@@ -232,6 +303,8 @@ export class AgentEngine {
           done: g.done,
         })),
         members: this.store.membersOf(spaceId),
+        focus,
+        colleagues,
       },
     };
   }
@@ -244,10 +317,11 @@ export class AgentEngine {
     trigger: Message | null,
     _assignmentId: Id | null = null,
     explicitSpaceId?: Id,
+    relay = false,
   ) {
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
-    if (conversation && !this.store.canReadConversation(agent.id, conversation)) return;
+    if (conversation && !relay && !this.store.canReadConversation(agent.id, conversation)) return;
     const job = this.store.createJob({
       agentId: agent.id,
       spaceId,
@@ -263,7 +337,7 @@ export class AgentEngine {
       runtime: this.runtime.id,
     });
     this.store.setJob(job.id, 'running');
-    const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger);
+    const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger, relay);
     let result;
     let runtime = this.runtime;
     let note = '';
@@ -296,7 +370,38 @@ export class AgentEngine {
       return;
     }
     let approvalId: Id | undefined;
-    if (result.proposal) approvalId = this.store.createApproval(job, result.proposal).id;
+    if (result.proposal) {
+      const looking = trigger ? this.store.messageContext(trigger.id) : null;
+      const anchored =
+        trigger?.anchor?.resourceId ??
+        (conversation?.kind === 'discussion' ? conversation.resourceId : null) ??
+        looking?.resourceIds[0] ??
+        null;
+      // An edit targets the page in question; a new page lands on the canvas being looked at.
+      const canvas = (looking?.resourceIds ?? [])
+        .map((id) => this.store.resource(id))
+        .find((r) => r?.kind === 'canvas');
+      const target =
+        result.proposal.kind === 'edit-doc'
+          ? anchored
+          : result.proposal.kind === 'create-doc'
+            ? canvas?.id
+            : null;
+      if (result.proposal.kind !== 'edit-doc' || target)
+        approvalId = this.store.createApproval(job, {
+          ...result.proposal,
+          ...(target ? { resourceId: target } : {}),
+        }).id;
+    }
+    const titles = new Map(
+      this.store
+        .memberSpaces(agent.id)
+        .flatMap((id) => this.store.readableResources(agent.id, id))
+        .map((r) => [r.title.toLowerCase(), r.id] as const),
+    );
+    const sourceIds = (result.sources ?? [])
+      .map((title) => titles.get(title.toLowerCase()))
+      .filter((id): id is Id => !!id);
     if (conversation && (result.reply || result.proposal))
       this.reply(
         agent,
@@ -306,7 +411,29 @@ export class AgentEngine {
         job,
         runtime.id,
         approvalId,
+        sourceIds,
+        relay,
       );
+    // Passing part of the job to a colleague: it answers in the same conversation, visibly as itself.
+    if (result.handoff && conversation && trigger && !relay) {
+      const looking = this.store.messageContext(trigger.id);
+      const colleague = this.store
+        .projectAgents(looking?.spaceId ?? spaceId)
+        .find(
+          (a) => a.name.toLowerCase() === result.handoff!.to.toLowerCase() && a.id !== agent.id,
+        );
+      if (colleague && this.store.isMember(trigger.authorId, colleague.spaceId ?? ''))
+        await this.runJob(
+          colleague,
+          conversation,
+          'instruction',
+          result.handoff.request,
+          trigger,
+          null,
+          colleague.spaceId,
+          true,
+        );
+    }
     this.store.setJob(job.id, approvalId ? 'awaiting_approval' : 'done');
   }
 
@@ -318,6 +445,8 @@ export class AgentEngine {
     job: Job,
     runtime: string,
     approvalId?: Id,
+    sourceIds: Id[] = [],
+    relay = false,
   ) {
     this.store.postMessage(
       agent.id,
@@ -327,7 +456,7 @@ export class AgentEngine {
         replyTo:
           trigger && conversation.kind !== 'agent-private' ? (trigger.replyTo ?? trigger.id) : null,
       },
-      { jobId: job.id, approvalId, runtime },
+      { jobId: job.id, approvalId, runtime, sourceIds, relay },
     );
   }
 }

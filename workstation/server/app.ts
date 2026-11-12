@@ -7,6 +7,7 @@ import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import { selectRuntime } from './env.ts';
+import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
 
 const COOKIE = 'sw_session';
@@ -98,8 +99,8 @@ export function createApp(options: AppOptions) {
     const current = presence.get(userId) ?? {
       userId,
       spaceId: null,
-      surface: null,
       resourceId: null,
+      conversationId: null,
       editing: false,
       online: false,
     };
@@ -159,10 +160,26 @@ export function createApp(options: AppOptions) {
     if (path === '/api/presence' && method === 'POST') {
       setPresence(me.id, {
         spaceId: str('spaceId') || null,
-        surface: input.surface === 'graph' ? 'graph' : input.surface === 'canvas' ? 'canvas' : null,
         resourceId: str('resourceId') || null,
+        conversationId: str('conversationId') || null,
         editing: !!input.editing,
       });
+      return send(res, 200, { ok: true });
+    }
+    if (path === '/api/cursor' && method === 'POST') {
+      // Pointers are passed straight to the other people who can open that canvas; nothing is stored.
+      const canvas = store.resource(str('resourceId'));
+      if (canvas && store.canReadResource(me.id, canvas)) {
+        const data = JSON.stringify({
+          userId: me.id,
+          resourceId: canvas.id,
+          x: Math.round(Number(input.x) || 0),
+          y: Math.round(Number(input.y) || 0),
+        });
+        for (const [stream, userId] of streams)
+          if (userId !== me.id && store.canReadResource(userId, canvas))
+            stream.write(`event: cursor\ndata: ${data}\n\n`);
+      }
       return send(res, 200, { ok: true });
     }
     if (path === '/api/projects' && method === 'POST')
@@ -191,7 +208,65 @@ export function createApp(options: AppOptions) {
               ? { resourceId: input.anchor.resourceId, quote: String(input.anchor.quote ?? '') }
               : null,
           replyTo: str('replyTo') || null,
+          embed:
+            input.embed && typeof input.embed.resourceId === 'string'
+              ? {
+                  resourceId: input.embed.resourceId,
+                  ...(Number.isInteger(input.embed.from) && Number.isInteger(input.embed.to)
+                    ? { from: input.embed.from, to: input.embed.to }
+                    : {}),
+                }
+              : null,
+          context:
+            input.context && Array.isArray(input.context.resourceIds)
+              ? {
+                  resourceIds: input.context.resourceIds.filter(
+                    (x: unknown) => typeof x === 'string',
+                  ),
+                  spaceId: typeof input.context.spaceId === 'string' ? input.context.spaceId : null,
+                  conversationIds: Array.isArray(input.context.conversationIds)
+                    ? input.context.conversationIds.filter((x: unknown) => typeof x === 'string')
+                    : [],
+                }
+              : null,
         }),
+      );
+    if (
+      segments[0] === 'messages' &&
+      segments[1] &&
+      segments[2] === 'resolve' &&
+      method === 'POST'
+    ) {
+      store.resolveMessage(me.id, segments[1], input.resolved !== false);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'messages' && segments[1] && segments[2] === 'react' && method === 'POST') {
+      store.toggleReaction(me.id, segments[1], str('emoji'));
+      return send(res, 200, { ok: true });
+    }
+    if (
+      segments[0] === 'conversations' &&
+      segments[1] &&
+      segments[2] === 'pins' &&
+      method === 'POST'
+    ) {
+      store.setPin(me.id, segments[1], str('resourceId'), input.on !== false);
+      return send(res, 200, { ok: true });
+    }
+    if (
+      segments[0] === 'resources' &&
+      segments[1] &&
+      segments[2] === 'grants' &&
+      method === 'POST'
+    ) {
+      store.setGrant(me.id, segments[1], str('userId'), input.on !== false);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'resources' && segments[1] && segments[2] === 'cells' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.setCell(me.id, segments[1], Number(input.row), Number(input.col), str('value')),
       );
     if (path === '/api/reads' && method === 'POST') {
       store.markRead(me.id, str('conversationId'));
@@ -268,12 +343,13 @@ export function createApp(options: AppOptions) {
         200,
         store.createResource(me.id, {
           spaceId: str('spaceId'),
-          kind: (['doc', 'pin', 'image', 'plan'] as const).find((k) => k === input.kind) ?? 'note',
+          kind: [...PAGE_KINDS, ...CANVAS_KINDS].find((k) => k === input.kind) ?? 'doc',
           title: str('title'),
           body: str('body'),
           visibility: input.visibility === 'private' ? 'private' : 'space',
           parentId: str('parentId') || null,
           placement: placement(input.placement),
+          style: str('style') || null,
         }),
       );
     if (
@@ -294,7 +370,8 @@ export function createApp(options: AppOptions) {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
             ...(typeof input.body === 'string' ? { body: input.body } : {}),
             ...('placement' in input ? { placement: placement(input.placement) } : {}),
-            ...('style' in input ? { style: input.style === 'heading' ? 'heading' : null } : {}),
+            ...('style' in input ? { style: str('style') || null } : {}),
+            ...('parentId' in input ? { parentId: str('parentId') || null } : {}),
             ...(input.visibility === 'private' || input.visibility === 'space'
               ? { visibility: input.visibility }
               : {}),
