@@ -1,6 +1,25 @@
 export type Id = string;
 
-export type Character = { hue: number; shape: 'round' | 'tall' | 'wide'; eyes: 'dot' | 'arc' };
+/** The nine orb forms. An agent keeps one as its look; how fast it moves shows what it is doing. */
+export const ORB_FORMS = [
+  'breathing',
+  'weaving',
+  'composing',
+  'listening',
+  'connecting',
+  'searching',
+  'working',
+  'solving',
+  'shaping',
+] as const;
+export type OrbForm = (typeof ORB_FORMS)[number];
+export type Character = {
+  hue: number;
+  shape: 'round' | 'tall' | 'wide';
+  eyes: 'dot' | 'arc';
+  /** The agent's own orb form. When unset, one is derived from its id so agents still differ. */
+  form?: OrbForm;
+};
 
 export type User = {
   id: Id;

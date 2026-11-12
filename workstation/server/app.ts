@@ -249,6 +249,7 @@ export function createApp(options: AppOptions) {
           ...(typeof input.purpose === 'string' ? { purpose: input.purpose } : {}),
           ...(typeof input.instructions === 'string' ? { instructions: input.instructions } : {}),
           ...(typeof input.hue === 'number' ? { hue: input.hue } : {}),
+          ...(typeof input.form === 'string' ? { form: input.form } : {}),
         }),
       );
     if (path === '/api/folders' && method === 'POST')

@@ -2522,3 +2522,81 @@ button.primary,
   border-color: transparent;
   opacity: 1;
 }
+
+/* ---------- text colour is stated on the app itself ----------
+   A host page may set its own body text colour. Everything that inherits (headings, bold text,
+   button labels) must inherit ours. */
+body,
+.shell,
+.join,
+.boot {
+  color: var(--ink);
+}
+h1,
+h2,
+h3,
+strong,
+button {
+  color: inherit;
+}
+
+/* ---------- the space pill never sits on the message bar ---------- */
+.surface {
+  container-type: inline-size;
+}
+.where {
+  max-width: calc((100cqw - 560px) / 2 - 20px);
+}
+@container (max-width: 1040px) {
+  .where {
+    display: none;
+  }
+}
+
+/* ---------- agent looks ---------- */
+.agent-forms {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+}
+.agent-forms button {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+}
+.agent-forms button:hover {
+  background: var(--wash);
+}
+.agent-forms button[aria-checked='true'] {
+  background: var(--wash-2);
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+.agent-forms .orb {
+  transform: scale(0.8);
+}
+.orb.state-working::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-2);
+  opacity: 0;
+  animation: orb-pulse 1.6s ease-out infinite;
+}
+@keyframes orb-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb.state-working::after {
+    animation: none;
+    opacity: 0.5;
+  }
+}

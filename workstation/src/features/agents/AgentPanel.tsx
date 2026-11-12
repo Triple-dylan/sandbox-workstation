@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { Check, Lock, MessageSquareText, Square, Users, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
-import { Character, agentState } from './Character.tsx';
+import { Character, agentState, orbForm } from './Character.tsx';
+import { ORB_FORMS } from '../../../shared/types.ts';
 import { myAgents } from '../conversations/audience.ts';
 import type { Job } from '../../../shared/types.ts';
 
@@ -180,6 +181,22 @@ export function AgentPanel({ agentId }: { agentId: string }) {
           <span>Name</span>
           <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
         </label>
+        <div className="agent-forms" role="radiogroup" aria-label="Look">
+          {ORB_FORMS.map((form) => (
+            <button
+              key={form}
+              role="radio"
+              aria-checked={orbForm(agent) === form}
+              aria-label={`Look: ${form}`}
+              title={form}
+              onClick={() =>
+                void run(() => api(`/agents/${agent.id}`, { method: 'PATCH', body: { form } }))
+              }
+            >
+              <Character agent={agent} size={32} form={form} />
+            </button>
+          ))}
+        </div>
         <div className="agent-hues" role="radiogroup" aria-label="Colour">
           {[20, 60, 110, 160, 200, 240, 280, 330].map((hue) => (
             <button
@@ -216,7 +233,7 @@ export function AgentPanel({ agentId }: { agentId: string }) {
           {personal
             ? `It sees what you can see (${s.spaces.map((x) => x.name).join(', ')}), and only you see what it says and does.`
             : 'It sees what is shared with the project, never private items. Shared changes it proposes need a person to approve them.'}{' '}
-          Replies come from the {s.runtime.label.toLowerCase()}
+          Answers come from {s.runtime.label}
           {s.runtime.model ? ` (${s.runtime.model})` : ''}.
         </p>
         <div className="agent-save">

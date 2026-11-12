@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
+import { ORB_FORMS } from '../shared/types.ts';
 import type {
   Anchor,
   Approval,
@@ -204,8 +205,10 @@ export class Store {
   }
   createAgent(name: string, scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' }) {
     const agentId = id();
+    const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
-      hue: Math.floor(Math.random() * 360),
+      form: ORB_FORMS[(taken * 4 + 1) % ORB_FORMS.length],
+      hue: (taken * 137 + 20) % 360,
       shape: shapes[Math.floor(Math.random() * shapes.length)],
       eyes: eyes[Math.floor(Math.random() * eyes.length)],
     };
@@ -227,7 +230,13 @@ export class Store {
   updateAgent(
     actorId: Id,
     agentId: Id,
-    patch: { name?: string; purpose?: string; instructions?: string; hue?: number },
+    patch: {
+      name?: string;
+      purpose?: string;
+      instructions?: string;
+      hue?: number;
+      form?: string;
+    },
   ) {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
@@ -251,6 +260,14 @@ export class Store {
         'update users set character = ?, color = ? where id = ?',
         json({ ...(agent.character ?? { shape: 'round', eyes: 'dot' }), hue }),
         `hsl(${hue} 35% 45%)`,
+        agentId,
+      );
+    }
+    if (patch.form && (ORB_FORMS as readonly string[]).includes(patch.form)) {
+      const current = this.user(agentId)!.character ?? { hue: 210, shape: 'round', eyes: 'dot' };
+      this.run(
+        'update users set character = ? where id = ?',
+        json({ ...current, form: patch.form }),
         agentId,
       );
     }
