@@ -40,7 +40,15 @@ export function App() {
 
 function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const [ui, setUiState] = useState<Ui>(loadUi);
-  const [notice, setNotice] = useState('');
+  const [notice, setNoticeState] = useState<{
+    text: string;
+    action?: { label: string; run: () => void };
+  } | null>(null);
+  const setNotice = useCallback(
+    (text: string, action?: { label: string; run: () => void }) =>
+      setNoticeState(text ? { text, action } : null),
+    [],
+  );
   const setUi = useCallback(
     (patch: Partial<Ui> | ((ui: Ui) => Partial<Ui>)) =>
       setUiState((old) => ({ ...old, ...(typeof patch === 'function' ? patch(old) : patch) })),
@@ -68,7 +76,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   }, [setUi]);
   useEffect(() => {
     if (!notice) return;
-    const timer = setTimeout(() => setNotice(''), 5000);
+    const timer = setTimeout(() => setNoticeState(null), notice.action ? 9000 : 5000);
     return () => clearTimeout(timer);
   }, [notice]);
 
@@ -135,7 +143,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           selectedId: resourceId,
         })),
     };
-  }, [s, ui, setUi, space, refresh]);
+  }, [s, ui, setUi, space, refresh, setNotice]);
 
   const agentOpen = !!ui.agentId && s.users.some((u) => u.id === ui.agentId && u.kind === 'agent');
   // A document opened from the board takes the work area; the board folds into a shelf beside it.
@@ -162,7 +170,17 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           <div className="dock">
             {notice ? (
               <div className="notice" role="status">
-                {notice}
+                <span>{notice.text}</span>
+                {notice.action && (
+                  <button
+                    onClick={() => {
+                      notice.action!.run();
+                      setNoticeState(null);
+                    }}
+                  >
+                    {notice.action.label}
+                  </button>
+                )}
               </div>
             ) : (
               <Peek />

@@ -421,3 +421,50 @@ test('folders and the plan: folders hold documents, and a space has one plan on 
   assert.equal(second.id, first.id);
   assert.equal(second.placement?.x, 24);
 });
+
+test('arrangement is personal: moving something changes only your own board', async () => {
+  const { store, dylan, maya, project, snap } = setup();
+  const note = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'note',
+    body: 'Shared note',
+    placement: { x: 96, y: 96, width: 336, height: 48 },
+  });
+  const seen = (userId: string) => snap(userId).resources.find((r) => r.id === note.id)!;
+  // Maya first sees it where Dylan put it, flagged as not yet arranged by her.
+  assert.equal(seen(maya.id).placement?.x, 96);
+  assert.equal(seen(maya.id).ownPlacement, false);
+  assert.equal(seen(dylan.id).ownPlacement, true);
+  store.updateResource(maya.id, note.id, { placement: { x: 480, y: 240, width: 336, height: 48 } });
+  assert.equal(seen(maya.id).placement?.x, 480);
+  assert.equal(seen(maya.id).ownPlacement, true);
+  assert.equal(seen(dylan.id).placement?.x, 96);
+  // Content stays shared.
+  store.updateResource(maya.id, note.id, { body: 'Edited by Maya' });
+  assert.equal(seen(dylan.id).body, 'Edited by Maya');
+});
+
+test('a removed item can be brought back by the person who removed it', async () => {
+  const { store, dylan, maya, project, snap } = setup();
+  const note = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'note',
+    body: 'Keep me',
+  });
+  store.deleteResource(dylan.id, note.id);
+  assert.ok(!snap(dylan.id).resources.some((r) => r.id === note.id));
+  assert.throws(() => store.restoreResource(maya.id, note.id));
+  store.restoreResource(dylan.id, note.id);
+  assert.ok(snap(maya.id).resources.some((r) => r.id === note.id));
+});
+
+test('retiring an agent stops its work and keeps its history', async () => {
+  const { store, dylan, project, general, snap } = setup();
+  const scout = store.newAgent(dylan.id, { name: 'Scout', spaceId: project.id });
+  const goal = store.createGoal(dylan.id, { spaceId: project.id, title: 'Compare quotes' });
+  store.updateGoal(dylan.id, goal.id, { agentId: scout.id });
+  store.retireAgent(dylan.id, scout.id);
+  assert.equal(snap(dylan.id).users.find((u) => u.id === scout.id)?.retired, true);
+  assert.ok(!store.addressableAgents(dylan.id, general).some((a) => a.id === scout.id));
+  assert.equal(snap(dylan.id).goals[0].agentId, null);
+});

@@ -53,7 +53,7 @@ export type Workspace = {
   space: Space;
   user: (id: Id | null | undefined) => User | undefined;
   resource: (id: Id | null | undefined) => Resource | undefined;
-  notify: (text: string) => void;
+  notify: (text: string, action?: { label: string; run: () => void }) => void;
   run: <T>(work: () => Promise<T>) => Promise<T | undefined>;
   openConversation: (id: Id) => void;
   openResource: (id: Id) => void;

@@ -454,6 +454,15 @@ export class Store {
   readableResources(userId: Id, spaceId: Id) {
     return this.resourcesIn(spaceId).filter((r) => this.canReadResource(userId, r));
   }
+  /** Brings back something the same person removed. */
+  restoreResource(actorId: Id, resourceId: Id) {
+    const row = this.get('select * from resources where id = ? and deleted = 1', resourceId);
+    if (!row || row.updated_by !== actorId || !this.isMember(actorId, row.space_id))
+      throw new AccessError('Not available.');
+    this.run('update resources set deleted = 0, updated_at = ? where id = ?', now(), resourceId);
+    this.changed();
+    return this.resource(resourceId)!;
+  }
   private insertResource(
     actorId: Id,
     input: {
@@ -611,9 +620,25 @@ export class Store {
             ? titleFrom(body)
             : resource.title,
       body,
-      placement: patch.placement !== undefined ? patch.placement : resource.placement,
+      // Arrangement is personal: a person's move is theirs alone. The stored placement is only
+      // where an item first appears for people who have not arranged it.
+      placement:
+        patch.placement !== undefined && (resource.placement === null || patch.placement === null)
+          ? patch.placement
+          : resource.placement,
       visibility: patch.visibility ?? resource.visibility,
     };
+    if (patch.placement !== undefined) {
+      if (patch.placement === null)
+        this.run('delete from placements where resource_id = ?', resourceId);
+      else
+        this.run(
+          'insert or replace into placements values (?, ?, ?)',
+          this.principal(actorId),
+          resourceId,
+          json(patch.placement),
+        );
+    }
     const at = now();
     this.run(
       'update resources set title = ?, body = ?, placement = ?, visibility = ?, updated_at = ?, updated_by = ? where id = ?',
@@ -1168,7 +1193,22 @@ export class Store {
     const members = this.all('select * from members')
       .filter((m) => spaceIds.has(m.space_id))
       .map((m) => ({ spaceId: m.space_id, userId: m.user_id, role: m.role }) as Member);
-    const resources = spaces.flatMap((s) => this.readableResources(userId, s.id));
+    const mine = new Map(
+      this.all('select resource_id, placement from placements where user_id = ?', userId).map(
+        (r) => [r.resource_id as Id, parse<Placement>(r.placement)],
+      ),
+    );
+    const resources = spaces
+      .flatMap((s) => this.readableResources(userId, s.id))
+      .map((r) =>
+        r.placement
+          ? {
+              ...r,
+              placement: mine.get(r.id) ?? r.placement,
+              ownPlacement: mine.has(r.id) || r.ownerId === userId,
+            }
+          : r,
+      );
     const conversations = this.all('select id from conversations order by created_at, rowid')
       .map((r) => this.conversation(r.id)!)
       .filter((c) => this.canReadConversation(userId, c));

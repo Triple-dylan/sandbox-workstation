@@ -34,7 +34,10 @@ export type Resource = {
   body: string;
   visibility: 'space' | 'private';
   ownerId: Id;
+  /** Where this item sits on the viewer's own arrangement of the board. */
   placement: Placement | null;
+  /** False when the viewer has not arranged this item yet and is seeing where its creator put it. */
+  ownPlacement?: boolean;
   /** Orientation doc maintained by the project agent. */
   role?: 'orientation' | 'resources';
   updatedAt: string;

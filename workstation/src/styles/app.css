@@ -2110,3 +2110,52 @@ button.primary,
   color: var(--danger);
   background: var(--wash);
 }
+
+/* ---------- resize handle and notice action ---------- */
+.canvas-item .resize {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  opacity: 0;
+  border-radius: 4px;
+  background:
+    linear-gradient(135deg, transparent 50%, var(--ink-2) 50%, var(--ink-2) 62%, transparent 62%),
+    linear-gradient(135deg, transparent 72%, var(--ink-2) 72%, var(--ink-2) 84%, transparent 84%);
+  z-index: 2;
+}
+.canvas-item:hover .resize,
+.canvas-item.selected .resize {
+  opacity: 0.8;
+}
+.canvas-item.kind-doc .doc-card {
+  height: 100%;
+  overflow: hidden;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.notice span {
+  flex: 1;
+  min-width: 0;
+}
+.notice button {
+  font-weight: 650;
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.notice button:hover {
+  background: var(--wash);
+}
+.plan-meta select {
+  max-width: 72px;
+}
+.plan-meta input[type='date'] {
+  max-width: 98px;
+}

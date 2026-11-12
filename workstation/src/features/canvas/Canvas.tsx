@@ -14,7 +14,7 @@ import {
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { PinBody, Placement, Resource, Snapshot } from '../../../shared/types.ts';
-import { GRID, fits, freeSpot, placeNote, snap } from './layout.ts';
+import { GRID, fits, freeSpot, intersects, placeNote, snap } from './layout.ts';
 import { readImage } from './image.ts';
 import { PlanList } from '../plan/Plan.tsx';
 import { conversationLabel } from '../conversations/audience.ts';
@@ -24,6 +24,14 @@ type Draft = { placement: Placement; resourceId: string | null; text: string };
 
 /** Last measured canvas size, so other surfaces can place items into a free spot. */
 export const canvasBounds = { width: 960, height: 720 };
+
+const MIN_SIZE: Partial<Record<Resource['kind'], { width: number; height: number }>> = {
+  note: { width: 168, height: 48 },
+  doc: { width: 216, height: 96 },
+  pin: { width: 264, height: 120 },
+  image: { width: 96, height: 96 },
+  plan: { width: 336, height: 216 },
+};
 
 /** A free place on a space's board for something new of the given size. */
 export function boardSpot(s: Snapshot, spaceId: string, size: { width: number; height: number }) {
@@ -145,6 +153,71 @@ export function Canvas() {
     if (spot) setDraft({ placement: spot, resourceId: null, text: '' });
   };
 
+  // Something a teammate placed can land on top of your own arrangement. Move it to free space
+  // once, for you only; their board is untouched.
+  const relocated = useRef(new Set<string>());
+  useEffect(() => {
+    const settled: Placement[] = items
+      .filter((r) => r.ownPlacement !== false)
+      .map((r) => r.placement!);
+    for (const r of items) {
+      if (r.ownPlacement !== false || relocated.current.has(r.id)) continue;
+      if (!settled.some((p) => intersects(r.placement!, p))) {
+        settled.push(r.placement!);
+        continue;
+      }
+      const size = { width: r.placement!.width, height: r.placement!.height };
+      const spot =
+        freeSpot(size, bounds, settled) ??
+        freeSpot(size, { ...bounds, height: bounds.height * 3 }, settled);
+      if (!spot) continue;
+      relocated.current.add(r.id);
+      settled.push(spot);
+      void api(`/resources/${r.id}`, { method: 'PATCH', body: { placement: spot } }).catch(
+        () => {},
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.map((r) => `${r.id}:${r.ownPlacement}`).join()]);
+
+  const beginResize = (e: React.PointerEvent, item: Resource) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const start = { x: e.clientX, y: e.clientY };
+    const origin = item.placement!;
+    const blockers = others(item.id);
+    const least = MIN_SIZE[item.kind] ?? { width: 168, height: 48 };
+    let current = { id: item.id, placement: origin, valid: true };
+    const move = (ev: PointerEvent) => {
+      const next = {
+        ...origin,
+        width: Math.max(least.width, snap(origin.width + ev.clientX - start.x)),
+        height: Math.max(least.height, snap(origin.height + ev.clientY - start.y)),
+      };
+      current = {
+        id: item.id,
+        placement: next,
+        valid: fits(next, { width: 1e6, height: 1e6 }, blockers),
+      };
+      setMoving(current);
+    };
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('keydown', key);
+      setMoving(null);
+      if (commit && current.valid && current.placement !== origin)
+        void run(() =>
+          api(`/resources/${item.id}`, { method: 'PATCH', body: { placement: current.placement } }),
+        );
+    };
+    const up = () => finish(true);
+    const key = (ev: KeyboardEvent) => ev.key === 'Escape' && finish(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('keydown', key);
+  };
+
   const beginMove = (e: React.PointerEvent, item: Resource) => {
     e.preventDefault();
     e.stopPropagation();
@@ -223,6 +296,7 @@ export function Canvas() {
             selected={ui.selectedId === item.id}
             onEdit={(on) => setEditingId(on ? item.id : null)}
             onMove={(e) => beginMove(e, item)}
+            onResize={(e) => beginResize(e, item)}
             bounds={bounds}
             blockers={others(item.id)}
           />
@@ -314,6 +388,7 @@ function CanvasItem({
   selected,
   onEdit,
   onMove,
+  onResize,
   bounds,
   blockers,
 }: {
@@ -324,10 +399,11 @@ function CanvasItem({
   selected: boolean;
   onEdit: (on: boolean) => void;
   onMove: (e: React.PointerEvent) => void;
+  onResize: (e: React.PointerEvent) => void;
   bounds: { width: number; height: number };
   blockers: Placement[];
 }) {
-  const { s, space, setUi, run, user, discuss, openConversation } = useWorkspace();
+  const { s, space, setUi, run, user, discuss, openConversation, notify } = useWorkspace();
   const activeJobs = s.jobs.filter(
     (j) =>
       j.targetResourceId === item.id &&
@@ -365,7 +441,7 @@ function CanvasItem({
         left: placement.x,
         top: placement.y,
         width: placement.width,
-        minHeight: placement.height,
+        ...(item.kind === 'note' ? { minHeight: placement.height } : { height: placement.height }),
       }}
       data-resource={item.id}
       onClick={(e) => {
@@ -404,7 +480,16 @@ function CanvasItem({
           <button
             aria-label="Remove"
             title="Remove"
-            onClick={() => void run(() => api(`/resources/${item.id}`, { method: 'DELETE' }))}
+            onClick={() =>
+              void run(() => api(`/resources/${item.id}`, { method: 'DELETE' })).then(
+                (done) =>
+                  done &&
+                  notify(`Removed “${item.title.slice(0, 40)}”.`, {
+                    label: 'Undo',
+                    run: () => void run(() => api(`/resources/${item.id}/restore`, { body: {} })),
+                  }),
+              )
+            }
           >
             <Trash2 size={14} />
           </button>
@@ -451,6 +536,7 @@ function CanvasItem({
           <PlanList spaceId={item.spaceId} />
         </section>
       )}
+      <button className="resize" aria-label="Resize" title="Resize" onPointerDown={onResize} />
       {(agents.length > 0 || viewers.length > 0 || editor) && (
         <div className="item-presence">
           {agents.map((a) => (

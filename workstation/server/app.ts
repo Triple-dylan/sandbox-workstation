@@ -275,6 +275,13 @@ export function createApp(options: AppOptions) {
           placement: placement(input.placement),
         }),
       );
+    if (
+      segments[0] === 'resources' &&
+      segments[1] &&
+      segments[2] === 'restore' &&
+      method === 'POST'
+    )
+      return send(res, 200, store.restoreResource(me.id, segments[1]));
     if (segments[0] === 'resources' && segments[1]) {
       if (segments[2] === 'revisions' && method === 'GET')
         return send(res, 200, store.revisions(me.id, segments[1]));

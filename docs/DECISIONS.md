@@ -2,6 +2,13 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-12
+
+- **No scripted agents presented as the product.** Dylan: "who decided we are making fake interactions. I did provide a api key to use for this demo." The scripted runtime was the Cursor demo's default, not his decision. Agents must answer from a live model wherever one is reachable; scripted output is only a labelled fallback.
+- **Priority:** "the main priority is sorting out what all of the interfaces and ui/ux is like." Build everything else; wire the provided key for testing and demos.
+- The key Dylan provided lives in the gitignored root `.env` on his machine and is read by the local server. It is not in this repository or the cloud build environment. The published preview uses Claude through the page instead.
+- *Assumed for review:* each person arranges a shared board for themselves; an item a teammate adds that would land on your arrangement is moved to free space for you only.
+
 ## 2026-11-11 — review and interview
 
 - **Foundation:** keep the demo server; rebuild the client on it. Dylan wants a real version to test locally before deploying, and left the technical choice to the builder.
