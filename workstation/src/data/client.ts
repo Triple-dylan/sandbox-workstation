@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Snapshot } from '../../shared/types.ts';
+import type { Cursor, Snapshot } from '../../shared/types.ts';
+
+/** Teammates' pointers on a canvas arrive live and are never stored. */
+const cursorListeners = new Set<(cursor: Cursor) => void>();
+export function onCursor(listener: (cursor: Cursor) => void) {
+  cursorListeners.add(listener);
+  return () => void cursorListeners.delete(listener);
+}
 
 export class ApiError extends Error {
   status: number;
@@ -38,14 +45,9 @@ export type Session =
 /** Live snapshot of everything this person may see. The server pushes a version; we refetch. */
 export function useSession() {
   const [session, setSession] = useState<Session>({ status: 'loading' });
-  const inflight = useRef(false);
-  const again = useRef(false);
-  const refresh = useCallback(async () => {
-    if (inflight.current) {
-      again.current = true;
-      return;
-    }
-    inflight.current = true;
+  const running = useRef<Promise<void> | null>(null);
+  const queued = useRef<Promise<void> | null>(null);
+  const load = useCallback(async () => {
     try {
       const snapshot = await api<Snapshot>('/snapshot');
       setSession({ status: 'ready', snapshot });
@@ -55,14 +57,21 @@ export function useSession() {
           ? { status: 'signed-out' }
           : { status: 'offline' },
       );
-    } finally {
-      inflight.current = false;
-      if (again.current) {
-        again.current = false;
-        void refresh();
-      }
     }
   }, []);
+  /** Resolves once a snapshot taken after this call is on screen. Calls made meanwhile share one fetch. */
+  const refresh = useCallback((): Promise<void> => {
+    if (!running.current) {
+      running.current = load().finally(() => (running.current = null));
+      return running.current;
+    }
+    queued.current ??= running.current.then(() => {
+      queued.current = null;
+      running.current = load().finally(() => (running.current = null));
+      return running.current;
+    });
+    return queued.current;
+  }, [load]);
   const signedIn = session.status === 'ready';
   useEffect(() => {
     void refresh();
@@ -72,6 +81,14 @@ export function useSession() {
     const events = new EventSource('/api/events');
     events.onmessage = () => void refresh();
     events.onerror = () => void refresh();
+    events.addEventListener?.('cursor', (event) => {
+      try {
+        const cursor = JSON.parse((event as MessageEvent).data) as Cursor;
+        for (const listener of cursorListeners) listener(cursor);
+      } catch {
+        // Ignore a malformed pointer.
+      }
+    });
     // Safety net in case a proxy or sleep silently drops the live connection.
     const poll = setInterval(() => void refresh(), 15_000);
     const onVisible = () => document.visibilityState === 'visible' && void refresh();

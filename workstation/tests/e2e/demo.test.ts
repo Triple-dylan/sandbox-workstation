@@ -43,91 +43,115 @@ async function join(name: string): Promise<Page> {
     await browser.newContext({ viewport: { width: 1440, height: 900 } })
   ).newPage();
   page.setDefaultTimeout(8000);
+  page.on('pageerror', (error) => assert.fail(`page error for ${name}: ${error.message}`));
   await page.goto(base);
   await page.getByPlaceholder('Name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
-  await page.getByRole('navigation', { name: 'Navigation' }).waitFor();
+  await page.getByRole('navigation', { name: 'Space' }).waitFor();
   return page;
 }
-
-const composer = (page: Page) => page.locator('.composer textarea');
-const openNav = async (page: Page) => {
-  const toggle = page.getByRole('button', { name: 'Spaces and conversations' });
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+const row = (page: Page, name: string) =>
+  page.locator('.sidebar .list-row', { hasText: name }).first();
+const newPage = async (page: Page, kind: string, title: string, mine = false) => {
+  await page.getByRole('button', { name: 'New page' }).last().click();
+  await page.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
+  await page.getByLabel('Title').last().fill(title);
+  if (mine) await page.getByRole('radio', { name: 'Only you' }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.locator('.pane-title input').waitFor();
 };
 
-test('two people: private agent, shared canvas, discuss, and an approved agent proposal', async () => {
+test('two people: shared pages, comments an agent resolves, a shared canvas, channels, and a private agent', async () => {
   const dylan = await join('Dylan');
   const maya = await join('Maya');
-  try {
-    await scenario(dylan, maya);
-  } catch (error) {
-    await dylan.screenshot({ path: 'test-results/e2e-dylan.png' });
-    await maya.screenshot({ path: 'test-results/e2e-maya.png' });
-    throw error;
-  }
-});
 
-async function scenario(dylan: Page, maya: Page) {
-  // Situation 2: a private question to your own agent, from a fresh personal space.
-  await assert.doesNotReject(dylan.getByText("To: Dylan's agent").waitFor());
-  await composer(dylan).fill('What can you do?');
-  await composer(dylan).press('Enter');
-  await dylan.locator('.conversation .from-agent').first().waitFor();
+  // Dylan makes a shared space and adds Maya.
+  await dylan.locator('.space-name').click();
+  await dylan.getByRole('menuitem', { name: 'New shared space' }).click();
+  await dylan.getByLabel('Name the shared space').fill('Launch');
+  await dylan.getByLabel('Name the shared space').press('Enter');
+  await dylan.locator('.space-name', { hasText: 'Launch' }).waitFor();
+  await dylan.getByRole('button', { name: 'Add a person' }).click();
+  await dylan.getByRole('button', { name: 'Add Maya' }).click();
+  await maya.locator('.space-name').click();
+  await maya.getByRole('menuitemradio', { name: 'Launch' }).click();
 
-  // A project, shared with Maya.
-  await openNav(dylan);
-  await dylan.getByRole('button', { name: 'New project' }).click();
-  await dylan.getByLabel('New project name').fill('Launch');
-  await dylan.getByLabel('New project name').press('Enter');
-  await dylan.getByText('To: #general').waitFor();
-  await dylan.getByRole('button', { name: /^Add/ }).click();
-  await dylan.locator('.add-people').getByRole('button', { name: 'Maya' }).click();
+  // A document they both see; typing saves and reaches the other person.
+  await newPage(dylan, 'Document', 'Brief');
+  await dylan.locator('.tiptap').click();
+  await dylan.keyboard.type('Boxes cost $58 for 50.');
+  await dylan.getByText('Saved').waitFor();
+  await row(maya, 'Brief').click();
+  await maya.locator('.tiptap', { hasText: 'Boxes cost $58 for 50.' }).waitFor();
 
-  // Blank canvas: click empty space and type.
-  await dylan.locator('.canvas').click({ position: { x: 160, y: 140 } });
-  await dylan.keyboard.type('Pricing tiers draft');
-  await dylan.keyboard.press('Escape');
-  await dylan.locator('.canvas-item').first().waitFor();
+  // A private page stays out of Maya's list.
+  await newPage(dylan, 'Document', 'Only for Dylan', true);
+  await row(dylan, 'Only for Dylan').waitFor();
+  assert.equal(await row(maya, 'Only for Dylan').count(), 0);
 
-  // Maya sees the project and the note live.
-  await openNav(maya);
-  await maya.getByRole('button', { name: 'Launch', exact: true }).click();
-  await maya.getByRole('button', { name: 'Spaces and conversations' }).click();
-  const note = maya.locator('.canvas-item textarea');
-  await note.waitFor();
-  await maya.waitForFunction(
-    () =>
-      document.querySelector<HTMLTextAreaElement>('.canvas-item textarea')?.value ===
-      'Pricing tiers draft',
-  );
-
-  // Situation 4: discuss the selected work.
-  await maya.locator('.canvas-item').hover();
-  await maya.getByRole('button', { name: 'Discuss' }).click();
-  await maya.getByText(/To: Discuss/).waitFor();
-  await composer(maya).fill('Can we drop the middle tier?');
-  await composer(maya).press('Enter');
-  await maya.locator('.conversation .anchor').waitFor();
-  await openNav(dylan);
+  // Dylan selects text and asks the space's agent to change it; Maya accepts the suggestion.
+  await row(dylan, 'Brief').click();
+  await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
+  await dylan.getByRole('button', { name: 'Ask an agent' }).click();
+  await dylan.getByLabel('Which agent').selectOption({ index: 1 });
   await dylan
-    .locator('nav .rail-row')
-    .filter({ hasText: 'Pricing tiers draft' })
-    .getByLabel(/\d+ unread/)
-    .waitFor();
+    .getByLabel('What should the agent do')
+    .fill('replace this with: Boxes cost $61 for 60.');
+  await dylan.getByLabel('What should the agent do').press('Enter');
+  await maya.getByRole('button', { name: 'Accept' }).click();
+  await dylan.locator('.tiptap', { hasText: 'Boxes cost $61 for 60.' }).waitFor();
+  await maya.locator('.tiptap', { hasText: 'Boxes cost $61 for 60.' }).waitFor();
 
-  // Situation 1: instruct the project agent; it proposes, a person approves.
-  await dylan.locator('.audience-chip').click();
-  await dylan.getByRole('option', { name: /Ask Launch agent/ }).click();
-  await composer(dylan).fill('create a doc called Launch plan');
-  await composer(dylan).press('Enter');
-  await dylan.getByRole('button', { name: 'Approve' }).first().click();
-  await dylan.getByText(/approved by Dylan/).waitFor();
-  assert.ok(
-    (
-      await maya.evaluate(() =>
-        fetch('/api/snapshot', { headers: { 'x-workstation': '1' } }).then((r) => r.json()),
-      )
-    ).resources.some((r: { title: string }) => r.title === 'Launch plan'),
-  );
-}
+  // The page's own feed is shared by the people on the page.
+  await dylan.getByLabel(/Say something to everyone on this page/).fill('Deciding Friday.');
+  await dylan.getByLabel(/Say something to everyone on this page/).press('Enter');
+  await maya.locator('.page-feed .msg', { hasText: 'Deciding Friday.' }).waitFor();
+
+  // Dylan's own agent answers only Dylan.
+  await dylan.getByLabel(/Ask Dylan's agent/).fill('summarize this');
+  await dylan.getByLabel(/Ask Dylan's agent/).press('Enter');
+  await dylan.locator('.bar-thread .msg.from-agent').waitFor();
+  await dylan.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
+  await maya.locator('.bar-orb').click();
+  assert.equal(await maya.locator('.bar-thread .msg').count(), 0);
+  await maya.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
+
+  // A canvas arranged together: Dylan places a sticky, Maya moves it, Dylan sees it move.
+  await newPage(dylan, 'Canvas', 'Board');
+  await dylan.getByRole('button', { name: /Sticky note/ }).click();
+  const area = (await dylan.locator('.canvas-scroll').boundingBox())!;
+  await dylan.mouse.click(area.x + 400, area.y + 260);
+  await dylan.locator('.piece textarea').fill('Ask about the van');
+  await dylan.keyboard.press('Escape');
+  await row(maya, 'Board').click();
+  const theirs = maya.locator('.piece', { hasText: 'Ask about the van' });
+  await theirs.waitFor();
+  const mine = dylan.locator('.piece', { hasText: 'Ask about the van' });
+  const before = (await mine.boundingBox())!;
+  const grab = (await theirs.boundingBox())!;
+  await maya.mouse.move(grab.x + 30, grab.y + 30);
+  await maya.mouse.down();
+  await maya.mouse.move(grab.x + 230, grab.y + 110, { steps: 6 });
+  await maya.mouse.up();
+  await dylan.waitForFunction((x) => {
+    const el = [...document.querySelectorAll('.piece')].find((p) =>
+      p.textContent?.includes('Ask about the van'),
+    );
+    return !!el && Math.abs(el.getBoundingClientRect().x - x) > 100;
+  }, before.x);
+
+  // A channel: Maya writes, Dylan sees it unread in the list and then in the feed.
+  await row(maya, 'general').click();
+  await maya.getByLabel('Message #general').fill('Stall is confirmed.');
+  await maya.getByLabel('Message #general').press('Enter');
+  await dylan.locator('.sidebar .list-row.unread', { hasText: 'general' }).waitFor();
+  await row(dylan, 'general').click();
+  await dylan.locator('.feed .msg', { hasText: 'Stall is confirmed.' }).waitFor();
+
+  // The graph shows Dylan's private page to Dylan only.
+  await row(dylan, 'Graph').click();
+  await dylan.locator('.graph-node.is-private', { hasText: 'Only for Dylan' }).waitFor();
+  await row(maya, 'Graph').click();
+  await maya.locator('.graph-node', { hasText: 'Brief' }).waitFor();
+  assert.equal(await maya.locator('.graph-node', { hasText: 'Only for Dylan' }).count(), 0);
+});

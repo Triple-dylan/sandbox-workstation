@@ -1,49 +1,56 @@
 import { createContext, useContext } from 'react';
-import type { Id, Resource, Snapshot, Space, User } from '../../shared/types.ts';
-import type { Audience } from '../features/conversations/audience.ts';
+import type { Conversation, Id, Resource, Snapshot, Space, User } from '../../shared/types.ts';
+
+/** What a pane in the middle shows. */
+export type Target =
+  | { type: 'page'; id: Id }
+  | { type: 'chat'; id: Id }
+  | { type: 'graph' }
+  | { type: 'catchup' }
+  | { type: 'who'; id: Id };
+
+export const sameTarget = (a: Target, b: Target) =>
+  a.type === b.type && ('id' in a ? a.id : '') === ('id' in b ? b.id : '');
 
 /** View state only. Records live on the server; nothing here grants or implies access. */
 export type Ui = {
   spaceId: Id | null;
-  surface: 'canvas' | 'graph';
-  conversationId: Id | null;
-  selectedId: Id | null;
-  readerId: Id | null;
-  /** The agent whose work and conversation are open at the right. */
-  agentId: Id | null;
-  audience: Record<Id, Audience>;
-  drafts: Record<string, string>;
+  /** One page, or two side by side. */
+  panes: Target[];
+  active: number;
   theme: 'system' | 'light' | 'dark';
-  /** Navigation sheet beside the rail. */
+  /** The answer panel above the agent bar. */
+  barOpen: boolean;
+  /** Things selected on a canvas or in the graph; they become what the agent is asked about. */
+  selection: Id[];
+  /** Unsent text in feeds, by conversation or page. */
+  drafts: Record<string, string>;
+  /** The left list as a drawer, on narrow windows. */
   nav: boolean;
-  /** The create sheet beside the rail. */
-  create: boolean;
-  /** The find sheet beside the rail. */
-  find: boolean;
-  /** Graph shows this space, or every space you can see. */
+  creating: boolean;
   graphScope: 'space' | 'everything';
-  /** A document opened from the board fills the work area; the board folds into a shelf. */
-  wide: boolean;
-  /** Project tools (agent, orientation, people) at the right edge. */
-  tools: boolean;
 };
 
 export const initialUi: Ui = {
   spaceId: null,
-  surface: 'canvas',
-  conversationId: null,
-  selectedId: null,
-  readerId: null,
-  agentId: null,
-  audience: {},
-  drafts: {},
+  panes: [{ type: 'catchup' }],
+  active: 0,
   theme: 'system',
+  barOpen: false,
+  selection: [],
+  drafts: {},
   nav: false,
-  create: false,
-  find: false,
+  creating: false,
   graphScope: 'space',
-  wide: false,
-  tools: true,
+};
+
+export type Picker = {
+  title: string;
+  /** Which pages may be chosen. */
+  filter?: (r: Resource) => boolean;
+  /** Also offer conversations. */
+  chats?: boolean;
+  onPick: (target: Target) => void;
 };
 
 export type Workspace = {
@@ -51,13 +58,24 @@ export type Workspace = {
   ui: Ui;
   setUi: (patch: Partial<Ui> | ((ui: Ui) => Partial<Ui>)) => void;
   space: Space;
+  /** How many panes fit side by side in this window. */
+  columns: 1 | 2;
   user: (id: Id | null | undefined) => User | undefined;
   resource: (id: Id | null | undefined) => Resource | undefined;
   notify: (text: string, action?: { label: string; run: () => void }) => void;
   run: <T>(work: () => Promise<T>) => Promise<T | undefined>;
-  openConversation: (id: Id) => void;
-  openResource: (id: Id) => void;
-  discuss: (resourceId: Id) => void;
+  /** Opens something in the active pane, or beside it. */
+  open: (target: Target, beside?: boolean) => void;
+  closePane: (index: number) => void;
+  pick: (picker: Picker) => void;
+  /** Your own agent and your private conversation with it. */
+  myAgent: User | undefined;
+  myChat: Conversation | undefined;
+  /** Sends a request to your own agent about what is in view. */
+  ask: (
+    text: string,
+    extra?: { anchor?: { resourceId: Id; quote: string }; resourceIds?: Id[] },
+  ) => Promise<void>;
 };
 
 export const WorkspaceContext = createContext<Workspace>(null!);

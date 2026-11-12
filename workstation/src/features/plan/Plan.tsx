@@ -10,7 +10,7 @@ import type { Goal, Id } from '../../../shared/types.ts';
  * records, so a change in one shows in the other.
  */
 export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: boolean }) {
-  const { s, run, user, openConversation } = useWorkspace();
+  const { s, run, user, open } = useWorkspace();
   const [draft, setDraft] = useState('');
   const goals = s.goals.filter((g) => g.spaceId === spaceId);
   const members = s.members.filter((m) => m.spaceId === spaceId).map((m) => user(m.userId)!);
@@ -64,7 +64,7 @@ export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: 
                     <button
                       title="Open the message this came from"
                       aria-label="Open the message this came from"
-                      onClick={() => openConversation(source.conversationId)}
+                      onClick={() => open({ type: 'chat', id: source.conversationId }, true)}
                     >
                       <MessageSquareText size={12} />
                     </button>

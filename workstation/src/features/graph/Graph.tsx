@@ -1,19 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Simulation } from 'd3-force';
-import {
-  AlignLeft,
-  Compass,
-  FileText,
-  Folder,
-  Image as ImageIcon,
-  LayoutGrid,
-  ListChecks,
-  Lock,
-  Pin,
-} from 'lucide-react';
+import { Compass, Folder, Lock } from 'lucide-react';
+import { KindIcon } from '../../app/util.tsx';
+import type { GraphFilter } from '../../app/saved.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
-import { NOTES_GROUP, graphOf, overviewOf, relationsOf, type GraphNode } from './tree.ts';
+import { graphOf, noFilter, overviewOf, relationsOf, type GraphNode } from './tree.ts';
 import {
   createCampaignOsSimulation,
   enforceHierarchyOrbits,
@@ -138,8 +130,21 @@ function build(
   return { sim, links };
 }
 
-export function Graph() {
-  const { s, space, ui, setUi, openResource, user } = useWorkspace();
+export function Graph({
+  filter = noFilter,
+  since = '',
+  lit = [],
+  selected = null,
+  onSelect,
+}: {
+  filter?: GraphFilter;
+  since?: string;
+  /** Pages an answer drew on: these stay bright and the rest dim. */
+  lit?: string[];
+  selected?: string | null;
+  onSelect: (resourceId: string | null) => void;
+}) {
+  const { s, space, ui, setUi, user } = useWorkspace();
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [focus, setFocus] = useState<string | null>(null);
@@ -161,10 +166,16 @@ export function Graph() {
   }, []);
 
   const everything = ui.graphScope === 'everything' && s.spaces.length > 1;
-  const structure = s.resources
-    .filter((r) => everything || r.spaceId === space.id)
-    .map((r) => `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}`)
-    .join('|');
+  const filterKey = `${filter.kind}:${filter.mine}:${filter.recent}:${since}`;
+  const structure =
+    filterKey +
+    s.resources
+      .filter((r) => everything || r.spaceId === space.id)
+      .map(
+        (r) =>
+          `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}:${filter.recent || filter.mine ? r.updatedAt : ''}`,
+      )
+      .join('|');
   const mentions = everything
     ? ''
     : s.resources
@@ -174,7 +185,7 @@ export function Graph() {
   // Rebuild only when the tree's shape changes, not on every keystroke or presence update.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tree = useMemo(
-    () => (everything ? overviewOf(s) : graphOf(s, space)),
+    () => (everything ? overviewOf(s) : graphOf(s, space, filter, since)),
     [structure, space.id, space.name, everything],
   );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,7 +244,8 @@ export function Graph() {
     return false;
   };
   const level = (n: SimNode): 'focus' | 'near' | 'far' => {
-    const target = hover ?? focus;
+    if (lit.length && !hover) return lit.includes(n.id) ? 'focus' : 'far';
+    const target = hover ?? focus ?? selected;
     if (!target) return 'near';
     if (n.id === target) return 'focus';
     if (within(n.id, target) || within(target, n.id)) return 'near';
@@ -243,18 +255,16 @@ export function Graph() {
   const activate = (n: SimNode) => {
     if (n.data.kind === 'root') return setFocus(null);
     // In the everything view a space is a doorway: step into it.
-    if (everything && n.data.spaceId && n.data.kind !== 'doc')
-      return setUi({ spaceId: n.data.spaceId, graphScope: 'space', readerId: null });
-    if (everything && n.data.spaceId && n.data.resourceId) {
+    if (everything && n.data.spaceId) {
       setUi({ spaceId: n.data.spaceId, graphScope: 'space' });
-      return openResource(n.data.resourceId);
+      return onSelect(n.data.resourceId ?? null);
     }
-    if (n.data.kind === 'folder' || n.data.kind === 'group')
+    if (n.data.kind === 'folder' || n.data.kind === 'group') {
+      onSelect(null);
       return setFocus((f) => (f === n.id ? null : n.id));
-    if (!n.data.resourceId) return;
-    // Documents open beside the graph; things that live on the board take you to them there.
-    if (n.data.kind === 'doc') openResource(n.data.resourceId);
-    else setUi({ surface: 'canvas', selectedId: n.data.resourceId, readerId: null });
+    }
+    // Choosing a page keeps you in the graph: it is described at the side and can be opened beside.
+    if (n.data.resourceId) onSelect(selected === n.data.resourceId ? null : n.data.resourceId);
   };
 
   const beginDrag = (e: React.PointerEvent, n: SimNode) => {
@@ -311,14 +321,9 @@ export function Graph() {
   const glyph = (n: SimNode) => {
     const d = n.data;
     if (d.kind === 'root') return null;
-    if (d.kind === 'folder') return <Folder size={18} />;
-    if (d.kind === 'group') return <LayoutGrid size={17} />;
+    if (d.kind === 'folder' || d.kind === 'group') return <Folder size={18} />;
     if (d.role === 'orientation') return <Compass size={13} />;
-    if (d.kind === 'note') return <AlignLeft size={10} />;
-    if (d.kind === 'pin') return <Pin size={10} />;
-    if (d.kind === 'image') return <ImageIcon size={10} />;
-    if (d.kind === 'plan') return <ListChecks size={11} />;
-    return <FileText size={12} />;
+    return <KindIcon kind={d.kind} size={12} />;
   };
   const privateCount = tree.nodes.filter((n) => n.private).length;
 
@@ -327,9 +332,9 @@ export function Graph() {
       className="graph"
       ref={host}
       onClick={(e) => {
-        if (e.target === host.current || (e.target as Element).tagName === 'svg') {
+        if (!(e.target as Element).closest('.graph-node')) {
           setFocus(null);
-          setUi({ readerId: null });
+          onSelect(null);
         }
       }}
     >
@@ -355,15 +360,12 @@ export function Graph() {
         const d = n.data;
         const lv = level(n);
         const hub = n.isHub || n.isCampaignCenter;
-        // Things on the board are many and wordy; they name themselves when you look at them.
-        const boardItem = d.parentId === NOTES_GROUP;
-        const labelled =
-          hub || lv === 'focus' || (focus !== null && lv === 'near') || (!quiet && !boardItem);
+        const labelled = hub || lv === 'focus' || (focus !== null && lv === 'near') || !quiet;
         const diameter = Math.max(12, n.radius * 2 * Math.max(0.72, scale));
         return (
           <button
             key={n.id}
-            className={`graph-node kind-${d.kind} level-${lv} ${hub ? 'is-hub' : ''} ${d.private ? 'is-private' : ''} ${ui.readerId && ui.readerId === d.resourceId ? 'active' : ''}`}
+            className={`graph-node kind-${d.kind} level-${lv} ${hub ? 'is-hub' : ''} ${d.private ? 'is-private' : ''} ${selected && selected === d.resourceId ? 'active' : ''} ${lit.includes(n.id) ? 'lit' : ''}`}
             style={{ left: sx(n), top: sy(n), '--d': `${diameter}px` } as React.CSSProperties}
             aria-pressed={n.isHub ? focus === n.id : undefined}
             aria-label={`${d.label}${d.private ? ', only you' : ''}${n.isHub ? `, ${d.childCount} inside` : ''}`}

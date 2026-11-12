@@ -2,7 +2,7 @@
 // node:sqlite stand-in backed by sql.js, so the real store runs inside a page.
 import initSqlJs from 'sql.js/dist/sql-asm.js';
 
-const KEY = 'sw-inpage-db-v10';
+const KEY = 'sw-inpage-db-v11';
 let SQL: any;
 export async function ready() {
   SQL = await initSqlJs();
