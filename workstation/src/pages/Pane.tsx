@@ -172,11 +172,14 @@ export function Pane({
   index,
   active,
   alone,
+  grow,
 }: {
   target: Target;
   index: number;
   active: boolean;
   alone: boolean;
+  /** Its share of the width when two pages are side by side. */
+  grow?: number;
 }) {
   const { s, setUi, space, resource, run, open, closePane, pick, user, columns } = useWorkspace();
   const [popover, setPopover] = useState<'share' | 'menu' | null>(null);
@@ -238,6 +241,7 @@ export function Pane({
     <section
       className={`pane ${active ? 'is-active' : ''} pane-${target.type}`}
       aria-label={title}
+      style={grow === undefined ? undefined : { flexGrow: grow }}
       onPointerDownCapture={() => !active && setUi({ active: index, selection: [] })}
     >
       <header className="pane-head">

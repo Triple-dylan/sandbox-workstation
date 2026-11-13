@@ -1,315 +1,334 @@
 // @ts-nocheck
-// A clearly labelled example project for the in-page preview. Never used by the real server.
+// A clearly labelled example space for the in-page preview: a go-to-market launch run across
+// product, product marketing and marketing. Invented product, invented people. Never used by the
+// real server.
 export function seedExample(store, meId: string) {
   // Your own space: only you ever see this.
   const mine = store.personalSpace(meId);
-  const reading = store.createFolder(meId, { spaceId: mine, title: 'Reading' });
-  const own = (kind, title, body, parentId = null) =>
-    store.createResource(meId, { spaceId: mine, kind, title, body, parentId });
-  own(
-    'doc',
-    'Pricing handmade work',
-    '# Pricing handmade work\n\nNotes to self. Materials times two, plus time, plus the stall.\n\nAm I pricing the vases too low?',
-    reading.id,
-  );
-  own(
-    'doc',
-    'Glaze test log',
-    '# Glaze test log\n\n- Tide: cone 6, ran slightly\n- Oat: perfect\n- Ember: needs a thicker coat',
-    reading.id,
-  );
-  const week = own('canvas', 'This week', '');
-  const mineOn = (kind, body, placement, style) =>
-    store.createResource(meId, { spaceId: mine, kind, body, placement, style, parentId: week.id });
-  mineOn('note', 'This week', { x: 96, y: 72, width: 336, height: 48 }, 'heading');
-  mineOn(
-    'sticky',
-    'Read the market rules properly before Saturday.',
-    { x: 96, y: 144, width: 168, height: 168 },
+  store.createResource(meId, {
+    spaceId: mine,
+    kind: 'doc',
+    title: 'Ideas backlog',
+    body: '# Ideas backlog\n\n- Customer story series: one team, one workflow, three numbers\n- A pricing page that answers "which plan am I" in one screen\n- Reuse the launch deck as the sales first-call deck',
+  });
+  const week = store.createResource(meId, {
+    spaceId: mine,
+    kind: 'canvas',
+    title: 'This week',
+    body: '',
+  });
+  const jot = (body, placement, style) =>
+    store.createResource(meId, {
+      spaceId: mine,
+      kind: 'sticky',
+      body,
+      placement,
+      style,
+      parentId: week.id,
+    });
+  jot(
+    'Decide the Team plan price before Thursday.',
+    { x: 96, y: 96, width: 168, height: 168 },
     'yellow',
   );
-  mineOn('sticky', 'Photograph the blue set.', { x: 288, y: 144, width: 168, height: 168 }, 'blue');
-  store.createGoal(meId, { spaceId: mine, title: 'Fire the last batch' });
+  jot(
+    'Ask sales which objection they hear most.',
+    { x: 288, y: 96, width: 168, height: 168 },
+    'blue',
+  );
 
   const maya = store.createHuman('Maya (example)');
   const jon = store.createHuman('Jon (example)');
-  const project = store.createProject(meId, 'Pop-up shop (example)');
+  const project = store.createProject(meId, 'Relay 2.0 launch (example)');
   const spaceId = project.id;
   store.addMember(meId, spaceId, maya.id);
   store.addMember(meId, spaceId, jon.id);
+  const keeper = store.projectAgent(spaceId);
+  if (keeper)
+    store.updateAgent(meId, keeper.id, {
+      name: 'Keeper',
+      purpose: 'Keep this space organised and its orientation current',
+    });
+
   const folder = (who, title) => store.createFolder(who, { spaceId, title });
   const page = (who, kind, parentId, title, body, visibility = 'space') =>
     store.createResource(who, { spaceId, kind, title, body, parentId, visibility });
-  const vendors = folder(maya.id, 'Vendors');
-  const design = folder(jon.id, 'Design');
-  const money = folder(meId, 'Money');
-  const market = folder(maya.id, 'Market');
+  const product = folder(jon.id, 'Product');
+  const pmm = folder(maya.id, 'Product marketing');
+  const marketing = folder(meId, 'Marketing');
 
-  const shortlist = page(
-    maya.id,
-    'doc',
-    vendors.id,
-    'Vendor shortlist',
-    '# Vendor shortlist\n\nPackaging for 40 pieces. We need boxes by June 5.\n\n## Paperie\n\n$58 for 50 boxes. Recycled card, plain. Delivers in four days.\n\n## Boxwell\n\n$74 for 50 boxes. Printed lid. Ten days.\n\n## North Pack\n\n$61 for 60 boxes. No delivery; pickup only.',
-  );
-  page(
-    maya.id,
-    'doc',
-    vendors.id,
-    'Paperie quote',
-    '# Quote 2291\n\n- Boxes: $46\n- Delivery: $12\n- **Total: $58**',
-  );
-  page(
-    maya.id,
-    'doc',
-    vendors.id,
-    'Boxwell quote',
-    '# Quote B-118\n\n- Boxes: $62\n- Print: $12\n- **Total: $74**',
-  );
-  const brief = page(
-    jon.id,
-    'doc',
-    design.id,
-    'Signage brief',
-    '# Signage brief\n\nOne A-frame, one table banner. Hand-lettered look, two colours. Follow the Table layout and use the Glaze names.',
-  );
+  // ---- Product
   page(
     jon.id,
     'doc',
-    design.id,
-    'Table layout',
-    '# Table layout\n\nTall pieces at the back, the three glazes grouped left to right, price cards in front.',
+    product.id,
+    'Relay 2.0 PRD',
+    "# Relay 2.0 PRD\n\nRelay is a shared inbox for support teams. 2.0 is about getting a new teammate useful on day one.\n\n## Problem\n\nNew agents take about three weeks to answer without help. Leads spend that time reviewing replies instead of improving the queue.\n\n## What ships\n\n- **Suggested replies** drawn from the team's own past answers\n- **Handoff notes** written automatically when a conversation changes owner\n- **Queue view** that shows what is waiting on whom\n\n## Not in 2.0\n\nPhone support, custom reporting.\n\n## Success\n\nTime to first unassisted reply under five days for teams of 10 to 50.",
   );
-  page(jon.id, 'doc', design.id, 'Glaze names', '# Glaze names\n\n- Tide\n- Oat\n- Ember');
-  const budget = page(
-    meId,
+  const roadmap = page(
+    jon.id,
     'sheet',
-    money.id,
-    'Budget',
+    product.id,
+    'Roadmap',
     JSON.stringify({
       rows: [
-        ['Item', 'Cost', 'Paid', 'Notes'],
-        ['Stall fee', '180', 'yes', 'Deposit $60 due Friday'],
-        ['Clay and glaze', '240', 'yes', ''],
-        ['Packaging', '58', 'no', 'From the Vendor shortlist'],
-        ['Signage', '90', 'no', ''],
-        ['Total', '=SUM(B2:B5)', '', ''],
+        ['Feature', 'Status', 'Owner', 'Ships'],
+        ['Suggested replies', 'In beta', 'Jon', 'May 27'],
+        ['Handoff notes', 'Built', 'Jon', 'May 27'],
+        ['Queue view', 'In design review', 'Jon', 'June 3'],
+        ['Admin controls', 'Not started', '', 'After launch'],
+      ],
+    }),
+  );
+
+  // ---- Product marketing
+  const positioning = page(
+    maya.id,
+    'doc',
+    pmm.id,
+    'Positioning and messaging',
+    '# Positioning and messaging\n\n## Who it is for\n\nSupport leads at companies with 10 to 50 agents who are hiring faster than they can train.\n\n## The one line\n\nRelay 2.0 gets a new support agent answering on their own in days, not weeks.\n\n## Three messages\n\n1. **Your best answers, reused.** Suggested replies come from what your team has already said.\n2. **Nothing dropped at handoff.** Every reassignment carries a note.\n3. **See the queue, not just the ticket.** One view of what is waiting on whom.\n\n## Proof we can use\n\nBeta teams cut time to first unassisted reply from 19 days to 6. See the Relay 2.0 PRD for the measure.\n\n## Words to avoid\n\nAI-powered, revolutionary, seamless.',
+  );
+  page(
+    maya.id,
+    'doc',
+    pmm.id,
+    'Competitive notes',
+    "# Competitive notes\n\n## Frontdesk\n\nStrong reporting. No suggested replies. $29 per agent.\n\n## Loop\n\nSuggested replies from a generic model, not the team's own answers. $35 per agent.\n\n## Where we win\n\nReplies in the team's own voice, and handoff notes. Nobody else has both.\n\n## Where we lose\n\nReporting. Say so plainly and point to the roadmap.",
+  );
+  const pricing = page(
+    meId,
+    'sheet',
+    pmm.id,
+    'Pricing and packaging',
+    JSON.stringify({
+      rows: [
+        ['Plan', 'Price per agent', 'Agents', 'Monthly'],
+        ['Starter', '19', '5', '=B2*C2'],
+        ['Team', '32', '20', '=B3*C3'],
+        ['Scale', '45', '50', '=B4*C4'],
+        ['', '', '', ''],
+        ['Team vs Loop', '=B3-35', '', ''],
       ],
     }),
   );
   page(
-    meId,
-    'sheet',
-    money.id,
-    'Price list',
-    JSON.stringify({
-      rows: [
-        ['Piece', 'Price', 'Made', 'If all sell'],
-        ['Cups', '28', '18', '=B2*C2'],
-        ['Bowls', '36', '14', '=B3*C3'],
-        ['Vases', '60', '8', '=B4*C4'],
-        ['', '', '=SUM(C2:C4)', '=SUM(D2:D4)'],
-      ],
-    }),
-  );
-  page(
-    jon.id,
+    maya.id,
     'deck',
-    design.id,
-    'Market day run-through',
+    pmm.id,
+    'Launch deck',
     JSON.stringify({
       slides: [
         {
-          title: 'Pop-up shop, June 14',
-          body: 'Two days at the Dock Street market.\n\n40 pieces, three glazes, one table.',
+          title: 'Relay 2.0',
+          body: 'New support agents answering on their own in days, not weeks.',
         },
         {
-          title: 'The table',
-          body: '- Tall pieces at the back\n- Tide, Oat, Ember left to right\n- Price cards in front',
+          title: 'The problem',
+          body: '- New agents take about three weeks to answer without help\n- Leads spend that time reviewing replies',
         },
         {
-          title: 'Who does what',
-          body: '- Jon: van, load in at 7am\n- Maya: card reader and float\n- Signage up by 8',
+          title: 'What is new',
+          body: '- Suggested replies from your own past answers\n- Handoff notes on every reassignment\n- A queue view of what is waiting on whom',
         },
+        { title: 'Proof', body: 'Beta teams: 19 days to 6 for the first unassisted reply.' },
+        { title: 'Pricing', body: 'Starter, Team and Scale. Team is $32 per agent.' },
       ],
     }),
   );
-  page(
-    maya.id,
-    'doc',
-    market.id,
-    'Dock Street rules',
-    '# Dock Street rules\n\nLoad in from 7am. No open flames. Card payments required. See the Stall confirmation.',
+
+  // ---- Marketing
+  const channels = page(
+    meId,
+    'sheet',
+    marketing.id,
+    'Channel plan',
+    JSON.stringify({
+      rows: [
+        ['Channel', 'Owner', 'Budget', 'Target signups', 'Cost per signup'],
+        ['Launch email', 'Maya', '0', '400', '=C2/D2'],
+        ['Product Hunt', 'Dylan', '500', '250', '=C3/D3'],
+        ['Paid social', 'Dylan', '6000', '300', '=C4/D4'],
+        ['Webinar', 'Maya', '1500', '120', '=C5/D5'],
+        ['Total', '', '=SUM(C2:C5)', '=SUM(D2:D5)', '=C6/D6'],
+      ],
+    }),
   );
-  page(
+  const announcement = page(
     maya.id,
     'doc',
-    market.id,
-    'Stall confirmation',
-    '# Stall confirmation\n\nCorner stall 14, both days. Deposit $60 due Friday.',
+    marketing.id,
+    'Launch announcement',
+    '# Relay 2.0: new agents answering on their own in days\n\nHiring is the easy part. Getting a new support agent to the point where they can answer without someone checking their work takes most teams about three weeks.\n\nRelay 2.0 is built to shorten that.\n\n## What is new\n\nSuggested replies come from answers your own team has already given. Handoff notes are written for you whenever a conversation changes hands. And the new queue view shows what is waiting on whom.\n\n## Availability\n\nRelay 2.0 is available to every plan on June 10.',
   );
   page(
     meId,
     'doc',
     null,
-    'Notes before I talk to Jon',
-    "# Notes before I talk to Jon\n\nAsk if he can lend the van both days. Don't promise the blue set yet.",
+    'Notes for the pricing call',
+    "# Notes for the pricing call\n\nPush for $32 on Team. Don't offer the annual discount unless they ask.",
     'private',
   );
 
+  // ---- Agents and the plan
   const scout = store.newAgent(meId, {
     name: 'Scout',
-    purpose: 'Compare vendors and prices',
-    instructions: 'Keep the vendor shortlist current. Flag any quote that changes.',
+    purpose: 'Competitive and pricing research',
+    instructions:
+      'Keep Competitive notes current. When a competitor price changes, say so and name the source page.',
+    spaceId,
+  });
+  const editor = store.newAgent(maya.id, {
+    name: 'Editor',
+    purpose: 'Messaging and copy in our voice',
+    instructions:
+      'Follow Positioning and messaging. Never use the words listed under "Words to avoid".',
     spaceId,
   });
   const step = (title: string, patch = {}) => {
     const goal = store.createGoal(meId, { spaceId, title });
     store.updateGoal(meId, goal.id, patch);
   };
-  step('Book the stall', { ownerId: maya.id, due: '2027-05-20', done: true });
-  step('Choose packaging', { ownerId: jon.id, agentId: scout.id, due: '2027-05-30' });
-  step('Price list and signage', { ownerId: meId, due: '2027-06-06' });
-  step('Load in', { ownerId: jon.id, due: '2027-06-13' });
+  step('Lock positioning', { ownerId: maya.id, due: '2027-05-16', done: true });
+  step('Finalise pricing', { ownerId: meId, agentId: scout.id, due: '2027-05-30' });
+  step('Announcement and deck ready', { ownerId: maya.id, agentId: editor.id, due: '2027-06-04' });
+  step('Launch day', { ownerId: jon.id, due: '2027-06-10' });
 
-  // The canvas: a board everyone arranges together, with pages on it as live cards.
+  // ---- The launch board: one canvas that ties the three areas together
   const board = page(meId, 'canvas', null, 'Launch board', '');
-  const on = (who, kind, body, placement, style, title) =>
-    store.createResource(who, { spaceId, kind, body, placement, style, title, parentId: board.id });
-  on(meId, 'note', 'Pop-up shop, June 14', { x: 96, y: 64, width: 400, height: 40 }, 'heading');
-  on(meId, 'note', 'Two days at the Dock Street market. 40 pieces, three glazes, one table.', {
-    x: 96,
-    y: 112,
-    width: 400,
-    height: 48,
-  });
-  on(maya.id, 'frame', 'Packaging', { x: 80, y: 224, width: 696, height: 392 });
-  const cardShortlist = on(maya.id, 'embed', JSON.stringify({ resourceId: shortlist.id }), {
-    x: 104,
-    y: 248,
-    width: 304,
-    height: 184,
-  });
-  const choose = on(
-    maya.id,
-    'shape',
-    'Choose by May 30',
-    { x: 480, y: 280, width: 200, height: 112 },
-    'diamond',
+  const on = (who, kind, body, placement, style) =>
+    store.createResource(who, { spaceId, kind, body, placement, style, parentId: board.id });
+  const card = (who, target, placement) =>
+    on(who, 'embed', JSON.stringify({ resourceId: target.id }), placement);
+  const arrow = (from, to) =>
+    store.createResource(meId, {
+      spaceId,
+      kind: 'arrow',
+      parentId: board.id,
+      body: JSON.stringify({ from: from.id, to: to.id }),
+    });
+  on(
+    meId,
+    'note',
+    'Relay 2.0 launch · June 10',
+    { x: 96, y: 56, width: 480, height: 40 },
+    'heading',
   );
-  const cardBudget = on(meId, 'embed', JSON.stringify({ resourceId: budget.id }), {
-    x: 440,
-    y: 432,
-    width: 312,
-    height: 168,
-  });
+  on(
+    meId,
+    'note',
+    'Product ships it, product marketing says what it is, marketing gets it in front of people.',
+    { x: 96, y: 104, width: 720, height: 32 },
+  );
+
+  on(jon.id, 'frame', 'Product', { x: 80, y: 208, width: 368, height: 440 });
+  const cardRoadmap = card(jon.id, roadmap, { x: 104, y: 232, width: 320, height: 176 });
   on(
     jon.id,
     'sticky',
-    'Boxwell is ten days. Too slow?',
-    { x: 104, y: 448, width: 152, height: 152 },
+    'Queue view is the risk. Design review Tuesday.',
+    { x: 104, y: 432, width: 152, height: 152 },
     'pink',
   );
+  const ready = on(
+    jon.id,
+    'shape',
+    'Feature complete May 27',
+    { x: 272, y: 448, width: 152, height: 104 },
+    'ellipse',
+  );
+
+  on(maya.id, 'frame', 'Product marketing', { x: 480, y: 208, width: 368, height: 440 });
+  const cardPositioning = card(maya.id, positioning, { x: 504, y: 232, width: 320, height: 176 });
+  const cardPricing = card(meId, pricing, { x: 504, y: 432, width: 320, height: 152 });
+  const priced = on(
+    meId,
+    'shape',
+    'Price locked by May 30',
+    { x: 560, y: 592, width: 208, height: 48 },
+    'rect',
+  );
+
+  on(meId, 'frame', 'Marketing', { x: 880, y: 208, width: 368, height: 440 });
+  const cardChannels = card(meId, channels, { x: 904, y: 232, width: 320, height: 176 });
+  const cardAnnouncement = card(maya.id, announcement, { x: 904, y: 432, width: 320, height: 152 });
   on(
     maya.id,
     'sticky',
-    'Paperie can deliver to the stall.',
-    { x: 272, y: 448, width: 152, height: 152 },
-    'green',
-  );
-  store.createResource(maya.id, {
-    spaceId,
-    kind: 'arrow',
-    parentId: board.id,
-    body: JSON.stringify({ from: cardShortlist.id, to: choose.id }),
-  });
-  store.createResource(meId, {
-    spaceId,
-    kind: 'arrow',
-    parentId: board.id,
-    body: JSON.stringify({ from: choose.id, to: cardBudget.id }),
-  });
-  on(jon.id, 'frame', 'Look and layout', { x: 824, y: 224, width: 560, height: 392 });
-  on(jon.id, 'embed', JSON.stringify({ resourceId: brief.id }), {
-    x: 848,
-    y: 248,
-    width: 288,
-    height: 160,
-  });
-  const swatch = (from: string, to: string) => {
-    const c = document.createElement('canvas');
-    c.width = 480;
-    c.height = 360;
-    const g = c.getContext('2d')!;
-    const fill = g.createLinearGradient(0, 0, 480, 360);
-    fill.addColorStop(0, from);
-    fill.addColorStop(1, to);
-    g.fillStyle = fill;
-    g.fillRect(0, 0, 480, 360);
-    return c.toDataURL('image/jpeg', 0.8);
-  };
-  on(
-    jon.id,
-    'image',
-    swatch('#e3d5bf', '#b9a184'),
-    { x: 1160, y: 248, width: 200, height: 160 },
-    null,
-    'Glaze reference: Oat',
-  );
-  on(
-    jon.id,
-    'image',
-    swatch('#b8c4b0', '#e6ddd0'),
-    { x: 848, y: 432, width: 288, height: 160 },
-    null,
-    'Table reference',
-  );
-  on(
-    jon.id,
-    'sticky',
-    'I can drive both days. Need the load list by June 10.',
-    { x: 1160, y: 432, width: 168, height: 168 },
+    'Webinar date depends on the queue view shipping.',
+    { x: 1272, y: 232, width: 152, height: 152 },
     'yellow',
   );
-  on(meId, 'plan', '', { x: 824, y: 664, width: 440, height: 300 });
 
+  arrow(cardRoadmap, cardPositioning);
+  arrow(cardPositioning, cardChannels);
+  arrow(cardPricing, cardAnnouncement);
+  arrow(ready, cardPricing);
+  void priced;
+  on(meId, 'plan', '', { x: 80, y: 688, width: 448, height: 300 });
+
+  // ---- Conversations
   const general = store
     .snapshot(meId, [], { id: 'x', label: 'x' })
     .conversations.find((c) => c.kind === 'channel' && c.spaceId === spaceId);
-  const logistics = store.createChannel(maya.id, spaceId, 'logistics');
+  const launch = store.createChannel(maya.id, spaceId, 'launch');
+  const feedback = store.createChannel(jon.id, spaceId, 'beta-feedback');
   const say = (who, conversationId, text, extra = {}) =>
     store.postMessage(who, { conversationId, text, ...extra });
   if (general) {
-    store.setPin(maya.id, general.id, shortlist.id, true);
-    store.setPin(meId, general.id, budget.id, true);
-    const first = say(
-      maya.id,
+    store.setPin(meId, general.id, board.id, true);
+    say(
+      jon.id,
       general.id,
-      'Corner stall is confirmed. Deposit is due Friday. I put the confirmation in Market.',
+      'Suggested replies and handoff notes are feature complete. Queue view goes to design review Tuesday.',
     );
-    store.toggleReaction(jon.id, first.id, '🎉');
-    store.toggleReaction(meId, first.id, '🎉');
-    say(jon.id, general.id, 'Nice. Do we know which packaging yet?', { replyTo: first.id });
-    say(maya.id, general.id, 'Three quotes are in the vendor shortlist. Paperie looks cheapest.', {
-      replyTo: first.id,
-    });
-    const money = say(meId, general.id, 'Packaging and signage are the two lines still unpaid.', {
-      embed: { resourceId: budget.id, from: 3, to: 5 },
-    });
-    store.toggleReaction(maya.id, money.id, '👀');
-    say(jon.id, general.id, 'Signage brief is up in Design if anyone wants to look.');
   }
-  say(jon.id, logistics.id, 'Load in is 7am. I will bring the van round at 6:15.');
-  say(maya.id, logistics.id, 'I will bring the card reader and float.');
-
-  // Comments on a page sit beside the text they are about.
-  const feed = store.openDiscussion(jon.id, shortlist.id);
-  const comment = say(jon.id, feed.id, 'Is that four working days? June 5 is tight if not.', {
-    anchor: { resourceId: shortlist.id, quote: 'Delivers in four days.' },
+  store.setPin(maya.id, launch.id, positioning.id, true);
+  store.setPin(meId, launch.id, channels.id, true);
+  const first = say(
+    maya.id,
+    launch.id,
+    'Positioning is locked. The one line is in the doc; please use it as written.',
+  );
+  store.toggleReaction(jon.id, first.id, '✅');
+  store.toggleReaction(meId, first.id, '✅');
+  say(jon.id, launch.id, 'Does "days, not weeks" hold for teams over 50?', { replyTo: first.id });
+  say(maya.id, launch.id, 'Beta data is 10 to 50 only. I will keep the claim scoped to that.', {
+    replyTo: first.id,
   });
-  say(maya.id, feed.id, 'Working days. I asked them to confirm.', { replyTo: comment.id });
-  say(maya.id, feed.id, 'I will update this when North Pack reply about delivery.');
+  const spend = say(
+    meId,
+    launch.id,
+    'Paid social is most of the budget for the fewest signups per dollar. Worth a second look.',
+    {
+      embed: { resourceId: channels.id, from: 3, to: 5 },
+    },
+  );
+  store.toggleReaction(maya.id, spend.id, '👀');
+  say(
+    jon.id,
+    feedback.id,
+    'Three beta teams asked for suggested replies in their second language.',
+  );
+  say(maya.id, feedback.id, 'Quote we can use: "My new hire answered alone on day four."');
+
+  // Comments sit beside the text they are about.
+  const feed = store.openDiscussion(jon.id, positioning.id);
+  const comment = say(
+    jon.id,
+    feed.id,
+    'Can we say "in under a week"? Days is vague next to the 19 to 6 number.',
+    {
+      anchor: {
+        resourceId: positioning.id,
+        quote: 'Relay 2.0 gets a new support agent answering on their own in days, not weeks.',
+      },
+    },
+  );
+  say(maya.id, feed.id, 'I like the rhythm of the current line, but open to it. Dylan?', {
+    replyTo: comment.id,
+  });
 
   const dm = store.openDm(maya.id, meId);
-  say(maya.id, dm.id, 'Can you look at the price list before Thursday?');
+  say(maya.id, dm.id, 'Can you settle the Team price before Thursday? The deck is waiting on it.');
 }

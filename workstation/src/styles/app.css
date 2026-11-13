@@ -909,9 +909,7 @@ button.danger {
   flex-direction: column;
   container: pane / inline-size;
 }
-.pane + .pane {
-  border-left: 1px solid var(--line);
-}
+
 .panes-2 .pane:not(.is-active) .pane-head {
   opacity: 0.62;
 }
@@ -1001,22 +999,95 @@ button.danger {
 }
 .pane-switch {
   display: flex;
-  gap: 2px;
-  background: var(--wash);
+  gap: 4px;
+  padding: 8px 10px 0;
+  min-width: 0;
+}
+.pane-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
   border-radius: var(--r-s);
-  padding: 2px;
-  margin-bottom: 6px;
-  align-self: center;
+  color: var(--ink-3);
 }
-.pane-switch button {
-  padding: 4px 12px;
-  border-radius: 7px;
-  color: var(--ink-2);
-  font-size: 13px;
-}
-.pane-switch button[aria-selected='true'] {
-  background: var(--paper);
+.pane-tab[data-on='true'] {
+  background: var(--wash-2);
   color: var(--ink);
+  font-weight: 600;
+}
+.pane-tab button:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 4px 6px 10px;
+  font-size: 13px;
+  text-align: left;
+}
+.pane-tab button:last-child {
+  padding: 6px 8px;
+  display: inline-flex;
+  opacity: 0.6;
+}
+.pane-tab button:last-child:hover {
+  opacity: 1;
+}
+/* The line between two pages is also the handle that resizes them. */
+.split {
+  flex: none;
+  width: 9px;
+  margin: 0 -4px;
+  z-index: 5;
+  cursor: col-resize;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.split::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: var(--line);
+  transition:
+    width 0.12s,
+    left 0.12s,
+    background 0.12s;
+}
+.split:hover::before,
+body.resizing .split::before {
+  left: 3px;
+  width: 3px;
+  background: color-mix(in oklab, var(--ink) 30%, transparent);
+}
+.split button {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.split:hover button,
+.split button:focus-visible {
+  opacity: 1;
+}
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.resizing .pane {
+  pointer-events: none;
 }
 .popover {
   position: absolute;

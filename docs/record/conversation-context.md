@@ -476,3 +476,5 @@ On the six drawn screens: "rebuild around these. do your due dilligence to ensur
 ## November 13: on the rebuild
 
 Asked what the Catch up page was, then: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again. hate what youre doing there. There are also somoe pretty obvious feeling sizing optimizations that arent present on adjusting window sizes." And: "dont close off all these areas. each page has a border and its not good. unnecesary clutter and lines from doing this".
+
+Later: "first page and second page feature needs work. Lets clean up this workspace a bit and make it GTM focused. Marketing and product marketing and product."

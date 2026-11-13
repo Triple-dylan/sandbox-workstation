@@ -4,7 +4,7 @@ _Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
 
 ## Open it
 
-- **No setup:** `npm run build:inpage` (in `workstation/`) writes `dist-inpage/workstation.html`, one page with the client and the real server inside it. It opens on a labelled example project. One person at a time; data stays in that browser.
+- **No setup:** `npm run build:inpage` (in `workstation/`) writes `dist-inpage/workstation.html`, one page with the client and the real server inside it. It opens on a labelled example space: a go-to-market launch run across product, product marketing and marketing (an invented product and people). One person at a time; data stays in that browser.
 - **Several people:** `npm ci && npm start` in `workstation/`, then http://127.0.0.1:4174. `HOST=0.0.0.0 npm start` lets others on a trusted network join.
 - **Live agents.** In the published in-page build, agents answer with Claude through the page itself, on the viewer's account, with no key stored. On the local server they use the key in the root `.env` (`OPENAI_API_KEY`). Where neither is available they fall back to scripted replies and say so on the message.
 
@@ -12,7 +12,7 @@ _Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
 
 **Left: one list.** The space (shared or only you) with a switcher, Graph, pages by folder with their type, channels, then people and agents with where they are. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there. Find and New page at the bottom.
 
-**Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). In a narrow window the two become tabs and the list becomes a drawer.
+**Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). The line between the two is a handle: drag to resize, double-click to even out, and a control on it swaps sides. In a narrow window the two become tabs named after the pages, each with its own close, and the list becomes a drawer.
 
 **Bottom: your own agent's bar.** Private to you, on every screen. A label says what it will look at ("This page", "2 selected", "Both pages", "Whole space"), worked out from what is on screen. Answers open above the bar with the pages they came from. It can hand work to one of the space's agents, which then answers in the same private conversation. Any answer can be saved as a private page or put into the reply box of the conversation on screen for you to send. On a conversation page it shrinks to "Ask your agent".
 

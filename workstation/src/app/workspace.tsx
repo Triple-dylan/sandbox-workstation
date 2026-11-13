@@ -25,6 +25,8 @@ export type Ui = {
   nav: boolean;
   creating: boolean;
   graphScope: 'space' | 'everything';
+  /** With two pages side by side: the share of the width the first one takes. */
+  split: number;
 };
 
 export const initialUi: Ui = {
@@ -38,6 +40,7 @@ export const initialUi: Ui = {
   nav: false,
   creating: false,
   graphScope: 'space',
+  split: 0.5,
 };
 
 export type Picker = {

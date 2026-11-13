@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeftRight, Share2, X } from 'lucide-react';
+import { Character } from '../features/agents/Character.tsx';
+import { KindIcon, chatTitle } from './util.tsx';
 import { api, useSession } from '../data/client.ts';
 import { Join } from './Join.tsx';
 import { Sidebar } from './Sidebar.tsx';
@@ -32,6 +34,9 @@ function remembered(): Partial<Ui> {
         ? { panes: saved.panes.slice(0, 2) }
         : {}),
       ...(['system', 'light', 'dark'].includes(saved.theme) ? { theme: saved.theme } : {}),
+      ...(typeof saved.split === 'number' && saved.split > 0.2 && saved.split < 0.8
+        ? { split: saved.split }
+        : {}),
     };
   } catch {
     return {};
@@ -117,7 +122,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     try {
       localStorage.setItem(
         STORE,
-        JSON.stringify({ spaceId: space.id, panes: shownPanes, theme: ui.theme }),
+        JSON.stringify({ spaceId: space.id, panes: shownPanes, theme: ui.theme, split: ui.split }),
       );
     } catch {
       // Remembering the view is a convenience only.
@@ -270,6 +275,46 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   );
 
   const visible = columns === 1 ? [shownPanes[active]] : shownPanes;
+  const panesBox = useRef<HTMLDivElement>(null);
+  const dragSplit = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const box = panesBox.current!.getBoundingClientRect();
+    const move = (ev: PointerEvent) =>
+      setUi({ split: Math.max(0.28, Math.min(0.72, (ev.clientX - box.left) / box.width)) });
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.classList.remove('resizing');
+    };
+    document.body.classList.add('resizing');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  /** What a pane is called, for the tabs shown when only one fits. */
+  const label = (t: Target) => {
+    if (t.type === 'page') {
+      const page = s.resources.find((r) => r.id === t.id);
+      return {
+        title: page?.title ?? 'Page',
+        icon: <KindIcon kind={page?.kind ?? 'doc'} size={13} />,
+      };
+    }
+    if (t.type === 'chat') {
+      const chat = s.conversations.find((c) => c.id === t.id);
+      return {
+        title: chat ? chatTitle(chat, s) : 'Conversation',
+        icon: chat?.kind === 'channel' ? <KindIcon kind="channel" size={13} /> : null,
+      };
+    }
+    if (t.type === 'who') {
+      const who = s.users.find((u) => u.id === t.id);
+      return {
+        title: who?.name ?? 'Person',
+        icon: who?.kind === 'agent' ? <Character agent={who} size={20} /> : null,
+      };
+    }
+    return { title: 'Graph', icon: <Share2 size={13} /> };
+  };
   const chatOnly = visible.every((t) => t.type === 'chat');
   return (
     <WorkspaceContext.Provider value={value}>
@@ -285,29 +330,64 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         <main className={`middle panes-${visible.length}`}>
           {columns === 1 && shownPanes.length > 1 && (
             <div className="pane-switch" role="tablist" aria-label="Open pages">
-              {shownPanes.map((_, i) => (
-                <button
-                  key={i}
-                  role="tab"
-                  aria-selected={i === active}
-                  onClick={() => setUi({ active: i, selection: [] })}
-                >
-                  {i === 0 ? 'First page' : 'Second page'}
-                </button>
+              {shownPanes.map((t, i) => (
+                <span key={i} className="pane-tab" data-on={i === active}>
+                  <button
+                    role="tab"
+                    aria-selected={i === active}
+                    onClick={() => setUi({ active: i, selection: [] })}
+                  >
+                    {label(t).icon}
+                    <span className="truncate">{label(t).title}</span>
+                  </button>
+                  <button aria-label={`Close ${label(t).title}`} onClick={() => closePane(i)}>
+                    <X size={12} />
+                  </button>
+                </span>
               ))}
             </div>
           )}
-          <div className="panes">
+          <div className="panes" ref={panesBox}>
             {visible.map((t) => {
               const index = shownPanes.indexOf(t);
               return (
-                <Pane
-                  key={`${t.type}:${'id' in t ? t.id : ''}`}
-                  target={t}
-                  index={index}
-                  active={index === active}
-                  alone={shownPanes.length === 1}
-                />
+                <Fragment key={`${t.type}:${'id' in t ? t.id : ''}`}>
+                  {index === 1 && visible.length === 2 && (
+                    <div
+                      className="split"
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="Drag to resize the two pages. Double-click to even them out."
+                      title="Drag to resize · double-click to even out"
+                      onPointerDown={dragSplit}
+                      onDoubleClick={() => setUi({ split: 0.5 })}
+                    >
+                      <button
+                        aria-label="Swap the two pages"
+                        title="Swap sides"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() =>
+                          setUi((old) => ({
+                            panes: [...old.panes].reverse(),
+                            active: old.active === 0 ? 1 : 0,
+                            split: 1 - old.split,
+                          }))
+                        }
+                      >
+                        <ArrowLeftRight size={12} />
+                      </button>
+                    </div>
+                  )}
+                  <Pane
+                    target={t}
+                    index={index}
+                    active={index === active}
+                    alone={shownPanes.length === 1}
+                    grow={
+                      visible.length === 2 ? (index === 0 ? ui.split : 1 - ui.split) : undefined
+                    }
+                  />
+                </Fragment>
               );
             })}
           </div>

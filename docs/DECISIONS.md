@@ -7,6 +7,8 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **No Catch up page.** Dylan: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again." Removed. What is waiting on you or has changed is marked on the page, person or channel in the list. A space opens on its work.
 - **Do not box areas off.** "dont close off all these areas. each page has a border and its not good. unnecesary clutter and lines from doing this". Panes have no frame; separator lines are gone.
 - **Sizing must respond to the window**, not only at load.
+- **The example space is go-to-market:** "Lets clean up this workspace a bit and make it GTM focused. Marketing and product marketing and product." The pop-up shop example is replaced.
+- **Side by side needed work.** Tabs are named after the pages; the divider resizes and swaps.
 
 ## 2026-11-12 (later) — rebuilt from basics
 
