@@ -282,7 +282,13 @@ export type SendRequest = {
   replyTo?: Id | null;
   embed?: { resourceId: Id; from?: number; to?: number } | null;
   /** What the sender was looking at: pages in view or selected, and the space. Context, never a recipient. */
-  context?: { resourceIds: Id[]; spaceId?: Id | null; conversationIds?: Id[] } | null;
+  context?: {
+    resourceIds: Id[];
+    spaceId?: Id | null;
+    conversationIds?: Id[];
+    /** In your private conversation: have this agent of the space answer instead of your own. */
+    handTo?: Id | null;
+  } | null;
 };
 
 export const STICKY_COLORS = ['yellow', 'pink', 'blue', 'green'] as const;

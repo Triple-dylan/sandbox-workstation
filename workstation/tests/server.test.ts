@@ -1016,3 +1016,49 @@ test('agent activity: teammates see that an agent is working and where, never wh
     }),
   );
 });
+
+test('the bar can put a question to one of the space agents privately', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      seen.push(task);
+      return { reply: `from ${task.agent.name}` };
+    },
+  };
+  const { store, engine, dylan, maya, project, agent, snap } = setup(runtime);
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'earlier, private' });
+  await engine.idle();
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'compare the vendors',
+    context: { resourceIds: [], spaceId: project.id, handTo: agent.id },
+  });
+  await engine.idle();
+  const thread = snap(dylan.id).messages.filter((m) => m.conversationId === mine.id);
+  assert.equal(thread.at(-1)!.authorId, agent.id);
+  assert.equal(seen.length, 2, 'your own agent was not also called');
+  assert.deepEqual(
+    seen.at(-1).context.recent,
+    [],
+    'the space agent did not see the private conversation',
+  );
+  assert.ok(!snap(maya.id).messages.some((m) => m.text === 'from Launch agent'));
+  // Someone else's agent, or an agent of a space you are not in, cannot be reached this way.
+  const other = store.createProject(maya.id, 'Other');
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'hello',
+    context: { resourceIds: [], spaceId: project.id, handTo: store.projectAgent(other.id)!.id },
+  });
+  await engine.idle();
+  assert.notEqual(
+    snap(dylan.id)
+      .messages.filter((m) => m.conversationId === mine.id)
+      .at(-1)!.authorId,
+    store.projectAgent(other.id)!.id,
+  );
+});

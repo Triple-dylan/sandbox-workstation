@@ -80,6 +80,26 @@ export class AgentEngine {
           ? looking
           : this.spaceFor(addressed);
       if (!spaceId) return;
+      // Asked from the bar to put this to one of the space's agents: it answers here, privately,
+      // without your own agent in between and without seeing the rest of this conversation.
+      const chosen = this.store.messageContext(message.id)?.handTo;
+      const colleague =
+        chosen && conversation.kind === 'agent-private'
+          ? this.store.projectAgents(spaceId).find((a) => a.id === chosen)
+          : undefined;
+      if (colleague && this.store.isMember(message.authorId, spaceId)) {
+        await this.runJob(
+          colleague,
+          conversation,
+          'instruction',
+          request,
+          message,
+          null,
+          spaceId,
+          true,
+        );
+        return;
+      }
       if (delegate) {
         const assignment = this.store.createAssignment({
           agentId: addressed.id,

@@ -7,26 +7,40 @@ export function scopeOf(ui: Ui, s: Snapshot, columns: number) {
   const shown: Target[] = columns === 1 ? [ui.panes[ui.active] ?? ui.panes[0]] : ui.panes;
   const pages = shown.flatMap((t) => (t.type === 'page' ? [t.id] : []));
   const chats = shown.flatMap((t) => (t.type === 'chat' ? [t.id] : []));
+  const extras = (ui.barExtras ?? []).filter((id) => s.resources.some((r) => r.id === id));
+  const plus = (label: string) => (extras.length ? `${label} + ${extras.length}` : label);
+  if (ui.barSees === 'none')
+    return {
+      label: extras.length ? `${extras.length} added` : 'Just your words',
+      resourceIds: extras,
+      conversationIds: [],
+    };
+  if (ui.barSees === 'space')
+    return { label: plus('Whole space'), resourceIds: extras, conversationIds: [] };
   if (ui.selection.length)
     return {
-      label: `${ui.selection.length} selected`,
-      resourceIds: [...ui.selection, ...pages],
+      label: plus(`${ui.selection.length} selected`),
+      resourceIds: [...ui.selection, ...pages, ...extras],
       conversationIds: [],
     };
   if (shown.length === 2 && pages.length + chats.length === 2)
-    return { label: 'Both pages', resourceIds: pages, conversationIds: chats };
+    return {
+      label: plus('Both pages'),
+      resourceIds: [...pages, ...extras],
+      conversationIds: chats,
+    };
   const only = shown[ui.active] ?? shown[0];
   if (only?.type === 'page')
-    return { label: 'This page', resourceIds: [only.id], conversationIds: [] };
+    return { label: plus('This page'), resourceIds: [only.id, ...extras], conversationIds: [] };
   if (only?.type === 'chat') {
     const kind = s.conversations.find((c) => c.id === only.id)?.kind;
     return {
-      label: kind === 'channel' ? 'This channel' : 'This conversation',
-      resourceIds: [],
+      label: plus(kind === 'channel' ? 'This channel' : 'This conversation'),
+      resourceIds: extras,
       conversationIds: [only.id],
     };
   }
-  return { label: 'Whole space', resourceIds: pages, conversationIds: chats };
+  return { label: plus('Whole space'), resourceIds: [...pages, ...extras], conversationIds: chats };
 }
 
 /**

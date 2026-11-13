@@ -253,6 +253,7 @@ export function createApp(options: AppOptions) {
                     (x: unknown) => typeof x === 'string',
                   ),
                   spaceId: typeof input.context.spaceId === 'string' ? input.context.spaceId : null,
+                  handTo: typeof input.context.handTo === 'string' ? input.context.handTo : null,
                   conversationIds: Array.isArray(input.context.conversationIds)
                     ? input.context.conversationIds.filter((x: unknown) => typeof x === 'string')
                     : [],

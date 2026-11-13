@@ -112,7 +112,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByLabel(/Ask Dylan's agent/).press('Enter');
   await dylan.locator('.bar-thread .msg.from-agent').waitFor();
   await dylan.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
-  await maya.locator('.bar-orb').click();
+  await maya.locator('.bar-history').click();
   assert.equal(await maya.locator('.bar-thread .msg').count(), 0);
   await maya.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
 

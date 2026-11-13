@@ -25,6 +25,12 @@ export type Ui = {
   nav: boolean;
   creating: boolean;
   graphScope: 'space' | 'everything';
+  /** Who the bar is talking to: your own agent (null), or one of the space's, privately. */
+  barAgent: Id | null;
+  /** What the bar's agent looks at: what is on screen, the whole space, or nothing but your words. */
+  barSees: 'screen' | 'space' | 'none';
+  /** Pages added to what it looks at by dropping them on the bar. */
+  barExtras: Id[];
   /** Which dialog is up, if any. */
   dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste';
   /** How things look for this person. */
@@ -51,6 +57,9 @@ export const initialUi: Ui = {
   graphScope: 'space',
   split: 0.5,
   dialog: null,
+  barAgent: null,
+  barSees: 'screen',
+  barExtras: [],
   prefs: { size: 'm', density: 'roomy', accent: null, list: true },
 };
 
@@ -89,6 +98,8 @@ export type Workspace = {
   ) => void;
   /** Brings files from elsewhere into the space as pages. */
   bring: (files: File[], parentId?: Id | null) => Promise<void>;
+  /** The things that can be done from anywhere: new page, bring in files, settings and so on. */
+  commands: () => NonNullable<Picker['actions']>;
   /** Opens the file chooser for bringing things in. */
   chooseFiles: () => void;
   /** Your own agent and your private conversation with it. */
@@ -97,7 +108,7 @@ export type Workspace = {
   /** Sends a request to your own agent about what is in view. */
   ask: (
     text: string,
-    extra?: { anchor?: { resourceId: Id; quote: string }; resourceIds?: Id[] },
+    extra?: { anchor?: { resourceId: Id; quote: string }; resourceIds?: Id[]; handTo?: Id | null },
   ) => Promise<void>;
 };
 

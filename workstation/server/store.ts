@@ -1006,8 +1006,12 @@ export class Store {
   messageContext(messageId: Id) {
     const row = this.get('select context from messages where id = ?', messageId);
     return (
-      parse<{ resourceIds: Id[]; spaceId?: Id | null; conversationIds?: Id[] }>(row?.context) ??
-      null
+      parse<{
+        resourceIds: Id[];
+        spaceId?: Id | null;
+        conversationIds?: Id[];
+        handTo?: Id | null;
+      }>(row?.context) ?? null
     );
   }
   private createConversation(
@@ -1173,6 +1177,7 @@ export class Store {
               resourceIds: (request.context.resourceIds ?? []).slice(0, 12),
               spaceId: request.context.spaceId ?? null,
               conversationIds: (request.context.conversationIds ?? []).slice(0, 4),
+              handTo: request.context.handTo ?? null,
             }
           : null,
       ),

@@ -57,6 +57,10 @@ The list, the page and the bar are not boxed off from each other: no frames or s
 - **Agents at work are visible.** Everyone has a prime agent, shown beside them in the list. Teammates see when any agent is working and on which page (if they can open it), never what was asked. It shows in the list, by the person, and in the page header.
 - **Things connect.** Drag a page from the list onto the middle to open it beside, onto a canvas to place it, onto a message to send it live, or onto a channel's resources. A page's header lists the channels and canvases it is used in.
 
+## The bar, reworked 2026-11-13
+
+One bar with three jobs. **Who you ask:** your own agent by default, or any of the space's agents; whichever you pick answers only to you. **What it reads:** a button that says "reads This page" (or the selection, both pages, the whole space, or nothing but your words) and lets you change it; drag a page onto the bar to add it. **What it does:** one-click suggestions for what is on screen, the chosen agent's skills, and "/" for actions such as new page, bring in files or settings. The conversation so far opens from the history button.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
