@@ -10,6 +10,7 @@ Rules:
 - Don't fake anything: no simulated people, agents, delivery or "working" states. Scripted agent output is labelled as scripted.
 - Every read goes through the server's access checks. Private stays private across chat, graph, search, presence and agent context.
 - Dylan does not run terminal commands and does not review PRs. Give him something that opens (`npm run build:inpage`, published as a page), finish the work, and report plainly.
+- Don't compartmentalise the interface: no summary pages that take over the view, no frames and separator lines boxing areas off. Check layouts while resizing the window.
 - Never show an empty product for review; the in-page preview seeds a labelled example project.
 - Ask Dylan only consequential, decision-shaped questions. Don't re-ask anything settled in `DECISIONS.md`.
 - Keep `main` working: typecheck, format and tests green. Add tests for new behaviour.

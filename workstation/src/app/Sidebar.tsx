@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
-  Inbox,
   Lock,
   LogOut,
   Moon,
@@ -19,7 +18,8 @@ import { isPage } from '../../shared/types.ts';
 import type { Resource, User } from '../../shared/types.ts';
 import { KindIcon, chatTitle, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type Target } from './workspace.tsx';
-import { needsYou } from '../pages/CatchUp.tsx';
+import { waitingOn } from './scope.ts';
+import { seenAt } from './saved.ts';
 
 /** The one list on the left: the space, its pages by folder, its channels, and who is in it. */
 export function Sidebar() {
@@ -84,7 +84,7 @@ export function Sidebar() {
     setAdding(null);
     if (kind === 'space') {
       const made = await run(() => api<{ id: string }>('/projects', { body: { name } }));
-      if (made) setUi({ spaceId: made.id, panes: [{ type: 'catchup' }], active: 0 });
+      if (made) setUi({ spaceId: made.id, panes: [], active: 0 });
     } else if (kind === 'channel') {
       const made = await run(() =>
         api<{ id: string }>('/channels', { body: { spaceId: space.id, title: name } }),
@@ -120,24 +120,30 @@ export function Sidebar() {
       </form>
     );
 
-  const pageRow = (p: Resource) => (
-    <button
-      key={p.id}
-      className="list-row"
-      aria-current={isOpen({ type: 'page', id: p.id }) ? 'page' : undefined}
-      onClick={(e) => open({ type: 'page', id: p.id }, e.metaKey || e.ctrlKey || e.altKey)}
-      title={`${p.title}${p.visibility === 'private' && shared ? ' · only you' : ''}\nAlt-click to open beside`}
-    >
-      <KindIcon kind={p.kind} />
-      <span className="truncate">{p.title}</span>
-      {p.visibility === 'private' && shared && (
-        <small className="only">
-          <Lock size={10} /> {p.grants?.length ? `you +${p.grants.length}` : 'only you'}
-        </small>
-      )}
-    </button>
-  );
-  const waiting = needsYou(s, space.id).length;
+  const pageRow = (p: Resource) => {
+    const opened = isOpen({ type: 'page', id: p.id });
+    const waiting = waitingOn(s, p);
+    // Changed by someone else since you last looked: the title goes bold, like an unread channel.
+    const changed = !opened && p.updatedBy !== s.me.id && p.updatedAt > seenAt(p.id);
+    return (
+      <button
+        key={p.id}
+        className={`list-row ${changed ? 'unread' : ''}`}
+        aria-current={opened ? 'page' : undefined}
+        onClick={(e) => open({ type: 'page', id: p.id }, e.metaKey || e.ctrlKey || e.altKey)}
+        title={`${p.title}${p.visibility === 'private' && shared ? ' · only you' : ''}${changed ? ` · changed by ${user(p.updatedBy)?.name ?? 'someone'}` : ''}${waiting ? ` · ${waiting} waiting on you` : ''}\nAlt-click to open beside`}
+      >
+        <KindIcon kind={p.kind} />
+        <span className="truncate">{p.title}</span>
+        {p.visibility === 'private' && shared && (
+          <small className="only">
+            <Lock size={10} /> {p.grants?.length ? `you +${p.grants.length}` : 'only you'}
+          </small>
+        )}
+        {waiting > 0 && <b className="count">{waiting}</b>}
+      </button>
+    );
+  };
   const themeIcon =
     ui.theme === 'dark' ? (
       <Moon size={14} />
@@ -185,7 +191,7 @@ export function Sidebar() {
                   if (x.id !== space.id)
                     setUi({
                       spaceId: x.id,
-                      panes: [{ type: 'catchup' }],
+                      panes: [],
                       active: 0,
                       selection: [],
                     });
@@ -217,15 +223,6 @@ export function Sidebar() {
         >
           <Share2 size={14} /> <span>Graph</span>
         </button>
-        <button
-          className="list-row"
-          aria-current={isOpen({ type: 'catchup' }) ? 'page' : undefined}
-          onClick={() => open({ type: 'catchup' })}
-        >
-          <Inbox size={14} /> <span>Catch up</span>
-          {waiting > 0 && <b className="count">{waiting}</b>}
-        </button>
-
         <h2>
           Pages
           <span>

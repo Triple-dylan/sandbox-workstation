@@ -3,11 +3,7 @@ import type { Conversation, Id, Resource, Snapshot, Space, User } from '../../sh
 
 /** What a pane in the middle shows. */
 export type Target =
-  | { type: 'page'; id: Id }
-  | { type: 'chat'; id: Id }
-  | { type: 'graph' }
-  | { type: 'catchup' }
-  | { type: 'who'; id: Id };
+  { type: 'page'; id: Id } | { type: 'chat'; id: Id } | { type: 'graph' } | { type: 'who'; id: Id };
 
 export const sameTarget = (a: Target, b: Target) =>
   a.type === b.type && ('id' in a ? a.id : '') === ('id' in b ? b.id : '');
@@ -33,7 +29,7 @@ export type Ui = {
 
 export const initialUi: Ui = {
   spaceId: null,
-  panes: [{ type: 'catchup' }],
+  panes: [],
   active: 0,
   theme: 'system',
   barOpen: false,

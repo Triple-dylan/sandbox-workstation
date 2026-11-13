@@ -11,7 +11,6 @@ import { DeckPage } from './DeckPage.tsx';
 import { CanvasPage } from './CanvasPage.tsx';
 import { ChatPage } from './ChatPage.tsx';
 import { GraphPage } from './GraphPage.tsx';
-import { CatchUp } from './CatchUp.tsx';
 import { WhoPage } from './WhoPage.tsx';
 
 /** Who can open a page, and the way to change it. Only its owner changes it. */
@@ -209,7 +208,7 @@ export function Pane({
         ? who.name
         : target.type === 'graph'
           ? 'Graph'
-          : 'Catch up';
+          : '';
   const sub = page
     ? `${kindName[page.kind]} · ${
         space.kind === 'personal'
@@ -230,13 +229,11 @@ export function Pane({
             : 'Page feed'
       : target.type === 'graph'
         ? 'Your own view of what you can see'
-        : target.type === 'catchup'
-          ? 'Private to you'
-          : who?.kind === 'agent'
-            ? who.role === 'personal'
-              ? 'Your agent · private to you'
-              : `Agent · shared with ${space.name}`
-            : 'Person';
+        : who?.kind === 'agent'
+          ? who.role === 'personal'
+            ? 'Your agent · private to you'
+            : `Agent · shared with ${space.name}`
+          : 'Person';
   return (
     <section
       className={`pane ${active ? 'is-active' : ''} pane-${target.type}`}
@@ -340,7 +337,6 @@ export function Pane({
         {page?.kind === 'canvas' && <CanvasPage key={page.id} page={page} active={active} />}
         {chat && <ChatPage key={chat.id} chat={chat} />}
         {target.type === 'graph' && <GraphPage />}
-        {target.type === 'catchup' && <CatchUp />}
         {who && <WhoPage key={who.id} who={who} />}
       </div>
     </section>

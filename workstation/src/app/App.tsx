@@ -9,6 +9,8 @@ import { NewPage } from './NewPage.tsx';
 import { Pane } from '../pages/Pane.tsx';
 import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
+import { firstTarget } from './scope.ts';
+import { markSeen, markVisit } from './saved.ts';
 import {
   WorkspaceContext,
   initialUi,
@@ -79,7 +81,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const columns: 1 | 2 = width >= 1080 ? 2 : 1;
+  const columns: 1 | 2 = width >= 1160 ? 2 : 1;
 
   // The space in view: the remembered one if it still exists, else the first shared space, else your own.
   const space =
@@ -87,13 +89,30 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     s.spaces.find((x) => x.kind === 'project') ??
     s.spaces[0];
   const panes = ui.panes.filter((t) => alive(t, s));
-  const shownPanes: Target[] = panes.length ? panes : [{ type: 'catchup' }];
+  const shownPanes: Target[] = panes.length ? panes : [firstTarget(s, space)];
   const active = Math.min(ui.active, shownPanes.length - 1);
   useEffect(() => {
     if (shownPanes.length !== ui.panes.length || active !== ui.active || space.id !== ui.spaceId)
       setUi({ panes: shownPanes, active, spaceId: space.id });
   });
   useEffect(() => applyTheme(ui.theme), [ui.theme]);
+  // Remember when you were last in a space, and which pages you have looked at.
+  useEffect(() => {
+    const leave = () => markVisit(space.id);
+    window.addEventListener('pagehide', leave);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      leave();
+    };
+  }, [space.id]);
+  const openPages = shownPanes.flatMap((t) => (t.type === 'page' ? [t.id] : [])).join();
+  const stamp = s.resources
+    .filter((r) => openPages.includes(r.id))
+    .map((r) => r.updatedAt)
+    .join();
+  useEffect(() => {
+    for (const id of openPages.split(',').filter(Boolean)) markSeen(id);
+  }, [openPages, stamp]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -153,7 +172,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     (index) =>
       setUi((old) => {
         const next = old.panes.filter((_, i) => i !== index);
-        return { panes: next.length ? next : [{ type: 'catchup' }], active: 0, selection: [] };
+        return { panes: next, active: 0, selection: [] };
       }),
     [setUi],
   );

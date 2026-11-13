@@ -880,7 +880,7 @@ button.danger {
   position: relative;
 }
 .sidebar {
-  width: 256px;
+  width: clamp(204px, 19vw, 256px);
   flex: none;
   display: flex;
   flex-direction: column;
@@ -894,34 +894,33 @@ button.danger {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 10px 0 2px;
 }
 .panes {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 8px;
 }
+/* A pane is not a card. The list, the page and the bar share one open surface; the only line is the
+   hairline between two pages side by side. */
 .pane {
   flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  container: pane / inline-size;
 }
-.panes-2 .pane.is-active {
-  border-color: color-mix(in oklab, var(--ink) 34%, transparent);
+.pane + .pane {
+  border-left: 1px solid var(--line);
 }
+.panes-2 .pane:not(.is-active) .pane-head {
+  opacity: 0.62;
+}
+
 .pane-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px 8px 14px;
-  border-bottom: 1px solid var(--line);
+  padding: 10px 12px 6px 18px;
   position: relative;
   flex: none;
   min-height: 52px;
@@ -1355,7 +1354,6 @@ button.danger {
   border: 2px solid var(--bg);
 }
 .list-foot {
-  border-top: 1px solid var(--line);
   padding-top: 6px;
   display: flex;
   flex-direction: column;
@@ -1500,7 +1498,6 @@ button.danger {
   align-items: center;
   gap: 8px;
   padding: 9px 10px 9px 14px;
-  border-bottom: 1px solid var(--line);
 }
 .bar-panel header small {
   flex: 1;
@@ -1908,7 +1905,6 @@ button.danger {
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--line);
   overflow-x: auto;
 }
 .pin {
@@ -1952,11 +1948,9 @@ button.danger {
 /* ---------- a page's own feed ---------- */
 .page-feed {
   flex: none !important;
-  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   max-height: 46%;
-  background: var(--paper);
 }
 .page-feed-head {
   display: flex;
@@ -1985,13 +1979,13 @@ button.danger {
   flex-direction: column;
   min-height: 0;
 }
+/* Tools sit on the surface, aligned with the page's own left edge. */
 .doc-tools {
   flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 2px 12px 6px 14px;
   overflow-x: auto;
 }
 .doc-tools .format {
@@ -2201,7 +2195,6 @@ button.danger {
   flex: none;
   max-height: 200px;
   overflow: auto;
-  border-bottom: 1px solid var(--line);
 }
 
 /* ---------- sheet ---------- */
@@ -2216,7 +2209,6 @@ button.danger {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
 .cell-name {
@@ -2250,6 +2242,7 @@ button.danger {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding-left: 14px;
 }
 .sheet {
   border-collapse: separate;
@@ -2335,7 +2328,6 @@ button.danger {
   margin: 0;
   padding: 10px;
   overflow-y: auto;
-  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2364,7 +2356,7 @@ button.danger {
   flex-direction: column;
   gap: 3px;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--paper);
   font-size: 10px;
   line-height: 1.3;
 }
@@ -2413,7 +2405,7 @@ button.danger {
   margin: 0 auto;
   border: 1px solid var(--line);
   border-radius: var(--r-m);
-  background: var(--bg);
+  background: var(--paper);
   box-shadow: var(--shadow);
   padding: 5% 6%;
   display: flex;
@@ -2480,10 +2472,10 @@ button.danger {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--bg);
 }
 .canvas-size {
   position: relative;
+  margin-left: 56px;
 }
 .canvas-stage {
   position: absolute;
@@ -3153,7 +3145,6 @@ button.danger {
 }
 
 /* ---------- catch up, people, agents ---------- */
-.catchup,
 .who {
   overflow-y: auto;
   padding: 26px max(22px, calc((100% - 740px) / 2)) 60px;
@@ -3168,7 +3159,6 @@ button.danger {
   gap: 6px;
   margin-bottom: 4px;
 }
-.catchup header h2,
 .who header h2 {
   font-size: 24px;
   letter-spacing: -0.02em;
@@ -3186,7 +3176,6 @@ button.danger {
   flex-direction: column;
   gap: 6px;
 }
-.catchup h3,
 .who h3 {
   font-size: 12px;
   text-transform: uppercase;
@@ -3480,4 +3469,129 @@ button.need:disabled {
   .cursor {
     transition: none;
   }
+}
+
+/* ---------- sizing: each pane lays itself out for the room it has ---------- */
+@container pane (max-width: 760px) {
+  .doc-sheet {
+    padding: 18px 18px 48px;
+  }
+  .deck-list {
+    width: 132px;
+  }
+  .deck-stage {
+    padding: 8px 14px 20px;
+  }
+  .graph-card {
+    width: 230px;
+  }
+  .canvas-hint {
+    max-width: calc(100% - 190px);
+  }
+  .feed-list {
+    padding-inline: 14px;
+  }
+}
+@container pane (max-width: 560px) {
+  .pane-actions button span,
+  .doc-meta {
+    display: none;
+  }
+  .pane-head {
+    padding-left: 12px;
+  }
+  .doc-sheet {
+    padding: 14px 14px 40px;
+  }
+  .deck-main {
+    flex-direction: column;
+  }
+  .deck-list {
+    width: auto;
+    flex-direction: row;
+    overflow: auto hidden;
+    padding: 6px 12px;
+  }
+  .deck-list li {
+    flex: none;
+    width: 120px;
+  }
+  .deck-list .add {
+    margin-left: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .graph-filters .seg {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .graph-card {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 52px;
+    width: auto;
+  }
+  .graph-page .graph-legend {
+    display: none;
+  }
+  .canvas-hint {
+    display: none;
+  }
+  .canvas-thread {
+    width: 230px;
+  }
+  .sheet td {
+    min-width: 104px;
+  }
+  .who {
+    padding-inline: 14px;
+  }
+  .who header {
+    flex-wrap: wrap;
+  }
+  .replies {
+    margin-left: 12px;
+  }
+  .msg-tools {
+    opacity: 1;
+  }
+}
+@media (max-width: 860px) {
+  .bar-wrap {
+    padding-inline: 8px;
+  }
+}
+@media (max-height: 620px) {
+  .bar-panel {
+    max-height: 62vh;
+  }
+  .page-feed {
+    max-height: 56%;
+  }
+}
+
+/* A page's feed takes only the room its messages need, in the same column as the agent bar. */
+.page-feed .feed {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.page-feed .feed-list {
+  flex: 0 1 auto;
+  max-height: 190px;
+}
+.page-feed-head,
+.page-feed .feed-list,
+.page-feed .composer {
+  width: min(760px, calc(100% - 24px));
+  margin-inline: auto;
+}
+.page-feed .composer {
+  margin-block: 4px 2px;
+}
+.page-feed-head {
+  padding-inline: 4px;
+}
+.page-feed .feed-list {
+  padding-inline: 4px;
 }

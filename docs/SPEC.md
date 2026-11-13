@@ -12,8 +12,8 @@ Agents automatically gather, organize, update and hand over useful context as wo
 
 _Rewritten 2026-11-12 after the from-basics rethink; see `DECISIONS.md`._
 
-- One list on the left: the space, Graph, Catch up, pages by folder, channels, people and agents. One page in the middle, or two side by side. The person's own agent as a floating bar at the bottom.
-- No overview or hero pages, no marketing copy, no permanent chat rail.
+- One list on the left: the space, Graph, pages by folder, channels, people and agents. One page in the middle, or two side by side. The person's own agent as a floating bar at the bottom.
+- No overview, summary or hero pages, no marketing copy, no permanent chat rail. Areas are not boxed off with frames and lines.
 - Controls are **monochrome**, in light and dark that follow the viewer. Readable contrast everywhere. Content and participant identity may carry colour.
 - Nothing ever covers work it cannot be dismissed from. Layouts are defined for wide, medium and narrow windows.
 - There are no fake identities, demo fluff, or simulated "working" states presented as real.

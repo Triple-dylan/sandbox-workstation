@@ -472,3 +472,7 @@ On what should fill the middle of a shared space first: "This question I struggl
 On the first drawings: "The views shared here I like. just not seeing cgst views. but what is here is great". Then: "You should also be able tp highlight or leave comments for agents to resolve on pages as well. kind of like the suggests adding thing you have. graph chat doesnt need two chat bars here since graph view isnt really a shared experiance the way pages are. I still think 3/4 can use work. I almost do still want the flaoting chat bar to be your agent orchestrator or ask questions here. but maybe also chat with it. and maybe pages have feeds built into them that dont look like a right rail all the time? idk. maybe not that exactly". Then: "its closer. maybe do a little research to see if there are other ideas out there." and "draw these".
 
 On the six drawn screens: "rebuild around these. do your due dilligence to ensure that interactions and fuctionality across is good to go".
+
+## November 13: on the rebuild
+
+Asked what the Catch up page was, then: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again. hate what youre doing there. There are also somoe pretty obvious feeling sizing optimizations that arent present on adjusting window sizes." And: "dont close off all these areas. each page has a border and its not good. unnecesary clutter and lines from doing this".

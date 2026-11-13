@@ -2,6 +2,12 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-13
+
+- **No Catch up page.** Dylan: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again." Removed. What is waiting on you or has changed is marked on the page, person or channel in the list. A space opens on its work.
+- **Do not box areas off.** "dont close off all these areas. each page has a border and its not good. unnecesary clutter and lines from doing this". Panes have no frame; separator lines are gone.
+- **Sizing must respond to the window**, not only at load.
+
 ## 2026-11-12 (later) — rebuilt from basics
 
 - **Structure.** One list on the left, one page or two side by side in the middle, the person's own agent as a floating bar. Dylan approved six drawn screens: "rebuild around these. do your due dilligence to ensure that interactions and fuctionality across is good to go".
@@ -12,7 +18,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **Agents are used natively everywhere, equally to teammates.**
 - **A canvas is arranged together.** This replaces the earlier assumption that each person arranges a shared board for themselves.
 - *Assumed:* what comes out of a private conversation with your agent (a saved page, an accepted draft) is private to you until you share it. A space agent handed work by your agent does not see your private conversation.
-- *Assumed:* the first thing a space shows is Catch up. Dylan was unsure what should fill the middle first.
+- *Superseded 2026-11-13:* Catch up as the first thing a space shows.
 
 ## 2026-11-12
 

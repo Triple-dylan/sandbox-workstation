@@ -26,7 +26,7 @@ Settled with Dylan on 2026-11-12 from six drawn screens ("rebuild around these")
 3. **Channels.** Conversations are pages too, in the Discord/Teams sense: channels, direct messages, threads, pinned pages, live pieces of a page inside a message.
 4. **Graph.** Not the home. It is each person's own view for traversing everything they can see in a space, private and shared, and for asking their agent about it without being sent somewhere else. Filters and saved views are how a large corpus stays easy.
 5. **Agents.** A roster of named agents, each a `thinking-orbs` orb with real states. Your own agent is the floating bar on every screen: private, an orchestrator that answers about what is on screen, hands work to the space's agents and drafts replies for you to send. Space agents are shared, addressed deliberately in channels and in comments on pages, and suggest changes a person accepts.
-6. **Catch up.** A private feed per space: what needs you and what changed.
+6. **What needs you** is marked where it lives (the page, the person, the channel), never gathered into a page of its own.
 7. **Together.** Shared spaces. People and agents work in the same pages; a canvas is arranged together.
 
 ## How it gets built

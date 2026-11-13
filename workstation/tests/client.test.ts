@@ -115,7 +115,7 @@ test('the agent bar names what it will look at, from what is on screen', () => {
   const channel = s.conversations.find((c) => c.kind === 'channel')!;
   const ui = (panes: any[], selection: string[] = [], active = 0) =>
     ({ panes, selection, active }) as any;
-  assert.equal(scopeOf(ui([{ type: 'catchup' }]), s, 2).label, 'Whole space');
+  assert.equal(scopeOf(ui([{ type: 'graph' }]), s, 2).label, 'Whole space');
   assert.deepEqual(scopeOf(ui([{ type: 'page', id: page.id }]), s, 2), {
     label: 'This page',
     resourceIds: [page.id],

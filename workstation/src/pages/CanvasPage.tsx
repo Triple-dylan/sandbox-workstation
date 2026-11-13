@@ -129,6 +129,12 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
   const stage = useRef<HTMLDivElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const lastCursor = useRef(0);
+  /** The view keeps fitting the room it has until you zoom by hand. */
+  const auto = useRef(true);
+  const manual = (change: (z: number) => number) => {
+    auto.current = false;
+    setZoom(change);
+  };
 
   const pieces = s.resources.filter(
     (r) => r.parentId === page.id && (CANVAS_KINDS as readonly string[]).includes(r.kind),
@@ -431,7 +437,7 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
     const x1 = Math.max(...placed.map((p) => p.placement!.x + p.placement!.width));
     const y1 = Math.max(...placed.map((p) => p.placement!.y + p.placement!.height));
     const next = Math.max(
-      0.4,
+      0.35,
       Math.min(1, (el.clientWidth - 140) / (x1 - x0), (el.clientHeight - 180) / (y1 - y0)),
     );
     setZoom(next);
@@ -441,10 +447,21 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
   };
   // Open on whatever is there, rather than an empty corner.
   useEffect(() => {
-    const timer = setTimeout(fit, 30);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const el = scroller.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => auto.current && fitRef.current(), 60);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
   }, [page.id]);
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
 
   const saveText = (piece: Resource, text: string, height?: number) => {
     setEditing(null);
@@ -568,16 +585,22 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
       <div className="canvas-zoom">
         <button
           aria-label="Zoom out"
-          onClick={() => setZoom((z) => Math.max(0.4, +(z - 0.1).toFixed(2)))}
+          onClick={() => manual((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))}
         >
           <Minus size={13} />
         </button>
-        <button onClick={fit} title="Fit everything">
+        <button
+          onClick={() => {
+            auto.current = true;
+            fit();
+          }}
+          title="Fit everything"
+        >
           {Math.round(zoom * 100)}%
         </button>
         <button
           aria-label="Zoom in"
-          onClick={() => setZoom((z) => Math.min(1.6, +(z + 0.1).toFixed(2)))}
+          onClick={() => manual((z) => Math.min(1.6, +(z + 0.1).toFixed(2)))}
         >
           <Plus size={13} />
         </button>
@@ -588,7 +611,7 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
         onWheel={(e) => {
           if (!e.ctrlKey && !e.metaKey) return;
           e.preventDefault();
-          setZoom((z) => Math.max(0.4, Math.min(1.6, +(z - Math.sign(e.deltaY) * 0.1).toFixed(2))));
+          manual((z) => Math.max(0.3, Math.min(1.6, +(z - Math.sign(e.deltaY) * 0.1).toFixed(2))));
         }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {

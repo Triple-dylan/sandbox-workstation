@@ -10,7 +10,7 @@ _Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
 
 ## The structure
 
-**Left: one list.** The space (shared or only you) with a switcher, Graph, Catch up, pages by folder with their type, channels, then people and agents with where they are. Find and New page at the bottom.
+**Left: one list.** The space (shared or only you) with a switcher, Graph, pages by folder with their type, channels, then people and agents with where they are. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there. Find and New page at the bottom.
 
 **Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). In a narrow window the two become tabs and the list becomes a drawer.
 
@@ -33,17 +33,17 @@ Channels, direct messages and conversations with an agent are pages too. Threads
 
 Your own view of what you can see in a space, private and shared, with the CampaignOS/DropDeployment physics. Filter by kind, "Only mine", "Changed this week", "Since I was last here"; save a view or a question. Choosing a page describes it at the side with Open beside. Asking your agent lights the pages the answer came from and dims the rest. An Everything view shows every space.
 
-## Catch up
+## One open surface
 
-A private page per space: what needs you (suggestions waiting for a yes, comments on your pages, your plan steps, unread direct messages), what changed since you were last here, and what is quiet. Your agent writes it up on request.
+The list, the page and the bar are not boxed off from each other: no frames or separator lines, only a hairline between two pages side by side. A space opens on its work (its canvas, else a page, else a channel), not on a summary. Each pane lays itself out for the room it has, and the canvas refits as the window changes until you zoom by hand.
 
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
 - Two people typing in the same document or the same slide at once: the last save wins. Sheets do not have this problem.
-- Catch up's lists are computed from records; the written summary is on request so it never spends usage on a timer. The orientation page is kept by a local template for the same reason.
+- The orientation page is kept by a local template, so it never spends usage on a timer.
 - Pictures are stored inline; fine locally, not for production.
-- Saved graph views and questions live in the browser, not on the server.
+- Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
 - No real accounts or hosting. Sign-in is "pick a name".
 - No Claude runtime on the local server yet (OpenAI only there).
 

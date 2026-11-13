@@ -56,3 +56,35 @@ export function markVisit(spaceId: string) {
     // Without it, "since I was last here" falls back to the last week.
   }
 }
+
+/** Which pages this person has looked at since they last changed, so the list can mark the rest. */
+const SEEN = 'sw-seen-v1';
+function readSeen(): { base: string; pages: Record<string, string> } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SEEN) ?? 'null');
+    if (saved && typeof saved.base === 'string')
+      return { base: saved.base, pages: saved.pages ?? {} };
+  } catch {
+    // Start fresh below.
+  }
+  const fresh = { base: new Date().toISOString(), pages: {} };
+  try {
+    localStorage.setItem(SEEN, JSON.stringify(fresh));
+  } catch {
+    // Without it nothing is marked as changed.
+  }
+  return fresh;
+}
+export function seenAt(pageId: string) {
+  const seen = readSeen();
+  return seen.pages[pageId] ?? seen.base;
+}
+export function markSeen(pageId: string) {
+  const seen = readSeen();
+  seen.pages[pageId] = new Date().toISOString();
+  try {
+    localStorage.setItem(SEEN, JSON.stringify(seen));
+  } catch {
+    // A convenience only.
+  }
+}
