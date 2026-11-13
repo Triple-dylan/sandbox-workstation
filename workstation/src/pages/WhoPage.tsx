@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Lock, MessageSquareText, Square, Users } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
@@ -82,11 +83,14 @@ export function WhoPage({ who }: { who: User }) {
         <Character agent={who} size={64} state={state} />
         <div>
           <h2>{who.name}</h2>
+          <span className={`reach-badge ${personal ? 'private' : 'shared'}`}>
+            {personal ? <Lock size={12} /> : <Users size={12} />}
+            {personal ? 'Private to you' : `Shared with ${space?.name ?? 'the space'}`}
+          </span>
           <small>
-            {personal ? <Lock size={11} /> : <Users size={11} />}{' '}
             {personal
-              ? 'Yours. Only you see what it says and does.'
-              : `Shared with everyone in ${space?.name ?? 'the space'}.`}
+              ? 'Only you can talk to it, and only you see what it says and does.'
+              : 'Everyone in the space can ask it, in channels and on pages.'}
           </small>
           <small>{stateLine[state]}</small>
         </div>
@@ -136,6 +140,11 @@ export function WhoPage({ who }: { who: User }) {
           </button>
         );
       })}
+
+      <h3>
+        Skills <small>ways of working it has been given</small>
+      </h3>
+      <Skills who={who} editable={editable} />
 
       <h3>About this agent</h3>
       <fieldset disabled={!editable} className="who-form">
@@ -225,6 +234,138 @@ export function WhoPage({ who }: { who: User }) {
           </button>
         </div>
       </fieldset>
+    </div>
+  );
+}
+
+/** The skills an agent has, the ones it could have, and a place to write a new one. */
+function Skills({ who, editable }: { who: User; editable: boolean }) {
+  const { s, run } = useWorkspace();
+  const [editing, setEditing] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [when, setWhen] = useState('');
+  const [steps, setSteps] = useState('');
+  const personal = who.role === 'personal';
+  const home = personal ? s.spaces.find((x) => x.kind === 'personal')!.id : who.spaceId!;
+  const available = s.skills.filter((k) => k.spaceId === home);
+  const has = new Set(who.skillIds ?? []);
+  const begin = (id: string) => {
+    const skill = s.skills.find((k) => k.id === id);
+    setEditing(id);
+    setName(skill?.name ?? '');
+    setWhen(skill?.description ?? '');
+    setSteps(skill?.body ?? '');
+  };
+  const save = async () => {
+    const body = { name, description: when, body: steps };
+    if (editing === 'new') {
+      const made = await run(() =>
+        api<{ id: string }>('/skills', { body: { spaceId: home, ...body } }),
+      );
+      if (made)
+        await run(() => api(`/agents/${who.id}/skills`, { body: { skillId: made.id, on: true } }));
+    } else await run(() => api(`/skills/${editing}`, { method: 'PATCH', body }));
+    setEditing(null);
+  };
+  return (
+    <div className="skills">
+      {available.length === 0 && editing !== 'new' && (
+        <p className="feed-empty">
+          No skills yet. A skill is a way of doing one kind of job, written once: when to use it and
+          the steps. You can also ask the agent to “remember how to …” and approve what it writes.
+        </p>
+      )}
+      {available.map((k) =>
+        editing === k.id ? null : (
+          <div key={k.id} className={`skill ${has.has(k.id) ? 'on' : ''}`}>
+            <button
+              role="switch"
+              aria-checked={has.has(k.id)}
+              aria-label={`${who.name} uses ${k.name}`}
+              disabled={!editable}
+              onClick={() =>
+                void run(() =>
+                  api(`/agents/${who.id}/skills`, { body: { skillId: k.id, on: !has.has(k.id) } }),
+                )
+              }
+            />
+            <button
+              className="skill-text"
+              disabled={!editable}
+              onClick={() => begin(k.id)}
+              title="Edit this skill"
+            >
+              <strong>{k.name}</strong>
+              <small>{k.description || k.body.slice(0, 90)}</small>
+            </button>
+            <span className="tag">{personal ? 'private' : 'shared'}</span>
+          </div>
+        ),
+      )}
+      {editing && (
+        <form
+          className="skill-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <input
+            autoFocus
+            value={name}
+            maxLength={60}
+            placeholder="Name, e.g. Launch copy"
+            aria-label="Skill name"
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            value={when}
+            maxLength={300}
+            placeholder="When to use it, e.g. When asked to write announcement copy"
+            aria-label="When to use it"
+            onChange={(e) => setWhen(e.target.value)}
+          />
+          <textarea
+            rows={5}
+            value={steps}
+            placeholder={
+              'The steps, written as instructions.\n1. Lead with the customer problem.\n2. One claim per paragraph, each with its source page.'
+            }
+            aria-label="Steps"
+            onChange={(e) => setSteps(e.target.value)}
+          />
+          <div>
+            {editing !== 'new' && (
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  void run(() => api(`/skills/${editing}`, { method: 'DELETE' }));
+                  setEditing(null);
+                }}
+              >
+                <Trash2 size={12} /> Delete skill
+              </button>
+            )}
+            <button type="button" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+            <button className="primary" type="submit" disabled={!name.trim()}>
+              {editing === 'new' ? `Save and give to ${who.name}` : 'Save'}
+            </button>
+          </div>
+          <small>
+            {personal
+              ? 'Private: only your own agents can use it.'
+              : 'Shared: any agent in this space can be given it, and anyone in the space can edit it.'}
+          </small>
+        </form>
+      )}
+      {editable && !editing && (
+        <button className="skill-add" onClick={() => begin('new')}>
+          <Plus size={13} /> New skill
+        </button>
+      )}
     </div>
   );
 }

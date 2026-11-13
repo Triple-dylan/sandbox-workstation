@@ -182,6 +182,18 @@ export function createApp(options: AppOptions) {
       }
       return send(res, 200, { ok: true });
     }
+    if (path === '/api/signal' && method === 'POST') {
+      // Passes a connection message to one other person, only if the two share a space.
+      const to = str('to');
+      const shared = store.memberSpaces(me.id).some((spaceId) => store.isMember(to, spaceId));
+      if (shared && input.data && typeof input.data === 'object') {
+        const data = JSON.stringify({ from: me.id, data: input.data });
+        if (data.length < 60_000)
+          for (const [stream, userId] of streams)
+            if (userId === to) stream.write(`event: signal\ndata: ${data}\n\n`);
+      }
+      return send(res, 200, { ok: true });
+    }
     if (path === '/api/projects' && method === 'POST')
       return send(res, 200, store.createProject(me.id, str('name')));
     if (segments[0] === 'projects' && segments[2] === 'members' && method === 'POST') {

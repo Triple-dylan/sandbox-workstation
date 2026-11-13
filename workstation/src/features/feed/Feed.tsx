@@ -451,6 +451,7 @@ export function Feed({
   filter,
   empty,
   latest,
+  onEarlier,
 }: {
   conversation: Conversation | undefined;
   ensure?: () => Promise<Conversation | undefined>;
@@ -460,6 +461,8 @@ export function Feed({
   empty?: string;
   /** Show only the last few, for a feed tucked under a page. */
   latest?: number;
+  /** What "earlier" does when only the last few are shown. */
+  onEarlier?: () => void;
 }) {
   const { s, run } = useWorkspace();
   const [replying, setReplying] = useState<Id | null>(null);
@@ -486,8 +489,9 @@ export function Feed({
       <div className="feed-list">
         {roots.length === 0 && <p className="feed-empty">{empty ?? 'Nothing here yet.'}</p>}
         {shown.length < roots.length && (
-          <button className="link earlier" onClick={() => setAll(true)}>
-            Show {roots.length - shown.length} earlier
+          <button className="link earlier" onClick={() => (onEarlier ? onEarlier() : setAll(true))}>
+            {roots.length - shown.length} earlier{' '}
+            {onEarlier ? '· open the conversation beside' : ''}
           </button>
         )}
         {shown.map((m) => {

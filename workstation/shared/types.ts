@@ -67,6 +67,7 @@ export type PageKind = (typeof PAGE_KINDS)[number];
  * Things that live on a canvas page. note: typed text. sticky, shape, frame: drawing pieces.
  * arrow: a connector between two pieces. embed: another page shown as a live card.
  * pin: a message kept on the canvas. image: a picture. plan: the space's goals.
+ * screen: a window someone is sharing live; the picture itself is never stored.
  */
 export const CANVAS_KINDS = [
   'note',
@@ -78,6 +79,7 @@ export const CANVAS_KINDS = [
   'pin',
   'image',
   'plan',
+  'screen',
 ] as const;
 export type CanvasKind = (typeof CANVAS_KINDS)[number];
 export type ResourceKind = 'folder' | PageKind | CanvasKind;
@@ -270,4 +272,6 @@ export const STICKY_COLORS = ['yellow', 'pink', 'blue', 'green'] as const;
 export const SHAPES = ['rect', 'ellipse', 'diamond'] as const;
 export const REACTIONS = ['👍', '✅', '👀', '🎉', '❤️'] as const;
 /** A teammate's pointer on a canvas, sent live and never stored. */
+/** A message passed between two people's browsers to set up a live window share. Never stored. */
+export type Signal = { from: Id; data: Record<string, unknown> };
 export type Cursor = { userId: Id; resourceId: Id; x: number; y: number };

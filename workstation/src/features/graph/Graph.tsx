@@ -166,14 +166,14 @@ export function Graph({
   }, []);
 
   const everything = ui.graphScope === 'everything' && s.spaces.length > 1;
-  const filterKey = `${filter.kind}:${filter.mine}:${filter.recent}:${since}`;
+  const filterKey = `${filter.kind}:${filter.mine}:${filter.recent}:${!!filter.archive}:${since}`;
   const structure =
     filterKey +
     s.resources
       .filter((r) => everything || r.spaceId === space.id)
       .map(
         (r) =>
-          `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}:${filter.recent || filter.mine ? r.updatedAt : ''}`,
+          `${r.id}:${r.parentId}:${r.kind}:${r.title}:${r.visibility}:${!!r.archived}:${filter.recent || filter.mine ? r.updatedAt : ''}`,
       )
       .join('|');
   const mentions = everything

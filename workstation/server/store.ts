@@ -695,6 +695,9 @@ export class Store {
       title = title || 'Untitled deck';
     } else if (input.kind === 'asset') {
       title = title || input.source?.name || 'Asset';
+    } else if (input.kind === 'screen') {
+      body = json({ by: actorId })!;
+      title = `${this.user(actorId)?.name ?? 'Someone'}’s window`;
     } else if (input.kind === 'canvas') {
       body = '';
       title = title || 'Untitled canvas';

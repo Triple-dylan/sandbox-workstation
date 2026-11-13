@@ -13,10 +13,14 @@ import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
+import { AgentBuilder, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { bringIn } from '../features/import/bringIn.ts';
+import { PAGE_KINDS } from '../../shared/types.ts';
 import {
   WorkspaceContext,
   initialUi,
   sameTarget,
+  type MenuItem,
   type Picker,
   type Target,
   type Ui,
@@ -34,6 +38,9 @@ function remembered(): Partial<Ui> {
         ? { panes: saved.panes.slice(0, 2) }
         : {}),
       ...(['system', 'light', 'dark'].includes(saved.theme) ? { theme: saved.theme } : {}),
+      ...(saved.prefs && typeof saved.prefs === 'object'
+        ? { prefs: { ...initialUi.prefs, ...saved.prefs } }
+        : {}),
       ...(typeof saved.split === 'number' && saved.split > 0.2 && saved.split < 0.8
         ? { split: saved.split }
         : {}),
@@ -74,6 +81,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     action?: { label: string; run: () => void };
   }>();
   const [picker, setPicker] = useState<Picker | null>(null);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [dropping, setDropping] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [width, setWidth] = useState(() => window.innerWidth);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const setUi = useCallback(
@@ -101,6 +111,14 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       setUi({ panes: shownPanes, active, spaceId: space.id });
   });
   useEffect(() => applyTheme(ui.theme), [ui.theme]);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.size = ui.prefs.size;
+    root.dataset.density = ui.prefs.density;
+    root.dataset.accent = ui.prefs.accent === null ? 'off' : 'on';
+    if (ui.prefs.accent === null) root.style.removeProperty('--accent');
+    else root.style.setProperty('--accent', `hsl(${ui.prefs.accent} 55% 48%)`);
+  }, [ui.prefs]);
   // Remember when you were last in a space, and which pages you have looked at.
   useEffect(() => {
     const leave = () => markVisit(space.id);
@@ -122,7 +140,13 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     try {
       localStorage.setItem(
         STORE,
-        JSON.stringify({ spaceId: space.id, panes: shownPanes, theme: ui.theme, split: ui.split }),
+        JSON.stringify({
+          spaceId: space.id,
+          panes: shownPanes,
+          theme: ui.theme,
+          split: ui.split,
+          prefs: ui.prefs,
+        }),
       );
     } catch {
       // Remembering the view is a convenience only.
@@ -238,19 +262,80 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setPicker((p) =>
-          p ? null : { title: 'Find', chats: true, onPick: (target) => open(target) },
-        );
+        setPicker((p) => (p ? null : finder()));
       }
+      const mod = e.metaKey || e.ctrlKey;
+      const typing = (e.target as HTMLElement).closest?.(
+        'input, textarea, select, [contenteditable="true"]',
+      );
+      if (mod && e.key === '\\')
+        (e.preventDefault(), setUi((old) => ({ prefs: { ...old.prefs, list: !old.prefs.list } })));
+      if (mod && e.key === ',') (e.preventDefault(), setUi({ dialog: 'settings' }));
+      if (mod && e.key === '/') (e.preventDefault(), setUi({ dialog: 'shortcuts' }));
+      if (e.altKey && !mod && e.code === 'KeyN') (e.preventDefault(), setUi({ creating: true }));
+      if (e.altKey && !mod && e.code === 'KeyG') (e.preventDefault(), open({ type: 'graph' }));
+      if (e.key === '?' && !typing && !mod) setUi({ dialog: 'shortcuts' });
       if (e.key === 'Escape') {
-        if (picker) setPicker(null);
+        if (menuAt) setMenuAt(null);
+        else if (picker) setPicker(null);
+        else if (ui.dialog) setUi({ dialog: null });
         else if (ui.creating) setUi({ creating: false });
         else if (ui.nav) setUi({ nav: false });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picker, ui.creating, ui.nav, open, setUi]);
+  });
+
+  const bring = useCallback<Workspace['bring']>(
+    async (files, parentId) => {
+      if (!files.length) return;
+      notify(`Bringing in ${files.length === 1 ? files[0].name : `${files.length} files`}…`);
+      const result = await bringIn(files, { spaceId: space.id, parentId });
+      await refresh();
+      if (result.made.length === 1) open({ type: 'page', id: result.made[0].id });
+      notify(
+        [
+          result.made.length
+            ? `Added ${result.made.length === 1 ? `“${result.made[0].title}”` : `${result.made.length} pages`} to ${space.kind === 'personal' ? 'your space' : space.name}.`
+            : '',
+          result.skipped.length
+            ? `Could not read ${result.skipped.join(', ')}. Text, Markdown, transcripts (.vtt, .srt), CSV, Word, PowerPoint and pictures work.`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
+    },
+    [space.id, space.kind, space.name, notify, refresh, open],
+  );
+  /** Find, with the things you can do offered alongside what you can open. */
+  const finder = (): Picker => ({
+    title: 'Find',
+    chats: true,
+    onPick: (target) => open(target),
+    actions: [
+      ...PAGE_KINDS.filter((k) => k !== 'asset').map((kind) => ({
+        label: `New ${kind === 'doc' ? 'document' : kind}`,
+        run: () => setUi({ creating: true }),
+      })),
+      {
+        label: 'Bring in files',
+        hint: 'transcripts, documents, decks, sheets, pictures',
+        run: () => fileInput.current?.click(),
+      },
+      {
+        label: 'Paste text in',
+        hint: 'a transcript, an email, notes',
+        run: () => setUi({ dialog: 'paste' }),
+      },
+      { label: 'New agent', run: () => setUi({ dialog: 'agent' }) },
+      { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
+      { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ barOpen: true }) },
+      { label: 'Settings', hint: '⌘ ,', run: () => setUi({ dialog: 'settings' }) },
+      { label: 'Shortcuts', hint: '⌘ /', run: () => setUi({ dialog: 'shortcuts' }) },
+    ],
+  });
 
   const value = useMemo<Workspace>(
     () => ({
@@ -265,13 +350,19 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       run,
       open,
       closePane,
-      pick: setPicker,
+      pick: (p) => setPicker(p.title === 'Find' && !p.actions ? finder() : p),
+      menu: (event, items) => {
+        event.preventDefault();
+        setMenuAt({ x: event.clientX, y: event.clientY, items });
+      },
+      bring,
+      chooseFiles: () => fileInput.current?.click(),
       myAgent,
       myChat,
       ask,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s, ui, space, columns, notify, run, open, closePane, ask],
+    [s, ui, space, columns, notify, run, open, closePane, ask, bring],
   );
 
   const visible = columns === 1 ? [shownPanes[active]] : shownPanes;
@@ -318,7 +409,21 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const chatOnly = visible.every((t) => t.type === 'chat');
   return (
     <WorkspaceContext.Provider value={value}>
-      <div className={`shell ${ui.nav ? 'nav-open' : ''}`}>
+      <div
+        className={`shell ${ui.nav ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
+        onDragOver={(e) => {
+          if (![...e.dataTransfer.types].includes('Files')) return;
+          e.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
+        onDrop={(e) => {
+          setDropping(false);
+          if (e.defaultPrevented || !e.dataTransfer.files.length) return;
+          e.preventDefault();
+          void bring([...e.dataTransfer.files]);
+        }}
+      >
         <Sidebar />
         {ui.nav && (
           <button
@@ -394,6 +499,62 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           <Bar pill={chatOnly && !ui.barOpen} />
         </main>
         {picker && <Find picker={picker} close={() => setPicker(null)} />}
+        {ui.dialog === 'settings' && <Settings />}
+        {ui.dialog === 'shortcuts' && <Shortcuts />}
+        {ui.dialog === 'agent' && <AgentBuilder />}
+        {ui.dialog === 'paste' && <PasteText />}
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          hidden
+          aria-label="Bring in files"
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = '';
+            void bring(files);
+          }}
+        />
+        {dropping && (
+          <div className="drop-hint" onDragLeave={() => setDropping(false)}>
+            Drop to add to {space.kind === 'personal' ? 'your space' : space.name}
+          </div>
+        )}
+        {menuAt && (
+          <div
+            className="menu-layer"
+            onPointerDown={() => setMenuAt(null)}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <div
+              className="context"
+              role="menu"
+              style={{
+                left: Math.min(menuAt.x, window.innerWidth - 220),
+                top: Math.min(menuAt.y, window.innerHeight - menuAt.items.length * 32 - 16),
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {menuAt.items.map((item, i) =>
+                item === 'line' ? (
+                  <hr key={i} />
+                ) : (
+                  <button
+                    key={i}
+                    role="menuitem"
+                    className={item.danger ? 'danger' : ''}
+                    onClick={() => {
+                      setMenuAt(null);
+                      item.run();
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+        )}
         {ui.creating && <NewPage />}
         {notice && (
           <div className="notice" role="status">

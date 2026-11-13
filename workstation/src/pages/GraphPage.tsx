@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Columns2, Star, X } from 'lucide-react';
 import { useWorkspace } from '../app/workspace.tsx';
+import { api } from '../data/client.ts';
 import { KindIcon, ago, excerpt, kindName } from '../app/util.tsx';
 import { lastVisit, useSaved, writeSaved, type GraphFilter } from '../app/saved.ts';
 import { Graph } from '../features/graph/Graph.tsx';
@@ -12,9 +13,10 @@ const kinds: { id: GraphFilter['kind']; label: string }[] = [
   { id: 'sheet', label: 'Sheets' },
   { id: 'deck', label: 'Decks' },
   { id: 'canvas', label: 'Canvases' },
+  { id: 'asset', label: 'Assets' },
 ];
 const same = (a: GraphFilter, b: GraphFilter) =>
-  a.kind === b.kind && a.mine === b.mine && a.recent === b.recent;
+  a.kind === b.kind && a.mine === b.mine && a.recent === b.recent && !!a.archive === !!b.archive;
 
 /**
  * The graph is your own view of everything you can see in a space, private and shared. You narrow
@@ -22,7 +24,7 @@ const same = (a: GraphFilter, b: GraphFilter) =>
  * pages they came from instead of sending you somewhere else.
  */
 export function GraphPage() {
-  const { s, ui, setUi, space, resource, open, user, myChat, ask } = useWorkspace();
+  const { s, ui, setUi, space, resource, open, user, myChat, ask, run } = useWorkspace();
   const [filter, setFilter] = useState<GraphFilter>(noFilter);
   const [sinceVisit, setSinceVisit] = useState(false);
   const [naming, setNaming] = useState(false);
@@ -62,6 +64,22 @@ export function GraphPage() {
               {k.label}
             </button>
           ))}
+        </span>
+        <span className="seg" role="radiogroup" aria-label="Live or archive">
+          <button
+            role="radio"
+            aria-checked={!filter.archive}
+            onClick={() => toggle({ archive: false })}
+          >
+            Live
+          </button>
+          <button
+            role="radio"
+            aria-checked={!!filter.archive}
+            onClick={() => toggle({ archive: true })}
+          >
+            Archive
+          </button>
         </span>
         <button aria-pressed={filter.mine} onClick={() => toggle({ mine: !filter.mine })}>
           Only mine
@@ -181,12 +199,31 @@ export function GraphPage() {
             {' · '}
             {user(page.updatedBy)?.name ?? 'someone'}, {ago(page.updatedAt)}
           </small>
+          {page.kind === 'asset' && page.body.startsWith('data:') && (
+            <img src={page.body} alt={page.title} />
+          )}
           <p>{excerpt(page, 220) || 'Empty so far.'}</p>
+          {page.source && (
+            <small>
+              Brought in from {page.source.name} · {page.source.type}
+            </small>
+          )}
           <div>
             <button className="primary" onClick={() => open({ type: 'page', id: page.id }, true)}>
               <Columns2 size={13} /> Open beside
             </button>
             <button onClick={() => open({ type: 'page', id: page.id })}>Open</button>
+            {page.archived && (
+              <button
+                onClick={() =>
+                  void run(() =>
+                    api(`/resources/${page.id}`, { method: 'PATCH', body: { archived: false } }),
+                  )
+                }
+              >
+                Bring back
+              </button>
+            )}
           </div>
           <small className="hint">Selected. Ask your agent about it in the bar below.</small>
         </aside>

@@ -2,6 +2,7 @@ import {
   FileText,
   Folder,
   Hash,
+  Paperclip,
   Image as ImageIcon,
   LayoutDashboard,
   Presentation,
@@ -36,6 +37,7 @@ export const kindName: Record<string, string> = {
   sheet: 'Sheet',
   deck: 'Deck',
   canvas: 'Canvas',
+  asset: 'Asset',
   folder: 'Folder',
 };
 
@@ -45,6 +47,7 @@ export function KindIcon({ kind, size = 14 }: { kind: ResourceKind | 'channel'; 
   if (kind === 'canvas') return <LayoutDashboard size={size} aria-hidden="true" />;
   if (kind === 'folder') return <Folder size={size} aria-hidden="true" />;
   if (kind === 'channel') return <Hash size={size} aria-hidden="true" />;
+  if (kind === 'asset') return <Paperclip size={size} aria-hidden="true" />;
   if (kind === 'image') return <ImageIcon size={size} aria-hidden="true" />;
   if (kind === 'sticky' || kind === 'note') return <StickyNote size={size} aria-hidden="true" />;
   return <FileText size={size} aria-hidden="true" />;
@@ -81,6 +84,7 @@ export function excerpt(r: Resource, length = 160) {
     );
   }
   if (r.kind === 'canvas') return 'Canvas';
+  if (r.kind === 'asset' && r.body.startsWith('data:')) return r.source?.name ?? 'Picture';
   return r.body
     .replace(/^#.*$/m, '')
     .replace(/[#*_`>|-]/g, ' ')

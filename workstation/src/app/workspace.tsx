@@ -25,6 +25,15 @@ export type Ui = {
   nav: boolean;
   creating: boolean;
   graphScope: 'space' | 'everything';
+  /** Which dialog is up, if any. */
+  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste';
+  /** How things look for this person. */
+  prefs: {
+    size: 's' | 'm' | 'l';
+    density: 'roomy' | 'compact';
+    accent: number | null;
+    list: boolean;
+  };
   /** With two pages side by side: the share of the width the first one takes. */
   split: number;
 };
@@ -41,16 +50,22 @@ export const initialUi: Ui = {
   creating: false,
   graphScope: 'space',
   split: 0.5,
+  dialog: null,
+  prefs: { size: 'm', density: 'roomy', accent: null, list: true },
 };
 
 export type Picker = {
   title: string;
+  /** Things to do, offered above the results. */
+  actions?: { label: string; hint?: string; run: () => void }[];
   /** Which pages may be chosen. */
   filter?: (r: Resource) => boolean;
   /** Also offer conversations. */
   chats?: boolean;
   onPick: (target: Target) => void;
 };
+
+export type MenuItem = { label: string; run: () => void; danger?: boolean } | 'line';
 
 export type Workspace = {
   s: Snapshot;
@@ -67,6 +82,15 @@ export type Workspace = {
   open: (target: Target, beside?: boolean) => void;
   closePane: (index: number) => void;
   pick: (picker: Picker) => void;
+  /** A menu at the pointer: the quick things to do with whatever was right-clicked. */
+  menu: (
+    event: { clientX: number; clientY: number; preventDefault: () => void },
+    items: MenuItem[],
+  ) => void;
+  /** Brings files from elsewhere into the space as pages. */
+  bring: (files: File[], parentId?: Id | null) => Promise<void>;
+  /** Opens the file chooser for bringing things in. */
+  chooseFiles: () => void;
   /** Your own agent and your private conversation with it. */
   myAgent: User | undefined;
   myChat: Conversation | undefined;

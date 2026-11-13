@@ -140,6 +140,33 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
     return !!el && Math.abs(el.getBoundingClientRect().x - x) > 100;
   }, before.x);
 
+  // A window shared live on the canvas reaches the other person's browser directly.
+  await dylan.evaluate(() => {
+    // Headless browsers have no screen to capture, so stand in a moving picture for the window.
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const c = document.createElement('canvas');
+      c.width = 640;
+      c.height = 360;
+      const g = c.getContext('2d')!;
+      let n = 0;
+      setInterval(() => {
+        g.fillStyle = `hsl(${n++ % 360} 60% 50%)`;
+        g.fillRect(0, 0, 640, 360);
+      }, 100);
+      return c.captureStream(10);
+    };
+  });
+  await dylan.getByRole('button', { name: 'Share a window' }).click();
+  await dylan.locator('.kind-screen video').waitFor();
+  await maya.locator('.kind-screen video').waitFor({ timeout: 15000 });
+  await maya.waitForFunction(
+    () => (document.querySelector('.kind-screen video') as HTMLVideoElement)?.videoWidth > 0,
+    undefined,
+    { timeout: 15000 },
+  );
+  await dylan.locator('.kind-screen').getByRole('button', { name: 'Stop' }).click();
+  await maya.locator('.kind-screen').waitFor({ state: 'detached' });
+
   // A channel: Maya writes, Dylan sees it unread in the list and then in the feed.
   await row(maya, 'general').click();
   await maya.getByLabel('Message #general').fill('Stall is confirmed.');

@@ -4,12 +4,12 @@ import {
   ChevronRight,
   Lock,
   LogOut,
-  Moon,
   Plus,
   Search,
   Share2,
-  Sun,
-  SunMoon,
+  Upload,
+  Settings as Cog,
+  Archive,
   Users,
 } from 'lucide-react';
 import { api } from '../data/client.ts';
@@ -23,7 +23,8 @@ import { seenAt } from './saved.ts';
 
 /** The one list on the left: the space, its pages by folder, its channels, and who is in it. */
 export function Sidebar() {
-  const { s, ui, setUi, space, open, run, user, resource, pick, notify } = useWorkspace();
+  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, chooseFiles } =
+    useWorkspace();
   const [switching, setSwitching] = useState(false);
   const [adding, setAdding] = useState<'space' | 'channel' | 'agent' | 'person' | 'folder' | null>(
     null,
@@ -35,7 +36,8 @@ export function Sidebar() {
 
   const items = s.resources.filter((r) => r.spaceId === space.id);
   const folders = items.filter((r) => r.kind === 'folder');
-  const pages = items.filter((r) => isPage(r.kind));
+  const pages = items.filter((r) => isPage(r.kind) && !r.archived);
+  const archived = items.filter((r) => isPage(r.kind) && r.archived).length;
   const folderIds = new Set(folders.map((f) => f.id));
   const inFolder = (id: string | null) =>
     pages.filter((p) => (p.parentId && folderIds.has(p.parentId) ? p.parentId : null) === id);
@@ -65,7 +67,7 @@ export function Sidebar() {
       if (job)
         return `working${resource(job.targetResourceId) ? ` in ${resource(job.targetResourceId)!.title}` : ''}`;
       if (agentState(person.id, s.jobs) === 'waiting') return 'waiting for a yes';
-      return person.role === 'personal' ? 'only you' : '';
+      return '';
     }
     const p = s.presence.find((x) => x.userId === person.id && x.online);
     if (!p) return '';
@@ -131,6 +133,34 @@ export function Sidebar() {
         className={`list-row ${changed ? 'unread' : ''}`}
         aria-current={opened ? 'page' : undefined}
         onClick={(e) => open({ type: 'page', id: p.id }, e.metaKey || e.ctrlKey || e.altKey)}
+        onContextMenu={(e) =>
+          menu(e, [
+            { label: 'Open', run: () => open({ type: 'page', id: p.id }) },
+            { label: 'Open beside', run: () => open({ type: 'page', id: p.id }, true) },
+            'line',
+            ...folders
+              .filter((f) => f.id !== p.parentId && !f.role)
+              .slice(0, 5)
+              .map((f) => ({
+                label: `Move to ${f.title}`,
+                run: () =>
+                  void run(() =>
+                    api(`/resources/${p.id}`, { method: 'PATCH', body: { parentId: f.id } }),
+                  ),
+              })),
+            ...(p.role
+              ? []
+              : [
+                  {
+                    label: 'Archive',
+                    run: () =>
+                      void run(() =>
+                        api(`/resources/${p.id}`, { method: 'PATCH', body: { archived: true } }),
+                      ).then(() => notify(`“${p.title}” is in the archive. Find it on the graph.`)),
+                  },
+                ]),
+          ])
+        }
         title={`${p.title}${p.visibility === 'private' && shared ? ' · only you' : ''}${changed ? ` · changed by ${user(p.updatedBy)?.name ?? 'someone'}` : ''}${waiting ? ` · ${waiting} waiting on you` : ''}\nAlt-click to open beside`}
       >
         <KindIcon kind={p.kind} />
@@ -144,14 +174,6 @@ export function Sidebar() {
       </button>
     );
   };
-  const themeIcon =
-    ui.theme === 'dark' ? (
-      <Moon size={14} />
-    ) : ui.theme === 'light' ? (
-      <Sun size={14} />
-    ) : (
-      <SunMoon size={14} />
-    );
 
   return (
     <nav className="sidebar" aria-label="Space">
@@ -226,6 +248,13 @@ export function Sidebar() {
         <h2>
           Pages
           <span>
+            <button
+              aria-label="Bring in files"
+              title="Bring in files: transcripts, documents, decks, sheets, pictures"
+              onClick={chooseFiles}
+            >
+              <Upload size={13} />
+            </button>
             <button aria-label="New folder" title="New folder" onClick={() => setAdding('folder')}>
               <KindIcon kind="folder" size={13} />
             </button>
@@ -266,6 +295,16 @@ export function Sidebar() {
           .filter((p) => p.role === 'orientation')
           .map(pageRow)}
         {pages.length === 0 && <p className="list-empty">No pages yet.</p>}
+        {archived > 0 && (
+          <button
+            className="list-row quiet"
+            onClick={() => open({ type: 'graph' })}
+            title="See the archive on the graph"
+          >
+            <Archive size={14} /> <span>Archive</span>
+            <small>{archived}</small>
+          </button>
+        )}
 
         {shared && (
           <>
@@ -312,7 +351,11 @@ export function Sidebar() {
                 <Users size={13} />
               </button>
             )}
-            <button aria-label="New agent" title="New agent" onClick={() => setAdding('agent')}>
+            <button
+              aria-label="New agent"
+              title="New agent"
+              onClick={() => setUi({ dialog: 'agent' })}
+            >
               <Plus size={14} />
             </button>
           </span>
@@ -374,6 +417,12 @@ export function Sidebar() {
             <Character agent={a} size={20} state={agentState(a.id, s.jobs)} />
             <span className="truncate">{a.name}</span>
             <small className="truncate">{where(a)}</small>
+            <i
+              className="reach"
+              title={a.role === 'personal' ? 'Private to you' : `Shared with ${space.name}`}
+            >
+              {a.role === 'personal' ? <Lock size={11} /> : <Users size={11} />}
+            </i>
           </button>
         ))}
       </div>
@@ -392,15 +441,11 @@ export function Sidebar() {
           <Actor user={s.me} jobs={s.jobs} size={22} />
           <span className="truncate">{s.me.name}</span>
           <button
-            aria-label={`Theme: ${ui.theme}. Change`}
-            title={`Theme: ${ui.theme}`}
-            onClick={() =>
-              setUi({
-                theme: ui.theme === 'system' ? 'light' : ui.theme === 'light' ? 'dark' : 'system',
-              })
-            }
+            aria-label="Settings"
+            title="Settings"
+            onClick={() => setUi({ dialog: 'settings' })}
           >
-            {themeIcon}
+            <Cog size={14} />
           </button>
           <button
             aria-label="Sign out"

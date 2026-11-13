@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { Columns2, FolderInput, Lock, Menu, MoreHorizontal, Trash2, Users, X } from 'lucide-react';
+import {
+  Archive,
+  Columns2,
+  FolderInput,
+  Lock,
+  Menu,
+  MoreHorizontal,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Avatar, Character, agentState } from '../features/agents/Character.tsx';
 import { KindIcon, chatTitle, kindName } from '../app/util.tsx';
@@ -12,6 +22,7 @@ import { CanvasPage } from './CanvasPage.tsx';
 import { ChatPage } from './ChatPage.tsx';
 import { GraphPage } from './GraphPage.tsx';
 import { WhoPage } from './WhoPage.tsx';
+import { AssetPage } from './AssetPage.tsx';
 
 /** Who can open a page, and the way to change it. Only its owner changes it. */
 function ShareBox({ page, close }: { page: Resource; close: () => void }) {
@@ -143,6 +154,25 @@ function PageMenu({ page, close }: { page: Resource; close: () => void }) {
             ))}
           </select>
         </label>
+      )}
+      {!page.role && (
+        <button
+          role="menuitem"
+          onClick={() => {
+            close();
+            void run(() =>
+              api(`/resources/${page.id}`, { method: 'PATCH', body: { archived: !page.archived } }),
+            ).then(() =>
+              notify(
+                page.archived
+                  ? `“${page.title}” is back in the list.`
+                  : `“${page.title}” is in the archive. Find it on the graph.`,
+              ),
+            );
+          }}
+        >
+          <Archive size={13} /> {page.archived ? 'Bring back from the archive' : 'Archive'}
+        </button>
       )}
       {!page.role && (
         <button
@@ -338,6 +368,7 @@ export function Pane({
         {page?.kind === 'doc' && <DocPage key={page.id} page={page} />}
         {page?.kind === 'sheet' && <SheetPage key={page.id} page={page} />}
         {page?.kind === 'deck' && <DeckPage key={page.id} page={page} />}
+        {page?.kind === 'asset' && <AssetPage key={page.id} page={page} />}
         {page?.kind === 'canvas' && <CanvasPage key={page.id} page={page} active={active} />}
         {chat && <ChatPage key={chat.id} chat={chat} />}
         {target.type === 'graph' && <GraphPage />}

@@ -1,6 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Bold,
+  Code,
+  Minus,
+  Redo2,
+  Strikethrough,
+  Undo2,
   Check,
   Heading1,
   Heading2,
@@ -124,6 +129,19 @@ export function DocPage({ page }: { page: Resource }) {
   const sheet = useRef<HTMLDivElement>(null);
   const saved = useRef(page.body);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Typing "/" on an empty line offers the blocks you can insert.
+  const [slash, setSlash] = useState<{
+    top: number;
+    left: number;
+    query: string;
+    from: number;
+    to: number;
+    at: number;
+  } | null>(null);
+  const slashKey = useRef<(event: KeyboardEvent) => boolean>(() => false);
+  // The same thing held outside React, so a key pressed before the next render still sees it.
+  const slashNow = useRef<typeof slash>(null);
+  const checkSlash = useRef<(editor: any) => void>(() => undefined);
   const pending = useRef<string | null>(null);
 
   const flush = () => {
@@ -146,20 +164,25 @@ export function DocPage({ page }: { page: Resource }) {
       TableRow,
       TableHeader,
       TableCell,
-      Placeholder.configure({ placeholder: 'Write here…' }),
+      Placeholder.configure({
+        placeholder: 'Write here, or type / for headings, lists and tables',
+      }),
       Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
       CommentMarks,
     ],
     content: page.body,
     editable: !locked,
+    editorProps: { handleKeyDown: (_view, event) => slashKey.current(event) },
     onUpdate: ({ editor }) => {
       pending.current = editor.storage.markdown.getMarkdown();
       setState('saving');
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(flush, 700);
       setTick((t) => t + 1);
+      checkSlash.current(editor);
     },
     onSelectionUpdate: ({ editor }) => {
+      checkSlash.current(editor);
       const { from, to, empty } = editor.state.selection;
       if (empty || !sheet.current) return setSelection(null);
       const quote = editor.state.doc.textBetween(from, to, '\n').trim();
@@ -169,7 +192,7 @@ export function DocPage({ page }: { page: Resource }) {
       setSelection({
         quote: quote.slice(0, 280),
         top: start.top - box.top,
-        left: Math.max(0, Math.min(start.left - box.left, box.width - 300)),
+        left: Math.max(0, Math.min(start.left - box.left, box.width - 440)),
       });
     },
   });
@@ -182,7 +205,7 @@ export function DocPage({ page }: { page: Resource }) {
     saved.current = page.body;
     const { from, to } = editor.state.selection;
     editor.commands.setContent(page.body, false);
-    if (editor.isFocused) {
+    {
       const max = editor.state.doc.content.size;
       editor.commands.setTextSelection({ from: Math.min(from, max), to: Math.min(to, max) });
     }
@@ -312,6 +335,76 @@ export function DocPage({ page }: { page: Resource }) {
     </button>
   );
   const chain = () => editor!.chain().focus();
+  const blocks: { label: string; run: () => void }[] = [
+    { label: 'Heading', run: () => chain().setHeading({ level: 1 }).run() },
+    { label: 'Subheading', run: () => chain().setHeading({ level: 2 }).run() },
+    { label: 'Small heading', run: () => chain().setHeading({ level: 3 }).run() },
+    { label: 'Bulleted list', run: () => chain().toggleBulletList().run() },
+    { label: 'Numbered list', run: () => chain().toggleOrderedList().run() },
+    { label: 'Checklist', run: () => chain().toggleTaskList().run() },
+    { label: 'Quote', run: () => chain().toggleBlockquote().run() },
+    { label: 'Code', run: () => chain().toggleCodeBlock().run() },
+    {
+      label: 'Table',
+      run: () => chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+    },
+    { label: 'Divider', run: () => chain().setHorizontalRule().run() },
+  ];
+  const offered = slash ? blocks.filter((b) => b.label.toLowerCase().includes(slash.query)) : [];
+  const insert = (block: (typeof blocks)[number]) => {
+    const now = slashNow.current;
+    if (!now || !editor) return;
+    editor.chain().focus().deleteRange({ from: now.from, to: now.to }).run();
+    block.run();
+    slashNow.current = null;
+    setSlash(null);
+  };
+  checkSlash.current = (ed) => {
+    const { $from, empty } = ed.state.selection;
+    const text = $from.parent.textContent as string;
+    if (
+      !locked &&
+      empty &&
+      $from.parent.type.name === 'paragraph' &&
+      /^\/[a-z ]*$/i.test(text) &&
+      $from.parentOffset === text.length &&
+      sheet.current
+    ) {
+      const box = sheet.current.getBoundingClientRect();
+      const at = ed.view.coordsAtPos($from.pos);
+      const old = slashNow.current;
+      slashNow.current = {
+        top: at.bottom - box.top + 6,
+        left: Math.max(0, at.left - box.left - 8),
+        query: text.slice(1).toLowerCase(),
+        from: $from.start(),
+        to: $from.pos,
+        at: old && old.query === text.slice(1).toLowerCase() ? old.at : 0,
+      };
+      setSlash(slashNow.current);
+    } else {
+      slashNow.current = null;
+      setSlash(null);
+    }
+  };
+  slashKey.current = (event) => {
+    const now = slashNow.current;
+    const choices = now ? blocks.filter((x) => x.label.toLowerCase().includes(now.query)) : [];
+    if (!now || !choices.length) return false;
+    const move = (by: number) => {
+      slashNow.current = { ...now, at: (now.at + by + choices.length) % choices.length };
+      setSlash(slashNow.current);
+    };
+    if (event.key === 'ArrowDown') move(1);
+    else if (event.key === 'ArrowUp') move(-1);
+    else if (event.key === 'Enter' || event.key === 'Tab') insert(choices[now.at] ?? choices[0]);
+    else if (event.key === 'Escape') {
+      slashNow.current = null;
+      setSlash(null);
+    } else return false;
+    event.preventDefault();
+    return true;
+  };
   const by = user(page.updatedBy);
 
   const card = (m: Message) => {
@@ -423,6 +516,15 @@ export function DocPage({ page }: { page: Resource }) {
             {tool('Table', <TableIcon size={14} />, editor.isActive('table'), () =>
               chain().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
             )}
+            {tool('Strikethrough', <Strikethrough size={14} />, editor.isActive('strike'), () =>
+              chain().toggleStrike().run(),
+            )}
+            {tool('Code', <Code size={14} />, editor.isActive('code'), () =>
+              chain().toggleCode().run(),
+            )}
+            {tool('Divider', <Minus size={14} />, false, () => chain().setHorizontalRule().run())}
+            {tool('Undo', <Undo2 size={14} />, false, () => chain().undo().run())}
+            {tool('Redo', <Redo2 size={14} />, false, () => chain().redo().run())}
           </span>
         )}
         <span className="doc-meta">
@@ -445,7 +547,7 @@ export function DocPage({ page }: { page: Resource }) {
       {revisions && (
         <ol className="revisions">
           {revisions.length === 0 && <li>No earlier versions.</li>}
-          {revisions.map((r) => (
+          {revisions.slice(0, 5).map((r) => (
             <li key={r.id}>
               <strong>{user(r.authorId)?.name ?? 'Someone'}</strong> ·{' '}
               {new Date(r.createdAt).toLocaleString()}
@@ -474,6 +576,26 @@ export function DocPage({ page }: { page: Resource }) {
       <div className="doc-sheet" ref={sheet}>
         <div className="doc-text">
           <EditorContent editor={editor} className="markdown reader-body" />
+          {slash && offered.length > 0 && (
+            <div
+              className="slash"
+              style={{ top: slash.top, left: slash.left }}
+              role="listbox"
+              aria-label="Insert"
+            >
+              {offered.map((b, i) => (
+                <button
+                  key={b.label}
+                  role="option"
+                  aria-selected={i === slash.at}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insert(b)}
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          )}
           {selection && !draft && (
             <div
               className="select-tools"
@@ -481,6 +603,43 @@ export function DocPage({ page }: { page: Resource }) {
               role="toolbar"
               aria-label="For the selected text"
             >
+              {!locked && (
+                <>
+                  <button
+                    aria-label="Bold"
+                    aria-pressed={editor?.isActive('bold')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chain().toggleBold().run()}
+                  >
+                    <Bold size={13} />
+                  </button>
+                  <button
+                    aria-label="Italic"
+                    aria-pressed={editor?.isActive('italic')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chain().toggleItalic().run()}
+                  >
+                    <Italic size={13} />
+                  </button>
+                  <button
+                    aria-label="Strikethrough"
+                    aria-pressed={editor?.isActive('strike')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chain().toggleStrike().run()}
+                  >
+                    <Strikethrough size={13} />
+                  </button>
+                  <button
+                    aria-label="Code"
+                    aria-pressed={editor?.isActive('code')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chain().toggleCode().run()}
+                  >
+                    <Code size={13} />
+                  </button>
+                  <i />
+                </>
+              )}
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => begin('comment')}>
                 <MessageSquarePlus size={13} /> Comment
               </button>

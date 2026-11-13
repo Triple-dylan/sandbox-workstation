@@ -15,7 +15,7 @@ export function usePageFeed(page: Resource) {
 
 /** The conversation that belongs to a page, tucked under it: everyone who can open the page sees it. */
 export function PageFeed({ page, startOpen = false }: { page: Resource; startOpen?: boolean }) {
-  const { s, space, ui } = useWorkspace();
+  const { s, space, ui, open: openTarget } = useWorkspace();
   const { feed, ensure } = usePageFeed(page);
   const count = feed
     ? s.messages.filter((m) => m.conversationId === feed.id && !m.anchor && !m.replyTo).length
@@ -63,7 +63,8 @@ export function PageFeed({ page, startOpen = false }: { page: Resource; startOpe
             !m.anchor && !(m.replyTo && s.messages.find((x) => x.id === m.replyTo)?.anchor)
           }
           empty="Talk about this page here. It stays with the page."
-          latest={4}
+          latest={3}
+          onEarlier={feed ? () => openTarget({ type: 'chat', id: feed.id }, true) : undefined}
         />
       )}
     </section>

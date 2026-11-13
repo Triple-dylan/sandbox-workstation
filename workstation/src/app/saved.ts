@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 
 /** Per-person conveniences kept in this browser: saved graph views and saved questions. */
 export type GraphFilter = {
-  kind: 'all' | 'doc' | 'sheet' | 'deck' | 'canvas';
+  kind: 'all' | 'doc' | 'sheet' | 'deck' | 'canvas' | 'asset';
   mine: boolean;
   recent: boolean;
+  /** Show what has been put away instead of what is live. */
+  archive?: boolean;
 };
 export type Saved = { views: { name: string; filter: GraphFilter }[]; questions: string[] };
 

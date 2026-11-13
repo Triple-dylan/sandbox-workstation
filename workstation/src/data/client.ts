@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Cursor, Snapshot } from '../../shared/types.ts';
+import type { Cursor, Signal, Snapshot } from '../../shared/types.ts';
+
+const signalListeners = new Set<(signal: Signal) => void>();
+export function onSignal(listener: (signal: Signal) => void) {
+  signalListeners.add(listener);
+  return () => void signalListeners.delete(listener);
+}
 
 /** Teammates' pointers on a canvas arrive live and are never stored. */
 const cursorListeners = new Set<(cursor: Cursor) => void>();
@@ -81,6 +87,14 @@ export function useSession() {
     const events = new EventSource('/api/events');
     events.onmessage = () => void refresh();
     events.onerror = () => void refresh();
+    events.addEventListener?.('signal', (event) => {
+      try {
+        const signal = JSON.parse((event as MessageEvent).data) as Signal;
+        for (const listener of signalListeners) listener(signal);
+      } catch {
+        // Ignore a malformed message.
+      }
+    });
     events.addEventListener?.('cursor', (event) => {
       try {
         const cursor = JSON.parse((event as MessageEvent).data) as Cursor;

@@ -22,6 +22,7 @@ export type GraphLink = { source: string; target: string };
 
 export const noFilter: GraphFilter = { kind: 'all', mine: false, recent: false };
 export function passes(r: Resource, filter: GraphFilter, meId: string, since: string) {
+  if (!!r.archived !== !!filter.archive) return false;
   if (filter.kind !== 'all' && r.kind !== filter.kind) return false;
   if (filter.mine && r.ownerId !== meId && r.updatedBy !== meId) return false;
   if (filter.recent && r.updatedAt < since) return false;
@@ -37,7 +38,7 @@ export function graphOf(
 ): { nodes: GraphNode[]; links: GraphLink[] } {
   const items = s.resources.filter((r) => r.spaceId === space.id);
   const pages = items.filter((r) => isPage(r.kind) && passes(r, filter, s.me.id, since));
-  const filtering = filter.kind !== 'all' || filter.mine || filter.recent;
+  const filtering = filter.kind !== 'all' || filter.mine || filter.recent || !!filter.archive;
   const used = new Set(pages.map((p) => p.parentId));
   const folders = items.filter(
     (r) => r.kind === 'folder' && (used.has(r.id) || (!filtering && !r.role)),
@@ -81,7 +82,7 @@ export function graphOf(
  */
 export function relationsOf(s: Snapshot, space: Space): GraphLink[] {
   const items = s.resources.filter((r) => r.spaceId === space.id);
-  const pages = items.filter((r) => isPage(r.kind) && !r.role);
+  const pages = items.filter((r) => isPage(r.kind) && !r.role && !r.archived);
   const named = pages.filter((r) => r.title.length >= 5);
   const links: GraphLink[] = [];
   for (const from of pages) {
@@ -117,7 +118,11 @@ export function overviewOf(s: Snapshot): { nodes: GraphNode[]; links: GraphLink[
   for (const space of s.spaces) {
     const items = s.resources.filter((r) => r.spaceId === space.id);
     const tops = items.filter(
-      (r) => !r.parentId && (r.kind === 'folder' || isPage(r.kind)) && r.role !== 'orientation',
+      (r) =>
+        !r.parentId &&
+        !r.archived &&
+        (r.kind === 'folder' || isPage(r.kind)) &&
+        r.role !== 'orientation',
     );
     nodes.push({
       id: space.id,

@@ -10,6 +10,7 @@ import {
   ListChecks,
   MessageSquare,
   Minus,
+  MonitorUp,
   MousePointer2,
   Plus,
   Square,
@@ -22,6 +23,13 @@ import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, deckSlides, excerpt, sheetRows } from '../app/util.tsx';
 import { evaluate } from '../features/sheet/formula.ts';
 import { readImage } from '../features/canvas/image.ts';
+import {
+  canShare,
+  pickWindow,
+  startSharing,
+  stopSharing,
+  useShared,
+} from '../features/canvas/share.ts';
 import { Actor, nameStyle } from '../features/agents/Character.tsx';
 import { ApprovalCard, MessageView } from '../features/feed/Feed.tsx';
 import { PlanList } from '../features/plan/Plan.tsx';
@@ -42,6 +50,48 @@ const sizes: Record<string, { width: number; height: number }> = {
   plan: { width: 400, height: 336 },
 };
 const textKinds = ['note', 'sticky', 'shape', 'frame'];
+
+/** A window someone is sharing, live on the canvas. Resize it like anything else. */
+function ScreenPiece({ piece, onStop }: { piece: Resource; onStop: () => void }) {
+  const { s, user } = useWorkspace();
+  let by = piece.ownerId;
+  try {
+    by = JSON.parse(piece.body).by ?? by;
+  } catch {
+    // Fall back to whoever made it.
+  }
+  const mine = by === s.me.id;
+  const stream = useShared(piece.id, by, mine);
+  const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (video.current && video.current.srcObject !== stream) video.current.srcObject = stream;
+  }, [stream]);
+  const name = mine ? 'You are' : `${user(by)?.name ?? 'Someone'} is`;
+  return (
+    <div className="screen">
+      <header>
+        <i className={stream ? 'live' : ''} />
+        <span className="truncate">
+          {stream
+            ? `${name} sharing a window`
+            : mine
+              ? 'Sharing has stopped'
+              : `Connecting to ${user(by)?.name ?? 'their'} window…`}
+        </span>
+        {mine && <button onClick={onStop}>{stream ? 'Stop' : 'Remove'}</button>}
+      </header>
+      {stream ? (
+        <video ref={video} autoPlay muted playsInline />
+      ) : (
+        <p>
+          {mine
+            ? 'Remove this and share again to bring it back.'
+            : 'It appears here once they are sharing.'}
+        </p>
+      )}
+    </div>
+  );
+}
 const inside = (a: Placement, b: Placement) =>
   a.x + a.width / 2 >= b.x &&
   a.x + a.width / 2 <= b.x + b.width &&
@@ -94,6 +144,8 @@ function EmbedCard({ piece }: { piece: Resource }) {
             ))}
           </tbody>
         </table>
+      ) : target.kind === 'asset' && target.body.startsWith('data:') ? (
+        <img className="embed-picture" src={target.body} alt={target.title} draggable={false} />
       ) : target.kind === 'deck' ? (
         <p>
           <strong>{deckSlides(target.body)[0].title}</strong>
@@ -114,7 +166,7 @@ function EmbedCard({ piece }: { piece: Resource }) {
  * arrangement. What you select is what your agent is asked about.
  */
 export function CanvasPage({ page, active }: { page: Resource; active: boolean }) {
-  const { s, ui, setUi, run, pick, open, user, notify, space } = useWorkspace();
+  const { s, ui, setUi, run, pick, open, user, notify, space, menu } = useWorkspace();
   const { feed, ensure } = usePageFeed(page);
   const [tool, setTool] = useState<Tool>('select');
   const [shape, setShape] = useState<(typeof SHAPES)[number]>('rect');
@@ -417,6 +469,29 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
       notify('That file is not a picture this canvas can show.');
     }
   };
+  const viewers = () =>
+    s.members
+      .filter((m) => m.spaceId === page.spaceId && m.userId !== s.me.id)
+      .map((m) => m.userId);
+  const stopScreen = (id: Id) => {
+    stopSharing(id, viewers());
+    void run(() => api(`/resources/${id}`, { method: 'DELETE' }));
+  };
+  const shareWindow = async () => {
+    if (!canShare()) return notify('This browser cannot share a window.');
+    const stream = await pickWindow();
+    if (!stream)
+      return notify(
+        'No window was shared. If nothing asked you to choose one, this view is not allowed to capture the screen; it works when the app is open in its own tab.',
+      );
+    const shape = stream.getVideoTracks()[0]?.getSettings();
+    const width = 560;
+    const height = snap((width * (shape?.height ?? 9)) / (shape?.width ?? 16)) + 32;
+    const made = await create({ kind: 'screen', body: '', placement: centre({ width, height }) });
+    if (!made) return stream.getTracks().forEach((t) => t.stop());
+    startSharing(made.id, stream, () => stopScreen(made.id));
+    select([made.id]);
+  };
   const addPage = () =>
     pick({
       title: 'Put a page on this canvas',
@@ -520,6 +595,13 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
           onClick={addPage}
         >
           <FilePlus2 size={16} />
+        </button>
+        <button
+          aria-label="Share a window"
+          title="Share a window, live on the canvas"
+          onClick={() => void shareWindow()}
+        >
+          <MonitorUp size={16} />
         </button>
         <button
           aria-label="Add a picture"
@@ -901,6 +983,7 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
         </span>
       );
     else if (p.kind === 'embed') inner = <EmbedCard piece={p} />;
+    else if (p.kind === 'screen') inner = <ScreenPiece piece={p} onStop={() => stopScreen(p.id)} />;
     else if (p.kind === 'image') inner = <img src={p.body} alt={p.title} draggable={false} />;
     else if (p.kind === 'plan')
       inner = (
@@ -944,6 +1027,40 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             : undefined
         }
         onPointerDown={(e) => onPiece(e, p)}
+        onContextMenu={(e) => {
+          if (!selection.includes(p.id)) select([p.id]);
+          menu(e, [
+            { label: 'Comment', run: () => setCommenting(p.id) },
+            {
+              label: 'Ask your agent about this',
+              run: () => setUi({ selection: [p.id], barOpen: true }),
+            },
+            ...(textKinds.includes(p.kind)
+              ? [{ label: 'Edit text', run: () => setEditing(p.id) }]
+              : []),
+            ...(p.placement && p.kind !== 'screen' && p.kind !== 'plan'
+              ? [
+                  {
+                    label: 'Duplicate',
+                    run: () =>
+                      void create({
+                        kind: p.kind,
+                        body: p.body,
+                        style: p.style,
+                        title: p.title,
+                        placement: {
+                          ...p.placement!,
+                          x: p.placement!.x + 24,
+                          y: p.placement!.y + 24,
+                        },
+                      }),
+                  },
+                ]
+              : []),
+            'line',
+            { label: 'Remove', danger: true, run: () => remove([p.id]) },
+          ]);
+        }}
         onDoubleClick={() => {
           if (textKinds.includes(p.kind)) return setEditing(p.id);
           if (p.kind === 'embed')

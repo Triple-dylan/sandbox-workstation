@@ -87,6 +87,9 @@ export function Bar({ pill }: { pill: boolean }) {
         )
       : 'this page';
   const onGraph = shown.some((t) => t.type === 'graph');
+  // The panel shows the exchange in hand: your last question and what came back.
+  const lastAsk = thread.map((m) => m.authorId).lastIndexOf(s.me.id);
+  const latest = thread.slice(Math.max(0, lastAsk)).slice(-5);
   const questionFor = (m: Message) => {
     const at = thread.indexOf(m);
     for (let i = at - 1; i >= 0; i--) if (thread[i].authorId === s.me.id) return thread[i].text;
@@ -172,7 +175,18 @@ export function Bar({ pill }: { pill: boolean }) {
                 send.
               </p>
             )}
-            {thread.slice(-14).map((m) => (
+            {thread.length > latest.length && (
+              <button
+                className="link earlier"
+                onClick={() => {
+                  open({ type: 'chat', id: myChat.id }, true);
+                  setUi({ barOpen: false });
+                }}
+              >
+                Earlier · open the conversation beside
+              </button>
+            )}
+            {latest.map((m) => (
               <MessageView key={m.id} m={m} quiet extra={actions(m)} />
             ))}
             {busy && (
