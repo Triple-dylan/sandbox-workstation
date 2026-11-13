@@ -3,7 +3,6 @@ import { ArrowDown, ArrowUp, Play, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { Md, deckSlides } from '../app/util.tsx';
-import { PageFeed } from './PageFeed.tsx';
 import type { Resource } from '../../shared/types.ts';
 
 /** A deck: a list of slides, each a title and some writing, with a way to present them. */
@@ -132,7 +131,6 @@ export function DeckPage({ page }: { page: Resource }) {
           </div>
         </div>
       </div>
-      <PageFeed page={page} />
       {presenting && (
         <div
           className="present"

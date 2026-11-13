@@ -56,6 +56,21 @@ export type Skill = {
   updatedAt: string;
 };
 
+/**
+ * An agent at work. Everyone in a space can see that it is working and, when they can open it,
+ * which page it is on. What was asked stays with the people in that conversation.
+ */
+export type Activity = {
+  agentId: Id;
+  spaceId: Id;
+  /** The page it is working on, if this person can open it. */
+  resourceId: Id | null;
+  /** The conversation it will answer in, if this person can read it. */
+  conversationId: Id | null;
+  status: 'working' | 'waiting';
+  since: string;
+};
+
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
@@ -91,7 +106,7 @@ export type SheetBody = { rows: string[][] };
 /** A deck's stored form. */
 export type DeckBody = { slides: { title: string; body: string }[] };
 /** What an embed on a canvas points at. */
-export type EmbedBody = { resourceId: Id };
+export type EmbedBody = { resourceId?: Id; conversationId?: Id };
 /** A connector on a canvas, between two pieces on the same canvas. */
 export type ArrowBody = { from: Id; to: Id };
 export type Placement = { x: number; y: number; width: number; height: number };
@@ -250,6 +265,8 @@ export type Snapshot = {
   approvals: Approval[];
   goals: Goal[];
   skills: Skill[];
+  /** Agents at work right now, as much as this person may know about each. */
+  activity: Activity[];
   presence: Presence[];
   lastRead: Record<Id, string>;
   runtime: { id: string; label: string; model?: string };

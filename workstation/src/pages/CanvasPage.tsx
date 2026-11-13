@@ -10,7 +10,6 @@ import {
   ListChecks,
   MessageSquare,
   Minus,
-  MonitorUp,
   MousePointer2,
   Plus,
   Square,
@@ -20,20 +19,15 @@ import {
 } from 'lucide-react';
 import { api, onCursor } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
-import { KindIcon, deckSlides, excerpt, sheetRows } from '../app/util.tsx';
+import { KindIcon, Md, deckSlides, sheetRows } from '../app/util.tsx';
+import { DRAG } from '../app/scope.ts';
 import { evaluate } from '../features/sheet/formula.ts';
 import { readImage } from '../features/canvas/image.ts';
-import {
-  canShare,
-  pickWindow,
-  startSharing,
-  stopSharing,
-  useShared,
-} from '../features/canvas/share.ts';
+import { stopSharing, useShared } from '../features/canvas/share.ts';
 import { Actor, nameStyle } from '../features/agents/Character.tsx';
 import { ApprovalCard, MessageView } from '../features/feed/Feed.tsx';
 import { PlanList } from '../features/plan/Plan.tsx';
-import { PageFeed, usePageFeed } from './PageFeed.tsx';
+import { usePageFeed } from './PageFeed.tsx';
 import { CANVAS_KINDS, SHAPES, STICKY_COLORS, isPage } from '../../shared/types.ts';
 import type { Id, PinBody, Placement, Resource } from '../../shared/types.ts';
 
@@ -46,7 +40,7 @@ const sizes: Record<string, { width: number; height: number }> = {
   sticky: { width: 168, height: 168 },
   shape: { width: 176, height: 96 },
   frame: { width: 520, height: 360 },
-  embed: { width: 304, height: 176 },
+  embed: { width: 360, height: 280 },
   plan: { width: 400, height: 336 },
 };
 const textKinds = ['note', 'sticky', 'shape', 'frame'];
@@ -114,48 +108,134 @@ function edge(from: Placement, to: Placement) {
   return { x: cx + dx * scale, y: cy + dy * scale };
 }
 
-/** A page shown on the canvas. It is the page itself: it changes when the page does. */
+/**
+ * A page or a channel placed on the canvas as a live window. It is the thing itself: it changes
+ * when the page does, sheets can be edited in place, and a channel can be answered from here.
+ * It takes whatever shape it is given; what does not fit is a double-click away.
+ */
 function EmbedCard({ piece }: { piece: Resource }) {
-  const { resource } = useWorkspace();
-  let target: Resource | undefined;
+  const { s, resource, run, user } = useWorkspace();
+  const [slide, setSlide] = useState(0);
+  let link: { resourceId?: Id; conversationId?: Id } = {};
   try {
-    target = resource(JSON.parse(piece.body).resourceId);
+    link = JSON.parse(piece.body);
   } catch {
-    target = undefined;
+    link = {};
   }
-  if (!target) return <div className="embed gone">This page is no longer available to you.</div>;
+  const chat = s.conversations.find((c) => c.id === link.conversationId);
+  if (chat) {
+    const recent = s.messages.filter((m) => m.conversationId === chat.id && !m.replyTo).slice(-6);
+    return (
+      <div className="embed window">
+        <header>
+          <KindIcon kind="channel" size={13} />
+          <strong className="truncate">{chat.title}</strong>
+          <small>live</small>
+        </header>
+        <div className="window-feed">
+          {recent.map((m) => (
+            <p key={m.id}>
+              <strong style={nameStyle(user(m.authorId)?.color)}>{user(m.authorId)?.name}</strong>{' '}
+              {m.text}
+            </p>
+          ))}
+          {recent.length === 0 && <p className="quiet">Nothing said yet.</p>}
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const input = e.currentTarget.elements.namedItem('say') as HTMLInputElement;
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            void run(() => api('/messages', { body: { conversationId: chat.id, text } }));
+          }}
+        >
+          <input
+            name="say"
+            placeholder={`Message #${chat.title}`}
+            aria-label={`Message #${chat.title}`}
+          />
+        </form>
+      </div>
+    );
+  }
+  const target = resource(link.resourceId);
+  if (!target) return <div className="embed gone">This is no longer available to you.</div>;
   const rows = target.kind === 'sheet' ? sheetRows(target.body) : [];
+  const slides = target.kind === 'deck' ? deckSlides(target.body) : [];
+  const at = Math.min(slide, Math.max(0, slides.length - 1));
   return (
-    <div className="embed">
+    <div className="embed window">
       <header>
         <KindIcon kind={target.kind} size={13} />
         <strong className="truncate">{target.title}</strong>
-        {target.visibility === 'private' && <small>only you</small>}
+        <small>{target.visibility === 'private' ? 'only you · live' : 'live'}</small>
       </header>
       {target.kind === 'sheet' ? (
-        <table>
-          <tbody>
-            {rows.slice(0, 5).map((row, r) => (
-              <tr key={r}>
-                {row.slice(0, 4).map((_, c) => (
-                  <td key={c}>{evaluate(rows, r, c)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="window-body">
+          <table>
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={r}>
+                  {row.map((cell, c) => (
+                    <td key={c}>
+                      <input
+                        defaultValue={evaluate(rows, r, c)}
+                        key={`${cell}:${evaluate(rows, r, c)}`}
+                        aria-label={`Row ${r + 1}, column ${c + 1}`}
+                        onFocus={(e) => (e.target.value = cell)}
+                        onBlur={(e) => {
+                          const value = e.target.value;
+                          if (value === cell) return void (e.target.value = evaluate(rows, r, c));
+                          void run(() =>
+                            api(`/resources/${target.id}/cells`, {
+                              body: { row: r, col: c, value },
+                            }),
+                          );
+                        }}
+                        onKeyDown={(e) =>
+                          e.key === 'Enter' && (e.target as HTMLInputElement).blur()
+                        }
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : target.kind === 'asset' && target.body.startsWith('data:') ? (
         <img className="embed-picture" src={target.body} alt={target.title} draggable={false} />
       ) : target.kind === 'deck' ? (
-        <p>
-          <strong>{deckSlides(target.body)[0].title}</strong>
-          <br />
-          {excerpt(target, 80)}
-        </p>
+        <div className="window-body slide-window">
+          <strong>{slides[at]?.title}</strong>
+          <Md text={slides[at]?.body ?? ''} />
+          <span className="pager">
+            <button
+              aria-label="Previous slide"
+              disabled={at === 0}
+              onClick={() => setSlide(at - 1)}
+            >
+              ‹
+            </button>
+            {at + 1} / {slides.length}
+            <button
+              aria-label="Next slide"
+              disabled={at >= slides.length - 1}
+              onClick={() => setSlide(at + 1)}
+            >
+              ›
+            </button>
+          </span>
+        </div>
+      ) : target.kind === 'canvas' ? (
+        <p>A canvas. Double-click to open it beside.</p>
       ) : (
-        <p>{excerpt(target, 240) || 'Empty so far.'}</p>
+        <div className="window-body">
+          <Md text={target.body} />
+        </div>
       )}
-      <footer>Double-click to open beside</footer>
     </div>
   );
 }
@@ -361,7 +441,10 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
 
   const onPiece = (e: React.PointerEvent, piece: Resource) => {
     if (e.button !== 0 || editing === piece.id) return;
-    if ((e.target as HTMLElement).closest('button, input, select, textarea, a, .plan')) return;
+    if (
+      (e.target as HTMLElement).closest('button, input, select, textarea, a, .plan, .window-feed')
+    )
+      return;
     e.stopPropagation();
     if (tool === 'comment') {
       setCommenting(piece.id);
@@ -477,21 +560,6 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
     stopSharing(id, viewers());
     void run(() => api(`/resources/${id}`, { method: 'DELETE' }));
   };
-  const shareWindow = async () => {
-    if (!canShare()) return notify('This browser cannot share a window.');
-    const stream = await pickWindow();
-    if (!stream)
-      return notify(
-        'No window was shared. If nothing asked you to choose one, this view is not allowed to capture the screen; it works when the app is open in its own tab.',
-      );
-    const shape = stream.getVideoTracks()[0]?.getSettings();
-    const width = 560;
-    const height = snap((width * (shape?.height ?? 9)) / (shape?.width ?? 16)) + 32;
-    const made = await create({ kind: 'screen', body: '', placement: centre({ width, height }) });
-    if (!made) return stream.getTracks().forEach((t) => t.stop());
-    startSharing(made.id, stream, () => stopScreen(made.id));
-    select([made.id]);
-  };
   const addPage = () =>
     pick({
       title: 'Put a page on this canvas',
@@ -597,13 +665,6 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
           <FilePlus2 size={16} />
         </button>
         <button
-          aria-label="Share a window"
-          title="Share a window, live on the canvas"
-          onClick={() => void shareWindow()}
-        >
-          <MonitorUp size={16} />
-        </button>
-        <button
           aria-label="Add a picture"
           title="Add a picture"
           onClick={() => file.current?.click()}
@@ -697,6 +758,32 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
         }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
+          const dragged = e.dataTransfer.getData(DRAG);
+          if (dragged) {
+            // Something from the list, dropped here, becomes a live window on the canvas.
+            try {
+              const t = JSON.parse(dragged);
+              if (t.type !== 'page' && t.type !== 'chat') return;
+              if (t.id === page.id) return;
+              e.preventDefault();
+              const at = point(e);
+              const size = { width: 360, height: 280 };
+              void create({
+                kind: 'embed',
+                body: JSON.stringify(
+                  t.type === 'page' ? { resourceId: t.id } : { conversationId: t.id },
+                ),
+                placement: {
+                  x: Math.max(0, snap(at.x - size.width / 2)),
+                  y: Math.max(0, snap(at.y - 24)),
+                  ...size,
+                },
+              }).then((made) => made && select([made.id]));
+            } catch {
+              // Not something from the list.
+            }
+            return;
+          }
           const dropped = [...e.dataTransfer.files].find((f) => f.type.startsWith('image/'));
           if (!dropped) return;
           e.preventDefault();
@@ -719,7 +806,8 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             {placed.length === 0 && pending.length === 0 && (
               <p className="canvas-empty">
                 An empty canvas. Pick a tool on the left and click to place it, drop in a picture,
-                or put a page here as a live card.
+                or put a page here as a live window. You can also drag any page or channel in from
+                the list.
               </p>
             )}
             {placed.filter((p) => p.kind === 'frame').map((p) => renderPiece(p))}
@@ -949,7 +1037,6 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
           </div>
         </div>
       </div>
-      <PageFeed page={page} />
     </div>
   );
 
@@ -1065,7 +1152,13 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
           if (textKinds.includes(p.kind)) return setEditing(p.id);
           if (p.kind === 'embed')
             try {
-              open({ type: 'page', id: JSON.parse(p.body).resourceId }, true);
+              const link = JSON.parse(p.body);
+              open(
+                link.conversationId
+                  ? { type: 'chat', id: link.conversationId }
+                  : { type: 'page', id: link.resourceId },
+                true,
+              );
             } catch {
               // Nothing to open.
             }

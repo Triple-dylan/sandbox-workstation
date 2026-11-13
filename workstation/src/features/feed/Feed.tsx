@@ -5,6 +5,7 @@ import { useWorkspace } from '../../app/workspace.tsx';
 import { KindIcon, Md, ago, clock, excerpt, sheetRows } from '../../app/util.tsx';
 import { Actor, Character, agentState, nameStyle } from '../agents/Character.tsx';
 import { proposalText } from '../agents/proposal.ts';
+import { DRAG, pagesNamed } from '../../app/scope.ts';
 import { evaluate } from '../sheet/formula.ts';
 import { REACTIONS } from '../../../shared/types.ts';
 import type { Conversation, Id, Message, User } from '../../../shared/types.ts';
@@ -130,13 +131,13 @@ export function LivePiece({ embed }: { embed: NonNullable<Message['embed']> }) {
   );
 }
 
-export function SourceChips({ ids }: { ids: Id[] }) {
+export function SourceChips({ ids, label = 'From' }: { ids: Id[]; label?: string }) {
   const { resource, open } = useWorkspace();
   const pages = ids.map((id) => resource(id)).filter((r) => !!r);
   if (!pages.length) return null;
   return (
     <p className="sources">
-      <small>From</small>
+      <small>{label}</small>
       {pages.map((p) => (
         <button
           key={p.id}
@@ -168,6 +169,7 @@ export function MessageView({
   const author = user(m.authorId);
   const to = user(m.addressedTo);
   const anchored = m.anchor && resource(m.anchor.resourceId);
+  const conversationSpace = s.conversations.find((c) => c.id === m.conversationId)?.spaceId ?? null;
   const react = (emoji: string) => {
     setReacting(false);
     void run(() => api(`/messages/${m.id}/react`, { body: { emoji } }));
@@ -195,6 +197,14 @@ export function MessageView({
         <Md text={m.text} />
         {m.embed && <LivePiece embed={m.embed} />}
         <SourceChips ids={m.sourceIds} />
+        <SourceChips
+          label="Mentions"
+          ids={pagesNamed(s, conversationSpace, m.text, [
+            ...m.sourceIds,
+            ...(m.embed ? [m.embed.resourceId] : []),
+            ...(m.anchor ? [m.anchor.resourceId] : []),
+          ]).map((p) => p.id)}
+        />
         {m.approvalId && <ApprovalCard approvalId={m.approvalId} />}
         {extra}
         {!quiet && (
@@ -317,6 +327,18 @@ export function Composer({
   return (
     <form
       className="composer"
+      onDragOver={(e) => [...e.dataTransfer.types].includes(DRAG) && e.preventDefault()}
+      onDrop={(e) => {
+        // A page dragged in from the list rides along with the message, live.
+        try {
+          const t = JSON.parse(e.dataTransfer.getData(DRAG));
+          if (t.type !== 'page' || conversation?.kind === 'discussion') return;
+          e.preventDefault();
+          setAttached(t.id);
+        } catch {
+          // Not something from the list.
+        }
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         void send();

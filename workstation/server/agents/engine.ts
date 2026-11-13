@@ -354,6 +354,11 @@ export class AgentEngine {
       targetResourceId:
         trigger?.anchor?.resourceId ??
         (conversation?.kind === 'discussion' ? conversation.resourceId : null) ??
+        // What the person was looking at when they asked: the page the agent is working on.
+        (trigger ? (this.store.messageContext(trigger.id)?.resourceIds ?? []) : [])
+          .map((id) => this.store.resource(id))
+          .find((r) => !!r && this.store.canReadResource(agent.id, r) && r.spaceId === spaceId)
+          ?.id ??
         (kind === 'maintenance'
           ? (this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation')?.id ?? null)
           : null),

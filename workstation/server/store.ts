@@ -701,6 +701,18 @@ export class Store {
     } else if (input.kind === 'canvas') {
       body = '';
       title = title || 'Untitled canvas';
+    } else if (input.kind === 'embed' && parse<{ conversationId?: string }>(body)?.conversationId) {
+      // A channel placed on the canvas as a live window.
+      const chat = this.conversation(parse<{ conversationId: string }>(body)!.conversationId);
+      if (
+        !chat ||
+        chat.kind !== 'channel' ||
+        chat.spaceId !== space.id ||
+        !this.canReadConversation(actorId, chat)
+      )
+        throw new InputError('That conversation cannot be placed here.');
+      body = json({ conversationId: chat.id })!;
+      title = `#${chat.title}`;
     } else if (input.kind === 'embed') {
       const target = this.resource(parse<{ resourceId?: string }>(body)?.resourceId ?? '');
       if (
@@ -1680,10 +1692,28 @@ export class Store {
       'select a.agent_id, a.skill_id from agent_skills a join skills s on s.id = a.skill_id where s.deleted = 0',
     ))
       given.set(row.agent_id, [...(given.get(row.agent_id) ?? []), row.skill_id]);
+    // Everyone's own agent is known to the people they share a space with: its name and look, never
+    // its purpose or instructions.
+    const teammates = new Set(members.map((m) => m.userId));
     const users = this.all('select * from users')
       .map(toUser)
-      .filter((u) => u.kind === 'human' || visibleUserIds.has(u.id))
-      .map((u) => (u.kind === 'agent' ? { ...u, skillIds: given.get(u.id) ?? [] } : u));
+      .filter(
+        (u) =>
+          u.kind === 'human' ||
+          visibleUserIds.has(u.id) ||
+          // Only each person's prime agent; any other private agents they make stay unseen.
+          (u.role === 'personal' &&
+            !!u.ownerId &&
+            teammates.has(u.ownerId) &&
+            this.personalAgent(u.ownerId)?.id === u.id),
+      )
+      .map((u) =>
+        u.kind !== 'agent'
+          ? u
+          : visibleUserIds.has(u.id)
+            ? { ...u, skillIds: given.get(u.id) ?? [] }
+            : { ...u, purpose: '', instructions: '', skillIds: [] },
+      );
     const jobs = this.all('select * from jobs order by created_at desc, rowid desc limit 500')
       .map(toJob)
       .filter(
@@ -1691,6 +1721,23 @@ export class Store {
           spaceIds.has(j.spaceId) && (!j.conversationId || conversationIds.has(j.conversationId)),
       );
     const resourceIds = new Set(resources.map((r) => r.id));
+    const activity = this.all(
+      `select * from jobs where status in ('queued', 'running', 'awaiting_approval') and kind != 'maintenance' order by created_at desc limit 100`,
+    )
+      .map(toJob)
+      .filter((j) => spaceIds.has(j.spaceId))
+      .map((j) => ({
+        agentId: j.agentId,
+        spaceId: j.spaceId,
+        resourceId:
+          j.targetResourceId && resourceIds.has(j.targetResourceId) ? j.targetResourceId : null,
+        conversationId:
+          j.conversationId && conversationIds.has(j.conversationId) ? j.conversationId : null,
+        status: j.status === 'awaiting_approval' ? ('waiting' as const) : ('working' as const),
+        since: j.createdAt,
+      }))
+      // Someone else's agent waiting on its owner is not this person's business.
+      .filter((a) => a.status === 'working' || a.conversationId !== null);
     for (const job of jobs)
       if (job.targetResourceId && !resourceIds.has(job.targetResourceId))
         job.targetResourceId = null;
@@ -1737,6 +1784,7 @@ export class Store {
       approvals,
       goals: spaces.flatMap((s) => this.goals(s.id)),
       skills: spaces.flatMap((s) => this.skillsIn(s.id)),
+      activity,
       presence: visiblePresence,
       lastRead,
       runtime,

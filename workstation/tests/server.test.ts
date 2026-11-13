@@ -936,3 +936,83 @@ test('hosting: a health check, an access code, and pages served with safe header
   const file = await fetch(`${base}/server.test.ts`);
   assert.match(file.headers.get('cache-control')!, /immutable/);
 });
+
+test('agent activity: teammates see that an agent is working and where, never what was asked', async () => {
+  let release: () => void = () => {};
+  const runtime: AgentRuntime = {
+    id: 'slow',
+    label: 'Slow',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      await new Promise<void>((resolve) => (release = resolve));
+      return { reply: 'done' };
+    },
+  };
+  const { store, engine, dylan, maya, sam, project, snap } = setup(runtime);
+  const page = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Brief',
+    body: 'x',
+  });
+  const secret = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Private',
+    body: 'y',
+    visibility: 'private',
+  });
+  // Everyone's own agent is known by name and look to the people they work with.
+  const prime = snap(maya.id).users.find((u) => u.role === 'personal' && u.ownerId === dylan.id)!;
+  assert.equal(prime.name, "Dylan's agent");
+  assert.equal(prime.instructions, '');
+  assert.ok(!snap(sam.id).users.some((u) => u.id === prime.id));
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'rewrite the secret part',
+    context: { resourceIds: [page.id], spaceId: project.id },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const seen = snap(maya.id).activity.find((a) => a.agentId === prime.id)!;
+  assert.deepEqual(
+    { resourceId: seen.resourceId, conversationId: seen.conversationId, status: seen.status },
+    { resourceId: page.id, conversationId: null, status: 'working' },
+  );
+  assert.ok(!JSON.stringify(snap(maya.id)).includes('rewrite the secret part'));
+  assert.equal(
+    snap(dylan.id).activity.find((a) => a.agentId === prime.id)!.conversationId,
+    mine.id,
+  );
+  release();
+  await engine.idle();
+  assert.equal(snap(maya.id).activity.length, 0);
+  // Working on a page the teammate cannot open shows the work, not the page.
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'again',
+    context: { resourceIds: [secret.id], spaceId: project.id },
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(snap(maya.id).activity[0].resourceId, null);
+  release();
+  await engine.idle();
+  // A channel can sit on a canvas as a live window.
+  const canvas = store.createResource(dylan.id, { spaceId: project.id, kind: 'canvas', body: '' });
+  const general = snap(dylan.id).conversations.find((c) => c.kind === 'channel')!;
+  const win = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'embed',
+    parentId: canvas.id,
+    body: JSON.stringify({ conversationId: general.id }),
+  });
+  assert.equal(win.title, '#general');
+  assert.throws(() =>
+    store.createResource(dylan.id, {
+      spaceId: project.id,
+      kind: 'embed',
+      parentId: canvas.id,
+      body: JSON.stringify({ conversationId: mine.id }),
+    }),
+  );
+});

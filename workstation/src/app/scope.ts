@@ -68,3 +68,53 @@ export function firstTarget(s: Snapshot, space: Space): Target {
   const channel = s.conversations.find((c) => c.kind === 'channel' && c.spaceId === space.id);
   return channel ? { type: 'chat', id: channel.id } : { type: 'graph' };
 }
+
+/** Agents at work on a page or in a conversation, as far as this person may know. */
+export function atWork(s: Snapshot, where: { resourceId?: Id; conversationId?: Id }) {
+  const seen = new Set<Id>();
+  return s.activity
+    .filter(
+      (a) =>
+        a.status === 'working' &&
+        ((where.resourceId && a.resourceId === where.resourceId) ||
+          (where.conversationId && a.conversationId === where.conversationId)),
+    )
+    .map((a) => s.users.find((u) => u.id === a.agentId))
+    .filter((u): u is NonNullable<typeof u> => !!u && !seen.has(u.id) && !!seen.add(u.id));
+}
+
+/** Whose agent this is, said the way a teammate would: "Scout" or "Maya's agent". */
+export function agentLabel(s: Snapshot, agentId: Id) {
+  const agent = s.users.find((u) => u.id === agentId);
+  if (!agent) return 'An agent';
+  if (agent.role !== 'personal') return agent.name;
+  return agent.ownerId === s.me.id ? `${agent.name} (yours)` : agent.name;
+}
+
+/** Where else a page shows up: channels it is a resource of, canvases it sits on. */
+export function usedIn(s: Snapshot, page: Resource): Target[] {
+  const out: Target[] = [];
+  for (const c of s.conversations)
+    if (c.kind === 'channel' && c.pinnedIds.includes(page.id)) out.push({ type: 'chat', id: c.id });
+  const canvases = new Set<Id>();
+  for (const r of s.resources)
+    if (r.kind === 'embed' && r.parentId && r.body.includes(page.id)) canvases.add(r.parentId);
+  for (const id of canvases) out.push({ type: 'page', id });
+  return out;
+}
+
+/** Pages a piece of text names, by title. Shared context shows up wherever it is talked about. */
+export function pagesNamed(s: Snapshot, spaceId: Id | null, text: string, skip: Id[] = []) {
+  const lower = text.toLowerCase();
+  return s.resources.filter(
+    (r) =>
+      isPage(r.kind) &&
+      !r.archived &&
+      (!spaceId || r.spaceId === spaceId) &&
+      r.title.length >= 5 &&
+      !skip.includes(r.id) &&
+      lower.includes(r.title.toLowerCase()),
+  );
+}
+
+export const DRAG = 'application/x-workstation-target';

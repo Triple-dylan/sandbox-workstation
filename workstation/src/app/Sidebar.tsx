@@ -18,7 +18,7 @@ import { isPage } from '../../shared/types.ts';
 import type { Resource, User } from '../../shared/types.ts';
 import { KindIcon, chatTitle, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type Target } from './workspace.tsx';
-import { waitingOn } from './scope.ts';
+import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
 
 /** The one list on the left: the space, its pages by folder, its channels, and who is in it. */
@@ -59,13 +59,17 @@ export function Sidebar() {
       u.kind === 'human' && !s.members.some((m) => m.spaceId === space.id && m.userId === u.id),
   );
 
+  // Everyone has a prime agent. Teammates see it beside the person, and see when it is at work.
+  const prime = (person: User) =>
+    s.users.find((u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === person.id);
+  const primeBusy = (person: User) =>
+    s.activity.some((a) => a.agentId === prime(person)?.id && a.status === 'working');
   const where = (person: User) => {
     if (person.kind === 'agent') {
-      const job = s.jobs.find(
-        (j) => j.agentId === person.id && (j.status === 'running' || j.status === 'queued'),
-      );
-      if (job)
-        return `working${resource(job.targetResourceId) ? ` in ${resource(job.targetResourceId)!.title}` : ''}`;
+      const job = s.activity.find((a) => a.agentId === person.id && a.status === 'working');
+      const job2 = job ? { targetResourceId: job.resourceId } : undefined;
+      if (job2)
+        return `working${resource(job2.targetResourceId) ? ` in ${resource(job2.targetResourceId)!.title}` : ''}`;
       if (agentState(person.id, s.jobs) === 'waiting') return 'waiting for a yes';
       return '';
     }
@@ -131,6 +135,10 @@ export function Sidebar() {
       <button
         key={p.id}
         className={`list-row ${changed ? 'unread' : ''}`}
+        draggable
+        onDragStart={(e) =>
+          e.dataTransfer.setData(DRAG, JSON.stringify({ type: 'page', id: p.id }))
+        }
         aria-current={opened ? 'page' : undefined}
         onClick={(e) => open({ type: 'page', id: p.id }, e.metaKey || e.ctrlKey || e.altKey)}
         onContextMenu={(e) =>
@@ -170,6 +178,11 @@ export function Sidebar() {
             <Lock size={10} /> {p.grants?.length ? `you +${p.grants.length}` : 'only you'}
           </small>
         )}
+        {atWork(s, { resourceId: p.id }).map((a) => (
+          <span key={a.id} className="row-orb" title={`${a.name} is working here`}>
+            <Character agent={a} size={20} state="working" />
+          </span>
+        ))}
         {waiting > 0 && <b className="count">{waiting}</b>}
       </button>
     );
@@ -324,6 +337,10 @@ export function Sidebar() {
               return (
                 <button
                   key={c.id}
+                  draggable
+                  onDragStart={(e) =>
+                    e.dataTransfer.setData(DRAG, JSON.stringify({ type: 'chat', id: c.id }))
+                  }
                   className={`list-row ${unread ? 'unread' : ''}`}
                   aria-current={isOpen({ type: 'chat', id: c.id }) ? 'page' : undefined}
                   onClick={(e) =>
@@ -403,6 +420,18 @@ export function Sidebar() {
                 </span>
                 <span className="truncate">{p.name}</span>
                 <small className="truncate">{where(p)}</small>
+                {prime(p) && (
+                  <span
+                    className="row-orb"
+                    title={`${prime(p)!.name}${primeBusy(p) ? ' is working' : ''}`}
+                  >
+                    <Character
+                      agent={prime(p)!}
+                      size={20}
+                      state={primeBusy(p) ? 'working' : 'idle'}
+                    />
+                  </span>
+                )}
                 {unread > 0 && <b className="count">{unread}</b>}
               </button>
             );

@@ -10,6 +10,10 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **Later the same day, one plan executed:** the frame must never scroll; avoid windows that scroll inside themselves ("should just shape"); agent builder with skills and shared/private signals; settings, text tools, shortcuts and quick-click actions; a shared window on the canvas; retrieval and caching as the agent base; an asset library and archive as graph views; ways to deposit transcripts, documents and decks from other sources; prepare to build as a web app.
 - *Assumed:* archived pages leave agents' working context until brought back. Skills in a shared space can be edited by anyone in it.
 - *Limit stated to Dylan:* a desktop window cannot be dragged into a browser page; sharing starts from the browser's window picker.
+- **Nothing docked over content, ever.** "needless black bar that hides content as you scroll by. again, this type of thing should never exist."
+- **Screen capture removed.** "window sharing feature is broken, and the way you described it is likely not what we want anyhow." *Assumed instead:* dragging a page or channel onto a canvas makes it a live window there.
+- **Shared context must always be felt in conversations**; channels have resources. "conversation windows have tons of empty space, lacking useful things. shared context exists in this harness. this should alwys be felt or accessible."
+- **Agent work must be visible on every page**, for shared agents and for people's own; "everyone should or could have a prime agent". *Assumed:* teammates see that a person's agent is working and on which page they can open, never the request.
 - **The example space is go-to-market:** "Lets clean up this workspace a bit and make it GTM focused. Marketing and product marketing and product." The pop-up shop example is replaced.
 - **Side by side needed work.** Tabs are named after the pages; the divider resizes and swaps.
 

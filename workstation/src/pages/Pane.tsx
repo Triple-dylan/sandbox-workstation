@@ -5,6 +5,7 @@ import {
   FolderInput,
   Lock,
   Menu,
+  MessagesSquare,
   MoreHorizontal,
   Trash2,
   Users,
@@ -14,6 +15,7 @@ import { api } from '../data/client.ts';
 import { Actor, Avatar, Character, agentState } from '../features/agents/Character.tsx';
 import { KindIcon, chatTitle, kindName } from '../app/util.tsx';
 import { useWorkspace, type Target } from '../app/workspace.tsx';
+import { agentLabel, atWork, usedIn } from '../app/scope.ts';
 import type { Resource, User } from '../../shared/types.ts';
 import { DocPage } from './DocPage.tsx';
 import { SheetPage } from './SheetPage.tsx';
@@ -223,15 +225,20 @@ export function Pane({
     )
     .map((p) => user(p.userId))
     .filter((u): u is User => !!u);
-  const working = page
-    ? s.jobs
-        .filter(
-          (j) =>
-            j.targetResourceId === page.id && (j.status === 'running' || j.status === 'queued'),
-        )
-        .map((j) => user(j.agentId))
-        .filter((u): u is User => !!u)
-    : [];
+  const working = atWork(s, { resourceId: page?.id, conversationId: chat?.id });
+  const links = page ? usedIn(s, page) : [];
+  const feed = page
+    ? s.conversations.find((c) => c.kind === 'discussion' && c.resourceId === page.id)
+    : undefined;
+  const said = feed
+    ? s.messages.filter((m) => m.conversationId === feed.id && !m.replyTo).length
+    : 0;
+  const talk = async () => {
+    const chatFor =
+      feed ??
+      (await run(() => api<{ id: string }>('/discussions', { body: { resourceId: page!.id } })));
+    if (chatFor) open({ type: 'chat', id: chatFor.id }, true);
+  };
   const locked = page?.role === 'orientation';
   const title = page
     ? page.title
@@ -312,11 +319,26 @@ export function Pane({
           <small className="truncate">
             {page?.visibility === 'private' && space.kind === 'project' && <Lock size={10} />} {sub}
           </small>
+          {links.length > 0 && (
+            <span className="used-in">
+              {links.map((link, i) => {
+                const c =
+                  link.type === 'chat' ? s.conversations.find((x) => x.id === link.id) : undefined;
+                const r = link.type === 'page' ? resource(link.id) : undefined;
+                return (
+                  <button key={i} onClick={() => open(link, true)} title="Also here. Open beside.">
+                    {c ? `#${c.title}` : r?.title}
+                  </button>
+                );
+              })}
+            </span>
+          )}
         </div>
         <span className="pane-people">
           {working.map((a) => (
-            <span key={a.id} title={`${a.name} is working here`}>
+            <span key={a.id} className="at-work" title={`${agentLabel(s, a.id)} is working here`}>
               <Character agent={a} size={20} state="working" />
+              <small>{a.name} is working</small>
             </span>
           ))}
           {others.map((u) => (
@@ -326,6 +348,15 @@ export function Pane({
           ))}
         </span>
         <span className="pane-actions">
+          {page && page.kind !== 'doc' && (
+            <button
+              aria-label="Talk about this page"
+              title="The conversation that belongs to this page"
+              onClick={() => void talk()}
+            >
+              <MessagesSquare size={14} /> <span>{said || 'Talk'}</span>
+            </button>
+          )}
           {page && (
             <button
               aria-label="Share"

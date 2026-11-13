@@ -11,7 +11,7 @@ import { NewPage } from './NewPage.tsx';
 import { Pane } from '../pages/Pane.tsx';
 import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
-import { firstTarget } from './scope.ts';
+import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
 import { AgentBuilder, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
@@ -412,14 +412,28 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       <div
         className={`shell ${ui.nav ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
         onDragOver={(e) => {
-          if (![...e.dataTransfer.types].includes('Files')) return;
+          const types = [...e.dataTransfer.types];
+          // Something dragged from the list can be dropped on the middle to open it beside.
+          if (types.includes(DRAG)) return e.preventDefault();
+          if (!types.includes('Files')) return;
           e.preventDefault();
           setDropping(true);
         }}
         onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
         onDrop={(e) => {
           setDropping(false);
-          if (e.defaultPrevented || !e.dataTransfer.files.length) return;
+          if (e.defaultPrevented) return;
+          const dragged = e.dataTransfer.getData(DRAG);
+          if (dragged) {
+            try {
+              const t = JSON.parse(dragged) as Target;
+              if (!(e.target as HTMLElement).closest('.sidebar')) open(t, true);
+            } catch {
+              // Not something from the list.
+            }
+            return;
+          }
+          if (!e.dataTransfer.files.length) return;
           e.preventDefault();
           void bring([...e.dataTransfer.files]);
         }}

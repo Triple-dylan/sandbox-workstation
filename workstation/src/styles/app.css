@@ -4255,3 +4255,351 @@ body,
   color: #a9adaf;
   font-size: 13px;
 }
+
+/* ---------- the agent bar floats; no band, nothing docked over a page ---------- */
+.middle {
+  position: relative;
+}
+.bar-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: min(760px, calc(100% - 24px));
+  margin: 0;
+  padding: 0;
+  z-index: 40;
+}
+.bar-pill {
+  position: absolute;
+  right: 16px;
+  top: 10px;
+  margin: 0;
+  z-index: 40;
+}
+.panes-1 .pane-chat .pane-head,
+.panes-2 .pane-chat:last-child .pane-head {
+  padding-right: 178px;
+}
+/* Pages end with room to scroll their last lines clear of the bar. */
+.doc-sheet,
+.who,
+.asset-body,
+.deck-stage {
+  padding-bottom: 120px;
+}
+.sheet-scroll {
+  padding-bottom: 96px;
+}
+.canvas-zoom {
+  top: 10px;
+}
+/* A document's own conversation is part of the document, after its text. */
+.doc-feed {
+  grid-column: 1;
+  margin-top: 40px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.doc-margin {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.doc.stack .doc-margin {
+  grid-column: 1;
+  grid-row: auto;
+}
+.doc-feed .page-feed {
+  max-height: none;
+}
+.doc-feed .page-feed-head,
+.doc-feed .page-feed .feed-list,
+.doc-feed .page-feed .composer {
+  width: 100%;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+.doc-feed .page-feed .composer {
+  padding: 4px 5px 4px 8px;
+}
+
+/* ---------- conversations sit beside what they are about ---------- */
+.chat-page {
+  flex-direction: row;
+}
+.chat-page .feed {
+  min-width: 0;
+}
+.chat-page .feed-list,
+.chat-page .feed > .composer {
+  width: min(780px, calc(100% - 28px));
+}
+.chat-page .feed > .composer {
+  margin-bottom: 84px;
+}
+.pane-chat:has(~ .bar-pill) .feed > .composer,
+.middle:has(> .bar-pill) .chat-page .feed > .composer {
+  margin-bottom: 14px;
+}
+.chat-context {
+  flex: none !important;
+  width: clamp(250px, 30%, 340px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 16px 110px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.chat-context h3 {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.chat-context h3 button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.chat-context h3 button:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.chat-context .hint {
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.res {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--r-s);
+}
+.res:hover {
+  background: var(--wash);
+}
+.res > button:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--ink-2);
+}
+.res > button:first-child > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.res strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.res small {
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.res-x {
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+  margin-right: 4px;
+}
+.res-x.wide {
+  padding: 0 9px;
+  font-size: 12px;
+  background: var(--wash);
+  color: var(--ink-2);
+}
+.res-x:hover {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+.res time {
+  margin-right: 8px;
+  font-size: 11.5px;
+}
+.chat-context .people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.chat-context .people span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.7;
+}
+.chat-context .people span.here {
+  opacity: 1;
+  color: var(--ink);
+}
+.pins {
+  display: none;
+}
+@container pane (max-width: 820px) {
+  .chat-context {
+    display: none;
+  }
+}
+
+/* ---------- agents at work, and where a page is used ---------- */
+.at-work {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 4px;
+  border-radius: 999px;
+  background: var(--wash);
+}
+.at-work small {
+  color: var(--ink-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.row-orb {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+}
+.list-row small + .row-orb,
+.list-row .row-orb + .count,
+.list-row .row-orb + .reach {
+  margin-left: 2px;
+}
+.used-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.used-in button {
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-2);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.used-in button:hover {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+.list-row[draggable='true'] {
+  -webkit-user-drag: element;
+}
+
+/* ---------- live windows on a canvas ---------- */
+.embed.window {
+  height: 100%;
+}
+.window-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  position: relative;
+}
+.window-body .markdown h1 {
+  font-size: 17px;
+}
+.window-body .markdown h2 {
+  font-size: 14.5px;
+}
+.window-body table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.window-body td {
+  border: 1px solid var(--line);
+  padding: 0;
+  max-width: none;
+}
+.window-body td input {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 3px 6px;
+  font-size: 12.5px;
+}
+.window-body tr:first-child input {
+  font-weight: 650;
+}
+.slide-window {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.slide-window > strong {
+  font-size: 17px;
+}
+.pager {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.pager button {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--wash);
+  color: var(--ink-2);
+}
+.window-feed {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: text;
+}
+.window-feed .quiet {
+  color: var(--ink-3);
+}
+.embed.window form {
+  flex: none;
+  padding: 6px 8px 8px;
+}
+.embed.window form input {
+  width: 100%;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  background: var(--bg);
+}

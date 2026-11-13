@@ -2,7 +2,6 @@ import { LayoutDashboard } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { Md } from '../app/util.tsx';
-import { PageFeed } from './PageFeed.tsx';
 import type { Resource } from '../../shared/types.ts';
 
 /** Something brought in and kept as it is: a picture, or the text of a file. It can go on any canvas. */
@@ -44,7 +43,6 @@ export function AssetPage({ page }: { page: Resource }) {
         </p>
         {picture ? <img src={page.body} alt={page.title} /> : <Md text={page.body} />}
       </div>
-      <PageFeed page={page} />
     </div>
   );
 }

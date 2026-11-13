@@ -652,6 +652,9 @@ export function DocPage({ page }: { page: Resource }) {
             </div>
           )}
         </div>
+        <div className="doc-feed">
+          <PageFeed page={page} />
+        </div>
         <aside className="doc-margin" aria-label="Comments">
           {resolved.length > 0 && (
             <button className="link resolved-toggle" onClick={() => setShowResolved((v) => !v)}>
@@ -707,7 +710,6 @@ export function DocPage({ page }: { page: Resource }) {
           {shown.map(card)}
         </aside>
       </div>
-      <PageFeed page={page} />
     </div>
   );
 }

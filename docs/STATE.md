@@ -46,9 +46,16 @@ The list, the page and the bar are not boxed off from each other: no frames or s
 - **Text tools.** Formatting on selected text, more toolbar actions (strikethrough, code, divider, undo, redo), and "/" on an empty line to insert a block.
 - **Quick actions.** Find (⌘K) also does things; right-click a page or a canvas piece; shortcuts are listed under ⌘/.
 - **Settings.** Appearance, text size, spacing, accent, and whether the list stays shown.
-- **A live window on the canvas.** "Share a window" places a resizable live piece others on the canvas see. Browsers do not allow a desktop window to be dragged into a page, so it starts from the browser's window picker. It does not work inside the published preview, only in the app itself.
 - **Nothing in the frame scrolls but the page.** A hard sideways scroll on the canvas can no longer move the whole app; feeds and panels shape to their content and hand off to a page beside when there is more.
 - **Web app groundwork.** See `docs/WEBAPP.md`.
+
+## Changed 2026-11-13 (later)
+
+- **Nothing is docked over a page.** The agent bar floats with no band behind it. A document's conversation is part of the document, after its text. For sheets, decks, canvases and assets it opens beside from "Talk" in the header.
+- **Live windows on a canvas.** Drag any page or channel from the list onto a canvas and it becomes a live, shapeable window everyone sees: documents render in full, sheets edit in place, decks page through, a channel shows its latest messages and can be answered there. Screen capture has been removed.
+- **Conversations sit beside what they are about.** A channel shows its resources (the pages it works from), pages brought up in it, the agents in it with an Ask button, and the people. Pages named in a message show as chips under it.
+- **Agents at work are visible.** Everyone has a prime agent, shown beside them in the list. Teammates see when any agent is working and on which page (if they can open it), never what was asked. It shows in the list, by the person, and in the page header.
+- **Things connect.** Drag a page from the list onto the middle to open it beside, onto a canvas to place it, onto a message to send it live, or onto a channel's resources. A page's header lists the channels and canvases it is used in.
 
 ## Known gaps
 

@@ -142,32 +142,26 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
     return !!el && Math.abs(el.getBoundingClientRect().x - x) > 100;
   }, before.x);
 
-  // A window shared live on the canvas reaches the other person's browser directly.
-  await dylan.evaluate(() => {
-    // Headless browsers have no screen to capture, so stand in a moving picture for the window.
-    navigator.mediaDevices.getDisplayMedia = async () => {
-      const c = document.createElement('canvas');
-      c.width = 640;
-      c.height = 360;
-      const g = c.getContext('2d')!;
-      let n = 0;
-      setInterval(() => {
-        g.fillStyle = `hsl(${n++ % 360} 60% 50%)`;
-        g.fillRect(0, 0, 640, 360);
-      }, 100);
-      return c.captureStream(10);
-    };
+  // A channel placed on the canvas is a live window: what is said in it shows there, for both people.
+  await dylan.evaluate(async () => {
+    const snap = await (await fetch('/api/snapshot')).json();
+    const board = snap.resources.find((r: any) => r.kind === 'canvas' && r.title === 'Board');
+    const general = snap.conversations.find((c: any) => c.kind === 'channel');
+    await fetch('/api/resources', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-workstation': '1' },
+      body: JSON.stringify({
+        spaceId: board.spaceId,
+        parentId: board.id,
+        kind: 'embed',
+        body: JSON.stringify({ conversationId: general.id }),
+        placement: { x: 96, y: 480, width: 360, height: 280 },
+      }),
+    });
   });
-  await dylan.getByRole('button', { name: 'Share a window' }).click();
-  await dylan.locator('.kind-screen video').waitFor();
-  await maya.locator('.kind-screen video').waitFor({ timeout: 15000 });
-  await maya.waitForFunction(
-    () => (document.querySelector('.kind-screen video') as HTMLVideoElement)?.videoWidth > 0,
-    undefined,
-    { timeout: 15000 },
-  );
-  await dylan.locator('.kind-screen').getByRole('button', { name: 'Stop' }).click();
-  await maya.locator('.kind-screen').waitFor({ state: 'detached' });
+  await maya.locator('.embed.window').getByLabel('Message #general').fill('Said from the canvas.');
+  await maya.locator('.embed.window').getByLabel('Message #general').press('Enter');
+  await dylan.locator('.embed.window .window-feed', { hasText: 'Said from the canvas.' }).waitFor();
 
   // A channel: Maya writes, Dylan sees it unread in the list and then in the feed.
   await row(maya, 'general').click();

@@ -4,7 +4,6 @@ import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { sheetRows } from '../app/util.tsx';
 import { colName, evaluate, toNumber } from '../features/sheet/formula.ts';
-import { PageFeed } from './PageFeed.tsx';
 import type { Resource } from '../../shared/types.ts';
 
 /** A sheet: rows and columns, with sums. Each cell is saved on its own, so two people can work at once. */
@@ -173,7 +172,6 @@ export function SheetPage({ page }: { page: Resource }) {
           </tbody>
         </table>
       </div>
-      <PageFeed page={page} />
     </div>
   );
 }
