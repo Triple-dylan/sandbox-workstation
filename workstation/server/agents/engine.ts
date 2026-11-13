@@ -2,6 +2,8 @@ import type { ChangeEvent, Store } from '../store.ts';
 import type { Conversation, Id, Job, JobKind, Message, User } from '../../shared/types.ts';
 import { BudgetExceeded, type AgentRuntime, type AgentTask } from './runtime.ts';
 import { scriptedRuntime } from './scripted.ts';
+import { AnswerCache, Retriever } from './retrieve.ts';
+import type { AgentResult } from './runtime.ts';
 
 const PROACTIVE_COOLDOWN_MS = 120_000;
 const MAINTENANCE_DELAY_MS = 2_500;
@@ -14,6 +16,8 @@ export class AgentEngine {
   private pending = new Set<Promise<void>>();
   private timers = new Map<Id, ReturnType<typeof setTimeout>>();
   private lastProactive = new Map<Id, number>();
+  readonly retriever = new Retriever();
+  readonly answers = new AnswerCache<AgentResult>();
   private store: Store;
   readonly runtime: AgentRuntime;
   private options: { maintenanceDelayMs?: number };
@@ -128,6 +132,7 @@ export class AgentEngine {
         return target ? `${target.title}\n${this.readable(target)}` : r.title;
       }
       if (r.kind === 'arrow' || r.kind === 'plan' || r.kind === 'image') return r.title;
+      if (r.kind === 'asset' && r.body.startsWith('data:')) return r.title;
       if (r.kind === 'sheet')
         return (JSON.parse(r.body).rows as string[][]).map((row) => row.join(' | ')).join('\n');
       if (r.kind === 'deck')
@@ -208,7 +213,9 @@ export class AgentEngine {
       .flatMap((id) => this.store.readableResources(agent.id, id))
       .filter(
         (r) =>
-          ['doc', 'sheet', 'deck', 'canvas', 'note', 'sticky', 'pin'].includes(r.kind) &&
+          ['doc', 'sheet', 'deck', 'canvas', 'asset', 'note', 'sticky', 'pin'].includes(r.kind) &&
+          // Archived pages are out of the working context until someone brings them back.
+          !r.archived &&
           r.role !== 'orientation',
       );
     const orientation = this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation');
@@ -273,6 +280,9 @@ export class AgentEngine {
         role: agent.role ?? 'project',
         purpose: agent.purpose ?? '',
         instructions: agent.instructions ?? '',
+        skills: this.store
+          .skillsOf(agent.id)
+          .map((s) => ({ name: s.name, when: s.description, steps: s.body })),
       },
       spaceName: space.name,
       requester: trigger ? (this.store.user(trigger.authorId)?.name ?? null) : null,
@@ -292,8 +302,21 @@ export class AgentEngine {
         resources: resources.map((r) => ({
           title: r.title,
           kind: r.kind,
-          excerpt: this.readable(r).replace(/\s+/g, ' ').slice(0, 400),
+          excerpt: this.readable(r).replace(/\s+/g, ' ').slice(0, 140),
         })),
+        passages:
+          kind === 'maintenance'
+            ? []
+            : this.retriever.search(
+                `${request} ${trigger?.anchor?.quote ?? ''}`,
+                resources.map((r) => ({
+                  id: r.id,
+                  stamp: r.updatedAt,
+                  title: r.title,
+                  kind: r.kind,
+                  text: this.readable(r),
+                })),
+              ),
         recent,
         plan: this.store.goals(spaceId).map((g) => ({
           step: g.title,
@@ -342,8 +365,22 @@ export class AgentEngine {
     let runtime = this.runtime;
     let note = '';
     try {
+      // The same request about unchanged pages was answered a moment ago: reuse it.
+      const cacheable = kind === 'ask' || kind === 'instruction';
+      const { recent: _recent, ...settled } = task.context;
+      const key = AnswerCache.key([
+        this.runtime.id,
+        agent.id,
+        kind,
+        task.request,
+        task.anchor,
+        settled,
+      ]);
+      const remembered = cacheable ? this.answers.get(key) : undefined;
       try {
-        result = await this.runtime.run(task);
+        result = remembered ?? (await this.runtime.run(task));
+        if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
+          this.answers.set(key, result);
       } catch (error) {
         if (!(error instanceof BudgetExceeded) || this.runtime === scriptedRuntime) throw error;
         runtime = scriptedRuntime;

@@ -36,13 +36,32 @@ export type User = {
   instructions?: string;
   /** A retired agent keeps its history but takes no new work. */
   retired?: boolean;
+  /** Agents only: the skills it has been given. */
+  skillIds?: Id[];
+};
+
+/**
+ * A skill: a named way of doing one kind of job, written once and given to any agent that should
+ * work that way. Skills in a shared space are shared; skills in your own space are yours.
+ */
+export type Skill = {
+  id: Id;
+  spaceId: Id;
+  ownerId: Id;
+  name: string;
+  /** When to use it, in a sentence. */
+  description: string;
+  /** How to do it: the steps the agent follows. */
+  body: string;
+  updatedAt: string;
 };
 
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
 /** Pages: things you open and work in. Each has its own editor. */
-export const PAGE_KINDS = ['doc', 'sheet', 'deck', 'canvas'] as const;
+/** asset: something brought in and kept as it is: a picture, or a file's text. */
+export const PAGE_KINDS = ['doc', 'sheet', 'deck', 'canvas', 'asset'] as const;
 export type PageKind = (typeof PAGE_KINDS)[number];
 /**
  * Things that live on a canvas page. note: typed text. sticky, shape, frame: drawing pieces.
@@ -87,6 +106,10 @@ export type Resource = {
   ownerId: Id;
   /** Where a canvas piece sits on its canvas. The arrangement is shared by everyone on the canvas. */
   placement: Placement | null;
+  /** Where it came from, when it was brought in from somewhere else. */
+  source?: { name: string; type: string; at: string };
+  /** Put away: out of the list and the live graph, kept in the archive. */
+  archived?: boolean;
   /** People and agents given access to a private page, beyond its owner. */
   grants?: Id[];
   /** Orientation doc maintained by the project agent. */
@@ -165,7 +188,7 @@ export type Assignment = {
 /** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. add-step: title is a new step for the plan. */
 export type Proposal = {
   /** edit-doc: title is the exact text to replace in the page, body is what replaces it. */
-  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc';
+  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc' | 'create-skill';
   title: string;
   body: string;
   /** edit-doc: the page to change. create-doc: the canvas to put the new page on, if any. */
@@ -224,6 +247,7 @@ export type Snapshot = {
   assignments: Assignment[];
   approvals: Approval[];
   goals: Goal[];
+  skills: Skill[];
   presence: Presence[];
   lastRead: Record<Id, string>;
   runtime: { id: string; label: string; model?: string };

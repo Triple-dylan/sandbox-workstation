@@ -752,3 +752,150 @@ test('retiring an agent stops its work and keeps its history', async () => {
   assert.ok(!store.addressableAgents(dylan.id, general).some((a) => a.id === scout.id));
   assert.equal(snap(dylan.id).goals[0].agentId, null);
 });
+
+test('skills: written once, given to agents, shared ones stay with their space', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      seen.push(task);
+      if (/remember/.test(task.request))
+        return {
+          reply: 'Saved as a skill once approved.',
+          proposal: { kind: 'create-skill', title: 'Price check', body: '1. Read the quotes.' },
+        };
+      return task.kind === 'maintenance' ? {} : { reply: 'ok' };
+    },
+  };
+  const { store, engine, dylan, maya, sam, project, general, agent, snap } = setup(runtime);
+  const skill = store.createSkill(maya.id, {
+    spaceId: project.id,
+    name: 'Launch copy',
+    description: 'When asked to write announcement copy',
+    body: 'Lead with the customer problem. No superlatives.',
+  });
+  assert.ok(
+    snap(dylan.id).skills.some((s) => s.id === skill.id),
+    'shared with the space',
+  );
+  assert.ok(!snap(sam.id).skills.some((s) => s.id === skill.id));
+  assert.throws(() => store.updateSkill(sam.id, skill.id, { name: 'x' }), /Not available/);
+  store.setAgentSkill(dylan.id, agent.id, skill.id, true);
+  assert.deepEqual(snap(maya.id).users.find((u) => u.id === agent.id)!.skillIds, [skill.id]);
+  // A private skill belongs to its owner and cannot be put on a shared agent.
+  const personal = snap(dylan.id).spaces.find((s) => s.kind === 'personal')!;
+  const own = store.createSkill(dylan.id, {
+    spaceId: personal.id,
+    name: 'My voice',
+    body: 'Short.',
+  });
+  assert.ok(!snap(maya.id).skills.some((s) => s.id === own.id));
+  assert.throws(
+    () => store.setAgentSkill(dylan.id, agent.id, own.id, true),
+    /shared with its space/,
+  );
+  const mine = snap(dylan.id).users.find((u) => u.role === 'personal' && u.ownerId === dylan.id)!;
+  store.setAgentSkill(dylan.id, mine.id, own.id, true);
+  assert.throws(() => store.setAgentSkill(maya.id, mine.id, skill.id, true), /Not available/);
+  // The agent is told its skills when it works.
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'draft it',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  assert.deepEqual(seen.find((t) => t.request === 'draft it').agent.skills, [
+    {
+      name: 'Launch copy',
+      when: 'When asked to write announcement copy',
+      steps: 'Lead with the customer problem. No superlatives.',
+    },
+  ]);
+  // An agent can propose a skill for itself; a person says yes.
+  const ask = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'remember how to check prices',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  const reply = snap(dylan.id).messages.find((m) => m.replyTo === ask.id)!;
+  store.decideApproval(maya.id, reply.approvalId!, 'approved');
+  const learned = snap(dylan.id).skills.find((s) => s.name === 'Price check')!;
+  assert.equal(learned.spaceId, project.id);
+  assert.ok(
+    snap(dylan.id)
+      .users.find((u) => u.id === agent.id)!
+      .skillIds!.includes(learned.id),
+  );
+  store.deleteSkill(dylan.id, skill.id);
+  assert.ok(
+    !snap(dylan.id)
+      .users.find((u) => u.id === agent.id)!
+      .skillIds!.includes(skill.id),
+  );
+});
+
+test('retrieval and caching: the right passage is found, and a repeated question is not paid for twice', async () => {
+  let calls = 0;
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      calls++;
+      seen.push(task);
+      return { reply: `answer ${calls}` };
+    },
+  };
+  const { store, engine, dylan, project, general, agent } = setup(runtime);
+  const filler = Array.from(
+    { length: 30 },
+    (_, i) => `Paragraph ${i} about onboarding and queues.`,
+  ).join('\n\n');
+  store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Long notes',
+    body: `# Long notes\n\n${filler}\n\n## Refunds\n\nRefunds are issued within 14 days to the original card.\n\n${filler}`,
+  });
+  const pricing = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Pricing',
+    body: JSON.stringify({
+      rows: [
+        ['Plan', 'Price'],
+        ['Team', '32'],
+      ],
+    }),
+  });
+  const ask = (text: string) =>
+    store.postMessage(dylan.id, { conversationId: general.id, text, addressedTo: agent.id });
+  ask('how long do refunds take');
+  await engine.idle();
+  const first = seen.at(-1);
+  assert.match(
+    first.context.passages[0].text,
+    /within 14 days/,
+    'the buried passage is ranked first',
+  );
+  assert.equal(first.context.passages[0].title, 'Long notes');
+  assert.ok(first.context.resources.every((r: any) => r.excerpt.length <= 140));
+  // The same question again: answered from the cache, no second model call.
+  ask('how long do refunds take');
+  await engine.idle();
+  assert.equal(calls, 1);
+  assert.equal(engine.answers.hits, 1);
+  // Unchanged pages are not split again.
+  assert.ok(engine.retriever.hits > 0);
+  // When a page the answer could depend on changes, the cache no longer applies.
+  ask('what is the team price');
+  await engine.idle();
+  store.setCell(dylan.id, pricing.id, 1, 1, '35');
+  ask('what is the team price');
+  await engine.idle();
+  assert.equal(calls, 3);
+  assert.match(seen.at(-1).context.passages[0].text, /35/);
+});

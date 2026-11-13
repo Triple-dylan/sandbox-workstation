@@ -4,8 +4,10 @@ import type { AgentResult, AgentTask } from './runtime.ts';
 export const agentInstructions = `You are an agent inside a shared workstation where people and agents work together on pages (documents, sheets, decks, canvases) and talk in channels.
 The task JSON gives your name, your purpose and standing instructions (follow them), who asked, the conversation, any text the request is anchored to ("anchor"), and the context you may see. "context.focus" is what the requester is looking at or selected: answer from it first.
 Respond with a single JSON object and nothing else:
-{"reply": string, "sources"?: string[], "proposal"?: {"kind": "create-doc" | "edit-doc" | "create-agent" | "add-step", "title": string, "body": string}, "handoff"?: {"to": string, "request": string}, "orientation"?: string, "skip"?: boolean}
+{"reply": string, "sources"?: string[], "proposal"?: {"kind": "create-doc" | "edit-doc" | "create-agent" | "add-step" | "create-skill", "title": string, "body": string}, "handoff"?: {"to": string, "request": string}, "orientation"?: string, "skip"?: boolean}
 Rules:
+- "agent.skills" are ways of working you have been given. When a request fits a skill's "when", follow its "steps".
+- "context.passages" are the excerpts found most relevant to this request; "context.resources" is only a directory of what exists. Answer from focus first, then passages.
 - Use only the context provided. Never invent people, pages, numbers or results. If you lack something, say what is missing.
 - "reply" is a short, useful message in plain language, leading with the answer. Markdown is allowed. No preamble.
 - "sources": the exact titles of the pages your reply relied on, from context. Omit if none.
@@ -13,6 +15,7 @@ Rules:
   - "edit-doc": use when asked to fix or change text on a page ("anchor" is the text in question). "title" is the exact existing text to replace, copied character for character from the page; "body" is the replacement.
   - "create-doc": title and the full markdown body of a new page.
   - "create-agent": title is the new agent's name, body is what it is for.
+  - "create-skill": only when asked to remember how to do a kind of job. title is the skill's name; body is the steps, written as instructions to yourself.
   - "add-step": title is one next step for the plan; leave body empty.
 - "handoff": only if a colleague listed in context.colleagues is clearly better placed. "to" is their exact name; "request" is a complete instruction for them. Say in "reply" that you handed it over.
 - For kind "maintenance", or a "delegation" about keeping context current, return "orientation": a concise markdown orientation (purpose, pages, plan, decisions, open questions, recent discussion). For maintenance leave reply empty.
@@ -33,6 +36,7 @@ export function readResult(parsed: any): AgentResult {
     (kind === 'create-doc' ||
       kind === 'create-agent' ||
       kind === 'add-step' ||
+      kind === 'create-skill' ||
       kind === 'edit-doc') &&
     typeof parsed.proposal.title === 'string' &&
     parsed.proposal.title.trim()
@@ -57,5 +61,18 @@ export function readResult(parsed: any): AgentResult {
   return result;
 }
 
-export const taskPrompt = (task: AgentTask) =>
-  `${agentInstructions}\n\nTask:\n${JSON.stringify(task)}`;
+/**
+ * The prompt as one string. What rarely changes comes first (the rules, who the agent is, its
+ * skills, the space's directory) and what changes every time comes last, so a provider that caches
+ * prompt prefixes can reuse the long opening across requests.
+ */
+export function taskPrompt(task: AgentTask) {
+  const { context, agent, spaceName, ...rest } = task;
+  const { resources, members, colleagues, orientation, plan, ...moving } = context;
+  const steady = {
+    agent,
+    spaceName,
+    context: { resources, members, colleagues, orientation, plan },
+  };
+  return `${agentInstructions}\n\nStanding context:\n${JSON.stringify(steady)}\n\nTask:\n${JSON.stringify({ ...rest, context: moving })}`;
+}

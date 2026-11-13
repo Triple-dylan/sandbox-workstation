@@ -63,6 +63,13 @@ create table if not exists grants (
 create table if not exists reactions (
   message_id text not null, user_id text not null, emoji text not null, primary key (message_id, user_id, emoji)
 );
+create table if not exists skills (
+  id text primary key, space_id text not null, owner_id text not null, name text not null,
+  description text not null, body text not null, deleted integer not null default 0, updated_at text not null
+);
+create table if not exists agent_skills (
+  agent_id text not null, skill_id text not null, primary key (agent_id, skill_id)
+);
 create table if not exists goals (
   id text primary key, space_id text not null, title text not null, owner_id text, agent_id text, due text,
   done integer not null default 0, position integer not null, source_message_id text, created_by text not null,
@@ -87,6 +94,8 @@ export function openDb(path: string): Db {
     }
   for (const change of [
     'alter table resources add column style text',
+    'alter table resources add column source text',
+    'alter table resources add column archived integer not null default 0',
     'alter table messages add column resolved integer not null default 0',
     'alter table messages add column embed text',
     'alter table messages add column sources text',

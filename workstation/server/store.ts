@@ -28,6 +28,7 @@ import type {
   Resource,
   SendRequest,
   Snapshot,
+  Skill,
   Space,
   User,
 } from '../shared/types.ts';
@@ -94,6 +95,8 @@ const toResource = (r: Row): Resource => ({
   placement: parse<Placement>(r.placement),
   ...(r.role ? { role: r.role } : {}),
   ...(r.style ? { style: r.style as string } : {}),
+  ...(r.source ? { source: parse<NonNullable<Resource['source']>>(r.source)! } : {}),
+  ...(r.archived ? { archived: true } : {}),
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
 });
@@ -622,6 +625,7 @@ export class Store {
       parentId?: Id | null;
       placement?: Placement | null;
       style?: string | null;
+      source?: { name: string; type: string } | null;
     },
   ) {
     const space = this.requireMember(actorId, input.spaceId);
@@ -644,7 +648,10 @@ export class Store {
       )
         throw new InputError(wanted === 'folder' ? 'Unknown folder.' : 'Unknown canvas.');
     }
-    let body = String(input.body ?? '').slice(0, input.kind === 'image' ? 900_000 : 50_000);
+    let body = String(input.body ?? '').slice(
+      0,
+      input.kind === 'image' || input.kind === 'asset' ? 900_000 : 200_000,
+    );
     let title = (input.title ?? '').trim().slice(0, 120);
     let visibility: Resource['visibility'] =
       space.kind === 'personal' ? 'private' : (input.visibility ?? 'space');
@@ -686,6 +693,8 @@ export class Store {
       const slides = parse<{ slides?: unknown }>(body)?.slides;
       if (!Array.isArray(slides)) body = json({ slides: [{ title: title || 'Title', body: '' }] })!;
       title = title || 'Untitled deck';
+    } else if (input.kind === 'asset') {
+      title = title || input.source?.name || 'Asset';
     } else if (input.kind === 'canvas') {
       body = '';
       title = title || 'Untitled canvas';
@@ -720,6 +729,15 @@ export class Store {
       parentId: input.parentId ?? null,
       placement: input.placement ?? null,
     });
+    if (input.source?.name) {
+      const source = {
+        name: String(input.source.name).slice(0, 160),
+        type: String(input.source.type ?? 'file').slice(0, 40),
+        at: now(),
+      };
+      this.run('update resources set source = ? where id = ?', json(source), resource.id);
+      resource.source = source;
+    }
     const style = styleFor(input.kind, input.style);
     if (style) {
       this.run('update resources set style = ? where id = ?', style, resource.id);
@@ -760,6 +778,7 @@ export class Store {
       visibility?: Resource['visibility'];
       style?: string | null;
       parentId?: Id | null;
+      archived?: boolean;
     },
   ) {
     const resource = this.resource(resourceId);
@@ -779,7 +798,10 @@ export class Store {
     }
     const body =
       patch.body !== undefined
-        ? patch.body.slice(0, resource.kind === 'image' ? 900_000 : 200_000)
+        ? patch.body.slice(
+            0,
+            resource.kind === 'image' || resource.kind === 'asset' ? 900_000 : 200_000,
+          )
         : resource.body;
     // A note keeps following its first line until someone gives it a title of its own.
     const followsBody = resource.kind === 'note' && resource.title === titleFrom(resource.body);
@@ -803,6 +825,14 @@ export class Store {
       )
         throw new InputError('Unknown folder.');
       this.run('update resources set parent_id = ? where id = ?', patch.parentId, resourceId);
+    }
+    if (patch.archived !== undefined && isPage(resource.kind) && !resource.role) {
+      this.run(
+        'update resources set archived = ? where id = ?',
+        patch.archived ? 1 : 0,
+        resourceId,
+      );
+      if (patch.archived) this.run('delete from channel_pins where resource_id = ?', resourceId);
     }
     if (patch.style !== undefined)
       this.run(
@@ -1351,6 +1381,20 @@ export class Store {
     }
     if (decision === 'approved' && approval.proposal.kind === 'add-step')
       this.createGoal(actorId, { spaceId: space.id, title: approval.proposal.title });
+    if (decision === 'approved' && approval.proposal.kind === 'create-skill') {
+      // A skill an agent wrote for itself: saved where the work happened and given to that agent.
+      const author = this.user(approval.agentId);
+      const home =
+        author?.role === 'personal'
+          ? this.personalSpace(this.principal(approval.agentId))
+          : space.id;
+      const skill = this.createSkill(actorId, {
+        spaceId: home ?? space.id,
+        name: approval.proposal.title,
+        body: approval.proposal.body,
+      });
+      this.run('insert or ignore into agent_skills values (?, ?)', approval.agentId, skill.id);
+    }
     // An agent asked for by conversation joins the roster only once a person approves it.
     if (decision === 'approved' && approval.proposal.kind === 'create-agent')
       this.newAgent(actorId, {
@@ -1377,6 +1421,99 @@ export class Store {
     if (!orientation || !this.isMember(agentId, spaceId)) throw new AccessError('Not available.');
     return this.updateResource(agentId, orientation.id, { body });
   }
+  // ---------- skills ----------
+
+  private toSkill(r: Row): Skill {
+    return {
+      id: r.id,
+      spaceId: r.space_id,
+      ownerId: r.owner_id,
+      name: r.name,
+      description: r.description,
+      body: r.body,
+      updatedAt: r.updated_at,
+    };
+  }
+  skill(skillId: Id) {
+    const row = this.get('select * from skills where id = ? and deleted = 0', skillId);
+    return row ? this.toSkill(row) : null;
+  }
+  skillsIn(spaceId: Id) {
+    return this.all(
+      'select * from skills where space_id = ? and deleted = 0 order by name collate nocase',
+      spaceId,
+    ).map((r) => this.toSkill(r));
+  }
+  /** A skill written in a shared space is shared with it; one written in your own space is yours. */
+  createSkill(
+    actorId: Id,
+    input: { spaceId: Id; name: string; description?: string; body?: string },
+  ) {
+    const space = this.requireMember(actorId, input.spaceId);
+    const name = String(input.name ?? '')
+      .trim()
+      .slice(0, 60);
+    if (!name) throw new InputError('Name the skill.');
+    const skillId = id();
+    this.run(
+      'insert into skills (id, space_id, owner_id, name, description, body, updated_at) values (?, ?, ?, ?, ?, ?, ?)',
+      skillId,
+      space.id,
+      this.principal(actorId),
+      name,
+      String(input.description ?? '').slice(0, 300),
+      String(input.body ?? '').slice(0, 8000),
+      now(),
+    );
+    this.changed();
+    return this.skill(skillId)!;
+  }
+  updateSkill(
+    actorId: Id,
+    skillId: Id,
+    patch: { name?: string; description?: string; body?: string },
+  ) {
+    const skill = this.skill(skillId);
+    if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
+    const name = patch.name === undefined ? skill.name : patch.name.trim().slice(0, 60);
+    if (!name) throw new InputError('Name the skill.');
+    this.run(
+      'update skills set name = ?, description = ?, body = ?, updated_at = ? where id = ?',
+      name,
+      (patch.description ?? skill.description).slice(0, 300),
+      (patch.body ?? skill.body).slice(0, 8000),
+      now(),
+      skillId,
+    );
+    this.changed();
+    return this.skill(skillId)!;
+  }
+  deleteSkill(actorId: Id, skillId: Id) {
+    const skill = this.skill(skillId);
+    if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
+    this.run('update skills set deleted = 1 where id = ?', skillId);
+    this.run('delete from agent_skills where skill_id = ?', skillId);
+    this.changed();
+  }
+  /** Gives an agent a skill, or takes it away. A shared agent can only carry shared skills. */
+  setAgentSkill(actorId: Id, agentId: Id, skillId: Id, on: boolean) {
+    this.updateAgent(actorId, agentId, {});
+    const agent = this.user(agentId)!;
+    const skill = this.skill(skillId);
+    if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
+    if (on && agent.role === 'project' && skill.spaceId !== agent.spaceId)
+      throw new InputError('A shared agent can only use skills shared with its space.');
+    if (on) this.run('insert or ignore into agent_skills values (?, ?)', agentId, skillId);
+    else this.run('delete from agent_skills where agent_id = ? and skill_id = ?', agentId, skillId);
+    this.changed();
+  }
+  skillsOf(agentId: Id) {
+    return this.all(
+      'select s.* from agent_skills a join skills s on s.id = a.skill_id where a.agent_id = ? and s.deleted = 0 order by s.name collate nocase',
+      agentId,
+    ).map((r) => this.toSkill(r));
+  }
+
   // ---------- goals ----------
 
   goals(spaceId: Id): Goal[] {
@@ -1535,9 +1672,15 @@ export class Store {
       ...members.map((m) => m.userId),
       ...conversations.flatMap((c) => c.participantIds),
     ]);
+    const given = new Map<Id, Id[]>();
+    for (const row of this.all(
+      'select a.agent_id, a.skill_id from agent_skills a join skills s on s.id = a.skill_id where s.deleted = 0',
+    ))
+      given.set(row.agent_id, [...(given.get(row.agent_id) ?? []), row.skill_id]);
     const users = this.all('select * from users')
       .map(toUser)
-      .filter((u) => u.kind === 'human' || visibleUserIds.has(u.id));
+      .filter((u) => u.kind === 'human' || visibleUserIds.has(u.id))
+      .map((u) => (u.kind === 'agent' ? { ...u, skillIds: given.get(u.id) ?? [] } : u));
     const jobs = this.all('select * from jobs order by created_at desc, rowid desc limit 500')
       .map(toJob)
       .filter(
@@ -1590,6 +1733,7 @@ export class Store {
       assignments,
       approvals,
       goals: spaces.flatMap((s) => this.goals(s.id)),
+      skills: spaces.flatMap((s) => this.skillsIn(s.id)),
       presence: visiblePresence,
       lastRead,
       runtime,

@@ -1,4 +1,4 @@
-import { agentInstructions as instructions, readResult } from './prompt.ts';
+import { readResult, taskPrompt } from './prompt.ts';
 import { BudgetExceeded, type AgentResult, type AgentRuntime, type AgentTask } from './runtime.ts';
 
 type Options = {
@@ -29,8 +29,8 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
           response_format: { type: 'json_object' },
           max_completion_tokens: 900,
           messages: [
-            { role: 'system', content: instructions },
-            { role: 'user', content: JSON.stringify(task) },
+            // The whole prompt in one message, steady parts first, so the provider's prefix cache applies.
+            { role: 'user', content: taskPrompt(task) },
           ],
         }),
         signal: AbortSignal.timeout(45_000),
@@ -44,7 +44,9 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
         throw new Error(`OpenAI request failed (${response.status})${detail ? `: ${detail}` : ''}`);
       }
       const data = (await response.json()) as any;
-      const tokens = Number(data?.usage?.total_tokens ?? 0);
+      // Tokens served from the provider's cache are billed at a fraction; count them as such.
+      const cached = Number(data?.usage?.prompt_tokens_details?.cached_tokens ?? 0);
+      const tokens = Math.max(0, Number(data?.usage?.total_tokens ?? 0) - Math.round(cached * 0.5));
       options.addUsage(tokens);
       let parsed: any = {};
       try {

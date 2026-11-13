@@ -7,6 +7,16 @@ const words = (text: string) =>
     .filter((w) => w.length > 3);
 
 function search(task: AgentTask, query: string) {
+  // The engine has already ranked the passages for this request; fall back to the directory.
+  if (task.context.passages.length)
+    return task.context.passages.slice(0, 4).map((p) => ({
+      title: p.title,
+      kind: p.kind,
+      excerpt: p.text
+        .replace(/[#*_|>]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }));
   const terms = words(query);
   if (!terms.length) return [];
   return task.context.resources
@@ -105,6 +115,21 @@ export const scriptedRuntime: AgentRuntime = {
         reply: `I handed that to **${colleague.name}**.`,
         handoff: { to: colleague.name, request: pass[2].trim() },
       };
+    const learn = text.match(
+      /\b(?:remember|learn|save)\s+(?:how to|a skill(?: called| for)?)\s+([^:\n]{3,60})(?::\s*([\s\S]+))?/i,
+    );
+    if (learn)
+      return {
+        reply: `I can keep **${learn[1].trim()}** as a skill. It needs a yes first.`,
+        proposal: {
+          kind: 'create-skill',
+          title: learn[1].trim().replace(/[.!?]+$/, ''),
+          body: (learn[2] ?? `Steps for: ${learn[1].trim()}`).trim(),
+        },
+      };
+    const skill = task.agent.skills.find((s) =>
+      words(`${s.name} ${s.when}`).some((w) => text.toLowerCase().includes(w)),
+    );
     const step = text.match(
       /\b(?:add|put)\s+(?:a |another )?(?:step|goal|task|item)\b(?:\s+(?:to (?:the )?plan|called|for|to))?\s*[:“"']?([^"”'\n]+)/i,
     );
@@ -165,10 +190,15 @@ export const scriptedRuntime: AgentRuntime = {
       };
     }
     const found = search(task, text.replace(/^(find|search|look for|where is)\s+/i, ''));
+    if (found.length && skill)
+      return {
+        reply: `Following **${skill.name}**:\n${skill.steps.slice(0, 400)}\n\nWhat I found:\n${found.map((r) => `- **${r.title}** — ${r.excerpt.slice(0, 120)}`).join('\n')}`,
+        sources: [...new Set(found.map((r) => r.title))],
+      };
     if (found.length)
       return {
-        reply: `Here's what I can see that matches:\n${found.map((r) => `- **${r.title}** — ${r.excerpt.slice(0, 90) || r.kind}`).join('\n')}`,
-        sources: found.map((r) => r.title),
+        reply: `Here's what I can see that matches:\n${found.map((r) => `- **${r.title}** — ${r.excerpt.slice(0, 160) || r.kind}`).join('\n')}`,
+        sources: [...new Set(found.map((r) => r.title))],
       };
     return {
       reply:

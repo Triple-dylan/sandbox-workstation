@@ -283,6 +283,35 @@ export function createApp(options: AppOptions) {
           spaceId: str('spaceId') || null,
         }),
       );
+    if (path === '/api/skills' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.createSkill(me.id, {
+          spaceId: str('spaceId'),
+          name: str('name'),
+          description: str('description'),
+          body: str('body'),
+        }),
+      );
+    if (segments[0] === 'skills' && segments[1] && method === 'PATCH')
+      return send(
+        res,
+        200,
+        store.updateSkill(me.id, segments[1], {
+          ...(typeof input.name === 'string' ? { name: input.name } : {}),
+          ...(typeof input.description === 'string' ? { description: input.description } : {}),
+          ...(typeof input.body === 'string' ? { body: input.body } : {}),
+        }),
+      );
+    if (segments[0] === 'skills' && segments[1] && method === 'DELETE') {
+      store.deleteSkill(me.id, segments[1]);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'agents' && segments[1] && segments[2] === 'skills' && method === 'POST') {
+      store.setAgentSkill(me.id, segments[1], str('skillId'), input.on !== false);
+      return send(res, 200, { ok: true });
+    }
     if (path === '/api/goals' && method === 'POST')
       return send(
         res,
@@ -350,6 +379,10 @@ export function createApp(options: AppOptions) {
           parentId: str('parentId') || null,
           placement: placement(input.placement),
           style: str('style') || null,
+          source:
+            input.source && typeof input.source.name === 'string'
+              ? { name: input.source.name, type: String(input.source.type ?? 'file') }
+              : null,
         }),
       );
     if (
@@ -372,6 +405,7 @@ export function createApp(options: AppOptions) {
             ...('placement' in input ? { placement: placement(input.placement) } : {}),
             ...('style' in input ? { style: str('style') || null } : {}),
             ...('parentId' in input ? { parentId: str('parentId') || null } : {}),
+            ...(typeof input.archived === 'boolean' ? { archived: input.archived } : {}),
             ...(input.visibility === 'private' || input.visibility === 'space'
               ? { visibility: input.visibility }
               : {}),

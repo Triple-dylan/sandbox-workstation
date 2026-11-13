@@ -10,6 +10,7 @@ const blurb: Record<PageKind, string> = {
   sheet: 'Rows, numbers, simple sums',
   deck: 'Slides to present',
   canvas: 'A board to lay things out and connect them',
+  asset: 'Something brought in from elsewhere',
 };
 
 export function NewPage() {

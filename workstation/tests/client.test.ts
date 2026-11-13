@@ -156,3 +156,41 @@ test('suggestions read plainly to the person deciding', () => {
   assert.equal(proposalText({ kind: 'create-doc', title: 'Plan', body: '' }).yes, 'Keep');
   assert.match(proposalText({ kind: 'add-step', title: 'Ship', body: '' }).title, /Ship/);
 });
+
+test('bringing things in: transcripts, tables, documents and slides become the right kind of page', async () => {
+  const { parseDocx, parsePptx, parseTable, parseText, parseTranscript } =
+    await import('../src/features/import/parse.ts');
+  const vtt =
+    'WEBVTT\n\n1\n00:00:01.000 --> 00:00:04.000\n<v Maya>We ship June 10.\n\n2\n00:00:04.000 --> 00:00:06.000\n<v Maya>Pricing is open.\n\n3\n00:00:06.000 --> 00:00:09.000\n<v Jon>Queue view is the risk.';
+  assert.equal(
+    parseTranscript(vtt),
+    '**Maya:** We ship June 10. Pricing is open.\n\n**Jon:** Queue view is the risk.',
+  );
+  const call = parseText(
+    'customer call.txt',
+    'Ana: We like it.\nSam: What about price?\nAna: Fine.\nSam: Good.',
+  )!;
+  assert.equal(call.type, 'transcript');
+  assert.match(call.body, /\*\*Ana:\*\* We like it\./);
+  assert.equal(parseText('notes.txt', 'Just some notes.\nNothing spoken.')!.type, 'document');
+  assert.deepEqual(parseTable('Plan,Price\n"Team, annual",32\n\nScale,"4""5"'), [
+    ['Plan', 'Price'],
+    ['Team, annual', '32'],
+    ['Scale', '4"5'],
+  ]);
+  const sheet = parseText('q3_pipeline.csv', 'a,b\n1,2')!;
+  assert.equal(sheet.kind, 'sheet');
+  assert.equal(sheet.title, 'q3 pipeline');
+  assert.equal(parseText('archive.zip', 'x'), null);
+  const docx = parseDocx(
+    'Brief.docx',
+    '<w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Goal</w:t></w:r></w:p><w:p><w:r><w:t>Ship </w:t></w:r><w:r><w:t>it &amp; tell people.</w:t></w:r></w:p><w:p><w:pPr><w:numPr></w:numPr></w:pPr><w:r><w:t>One</w:t></w:r></w:p></w:body>',
+  );
+  assert.equal(docx.body, '# Goal\n\nShip it & tell people.\n\n- One');
+  const deck = parsePptx('Pitch.pptx', [
+    '<p:sp><p:txBody><a:p><a:r><a:t>Relay 2.0</a:t></a:r></a:p></p:txBody></p:sp><p:sp><p:txBody><a:p><a:r><a:t>Faster</a:t></a:r></a:p><a:p><a:r><a:t>Cheaper</a:t></a:r></a:p></p:txBody></p:sp>',
+  ]);
+  assert.deepEqual(JSON.parse(deck.body).slides, [
+    { title: 'Relay 2.0', body: '- Faster\n- Cheaper' },
+  ]);
+});

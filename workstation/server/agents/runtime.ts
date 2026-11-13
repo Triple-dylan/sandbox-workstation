@@ -3,7 +3,14 @@ import type { JobKind, Proposal } from '../../shared/types.ts';
 /** Everything a runtime sees. Built by the engine from what the agent may access; nothing else is reachable. */
 export type AgentTask = {
   kind: JobKind;
-  agent: { name: string; role: 'personal' | 'project'; purpose: string; instructions: string };
+  agent: {
+    name: string;
+    role: 'personal' | 'project';
+    purpose: string;
+    instructions: string;
+    /** Ways of working this agent has been given. Follow the one that fits the request. */
+    skills: { name: string; when: string; steps: string }[];
+  };
   spaceName: string;
   requester: string | null;
   request: string;
@@ -11,7 +18,10 @@ export type AgentTask = {
   anchor: { title: string; quote: string } | null;
   context: {
     orientation: string | null;
+    /** A directory of every page the agent may read: titles and a line each. */
     resources: { title: string; kind: string; excerpt: string }[];
+    /** The passages found to be most relevant to this request, best first. */
+    passages: { title: string; kind: string; text: string }[];
     recent: { author: string; text: string; at: string; where?: string }[];
     /** The space's plan, in order. */
     plan: {
