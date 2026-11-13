@@ -37,6 +37,19 @@ Your own view of what you can see in a space, private and shared, with the Campa
 
 The list, the page and the bar are not boxed off from each other: no frames or separator lines, only a hairline between two pages side by side. A space opens on its work (its canvas, else a page, else a channel), not on a summary. Each pane lays itself out for the room it has, and the canvas refits as the window changes until you zoom by hand.
 
+## Added 2026-11-13
+
+- **Bringing things in.** Drop files anywhere, use the upload button above the page list, or paste text. Transcripts (.vtt, .srt, or "Name: words" text) and text files become documents, CSV becomes a sheet, Word becomes a document, PowerPoint becomes a deck, pictures become assets. Each keeps a note of the file it came from, and agents can draw on it at once.
+- **Assets and archive.** Assets are pages; the graph filters to them. Archiving takes a page out of the list and the live graph and out of agents' working context; the graph's Archive view shows it and brings it back.
+- **Agent builder and skills.** New agent starts with who can use it (shared with the space, or private to you) and says what that means. A skill is a named way of doing one kind of job (when to use it, the steps); skills are shared with a space or private, are given to agents on their page, and an agent can propose one for itself ("remember how to …") for a person to approve. Agents carry a shared or private mark everywhere.
+- **Agent base.** Agents read the passages ranked most relevant to the request (BM25 over pages split at headings) plus a short directory, instead of the opening of every page. An identical question about unchanged pages is answered from a ten-minute cache. Prompts put the steady parts first so provider prefix caching applies.
+- **Text tools.** Formatting on selected text, more toolbar actions (strikethrough, code, divider, undo, redo), and "/" on an empty line to insert a block.
+- **Quick actions.** Find (⌘K) also does things; right-click a page or a canvas piece; shortcuts are listed under ⌘/.
+- **Settings.** Appearance, text size, spacing, accent, and whether the list stays shown.
+- **A live window on the canvas.** "Share a window" places a resizable live piece others on the canvas see. Browsers do not allow a desktop window to be dragged into a page, so it starts from the browser's window picker. It does not work inside the published preview, only in the app itself.
+- **Nothing in the frame scrolls but the page.** A hard sideways scroll on the canvas can no longer move the whole app; feeds and panels shape to their content and hand off to a page beside when there is more.
+- **Web app groundwork.** See `docs/WEBAPP.md`.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
@@ -44,7 +57,7 @@ The list, the page and the bar are not boxed off from each other: no frames or s
 - The orientation page is kept by a local template, so it never spends usage on a timer.
 - Pictures are stored inline; fine locally, not for production.
 - Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
-- No real accounts or hosting. Sign-in is "pick a name".
+- No real accounts or hosting yet; `docs/WEBAPP.md` lists what a hosted version still needs. PDF import is not built. Text size changes the base size; some small labels stay fixed.
 - No Claude runtime on the local server yet (OpenAI only there).
 
 ## Checks

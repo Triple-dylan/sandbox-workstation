@@ -7,13 +7,19 @@ export function Join({ onJoined }: { onJoined: () => void }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [needsCode, setNeedsCode] = useState(false);
+  const [code, setCode] = useState('');
   useEffect(() => {
     api<Profile[]>('/profiles').then(setProfiles, () => setProfiles([]));
+    api<{ accessCode: boolean }>('/config').then(
+      (c) => setNeedsCode(c.accessCode),
+      () => undefined,
+    );
   }, []);
   const join = async (body: { name?: string; userId?: string }) => {
     setError('');
     try {
-      await api('/join', { body });
+      await api('/join', { body: { ...body, code } });
       onJoined();
     } catch (e) {
       setError((e as Error).message);
@@ -53,6 +59,17 @@ export function Join({ onJoined }: { onJoined: () => void }) {
             maxLength={40}
           />
         </label>
+        {needsCode && (
+          <label>
+            <span>Access code</span>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="From whoever invited you"
+              autoComplete="off"
+            />
+          </label>
+        )}
         <button className="primary" type="submit" disabled={!name.trim()}>
           Join
         </button>
@@ -62,8 +79,9 @@ export function Join({ onJoined }: { onJoined: () => void }) {
           </p>
         )}
         <p className="join-note">
-          Local demo sign-in: anyone who can reach this server can pick any profile. Run it on your
-          own machine or a trusted network.
+          {needsCode
+            ? 'Type the name you joined with before to come back as yourself.'
+            : 'Local demo sign-in: anyone who can reach this server can pick any profile. Run it on your own machine or a trusted network.'}
         </p>
       </form>
     </main>

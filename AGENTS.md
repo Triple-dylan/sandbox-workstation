@@ -1,7 +1,7 @@
 # Working on Sandbox Workstation
 
 0. Read `docs/PLAN.md` first: what is being built, the lineage across Dylan's repos (CampaignOS, mimirs-well, DropDeployment, this one) and his working rules. Reuse that earlier work; do not reinvent it.
-1. Read `docs/SPEC.md` (confirmed requirements), `docs/DECISIONS.md` (dated decisions and open items) and `docs/STATE.md` (what is built). Later decisions win.
+1. Read `docs/WEBAPP.md` for what a hosted version still needs. Read `docs/SPEC.md` (confirmed requirements), `docs/DECISIONS.md` (dated decisions and open items) and `docs/STATE.md` (what is built). Later decisions win.
 2. `docs/record/conversation-context.md` is the verbatim interview record. Append to it when Dylan gives durable direction; don't rewrite it.
 3. `docs/archive/` holds superseded plans, reviews and evidence. Use it as history only; never restore rejected designs from it.
 

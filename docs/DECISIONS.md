@@ -7,6 +7,9 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **No Catch up page.** Dylan: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again." Removed. What is waiting on you or has changed is marked on the page, person or channel in the list. A space opens on its work.
 - **Do not box areas off.** "dont close off all these areas. each page has a border and its not good. unnecesary clutter and lines from doing this". Panes have no frame; separator lines are gone.
 - **Sizing must respond to the window**, not only at load.
+- **Later the same day, one plan executed:** the frame must never scroll; avoid windows that scroll inside themselves ("should just shape"); agent builder with skills and shared/private signals; settings, text tools, shortcuts and quick-click actions; a shared window on the canvas; retrieval and caching as the agent base; an asset library and archive as graph views; ways to deposit transcripts, documents and decks from other sources; prepare to build as a web app.
+- *Assumed:* archived pages leave agents' working context until brought back. Skills in a shared space can be edited by anyone in it.
+- *Limit stated to Dylan:* a desktop window cannot be dragged into a browser page; sharing starts from the browser's window picker.
 - **The example space is go-to-market:** "Lets clean up this workspace a bit and make it GTM focused. Marketing and product marketing and product." The pop-up shop example is replaced.
 - **Side by side needed work.** Tabs are named after the pages; the divider resizes and swaps.
 

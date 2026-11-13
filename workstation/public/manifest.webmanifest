@@ -1,0 +1,9 @@
+{
+  "name": "Sandbox Workstation",
+  "short_name": "Workstation",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f1ef",
+  "theme_color": "#131414",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

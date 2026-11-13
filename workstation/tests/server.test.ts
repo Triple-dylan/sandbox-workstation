@@ -899,3 +899,40 @@ test('retrieval and caching: the right passage is found, and a repeated question
   assert.equal(calls, 3);
   assert.match(seen.at(-1).context.passages[0].text, /35/);
 });
+
+test('hosting: a health check, an access code, and pages served with safe headers', async () => {
+  const app = createApp({
+    dbPath: ':memory:',
+    staticDir: fileURLToPath(new URL('./', import.meta.url)),
+    runtime: scriptedRuntime,
+    env: { ACCESS_CODE: 'open-sesame' },
+  });
+  opened.push(app);
+  await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
+    fetch(base + path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-workstation': '1', ...headers },
+      body: JSON.stringify(body),
+    });
+  assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), { ok: true, version: 0 });
+  assert.deepEqual(await (await fetch(`${base}/api/config`)).json(), { accessCode: true });
+  assert.equal((await post('/api/join', { name: 'Dylan' })).status, 403);
+  const joined = await post(
+    '/api/join',
+    { name: 'Dylan', code: 'open-sesame' },
+    { 'x-forwarded-proto': 'https' },
+  );
+  assert.equal(joined.status, 200);
+  assert.match(
+    joined.headers.get('set-cookie')!,
+    /HttpOnly; SameSite=Strict; Path=\/; Max-Age=\d+; Secure/,
+  );
+  // People are not listed to someone outside, and come back by name.
+  assert.deepEqual(await (await fetch(`${base}/api/profiles`)).json(), []);
+  assert.equal((await post('/api/join', { name: 'dylan', code: 'open-sesame' })).status, 200);
+  assert.equal(app.store.profiles().length, 1);
+  const file = await fetch(`${base}/server.test.ts`);
+  assert.match(file.headers.get('cache-control')!, /immutable/);
+});

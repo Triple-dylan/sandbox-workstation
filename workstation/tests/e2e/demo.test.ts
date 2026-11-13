@@ -126,6 +126,8 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await row(maya, 'Board').click();
   const theirs = maya.locator('.piece', { hasText: 'Ask about the van' });
   await theirs.waitFor();
+  // The canvas settles its view just after opening; measure once it has.
+  await maya.waitForTimeout(500);
   const mine = dylan.locator('.piece', { hasText: 'Ask about the van' });
   const before = (await mine.boundingBox())!;
   const grab = (await theirs.boundingBox())!;

@@ -185,6 +185,40 @@ export function seedExample(store, meId: string) {
       'Follow Positioning and messaging. Never use the words listed under "Words to avoid".',
     spaceId,
   });
+  // Skills: ways of working, written once and given to the agents that should work that way.
+  const copySkill = store.createSkill(maya.id, {
+    spaceId,
+    name: 'Launch copy',
+    description: 'When asked to write or edit announcement or web copy',
+    body: '1. Lead with the customer problem, not the feature.\n2. Use the one line from Positioning and messaging as written.\n3. One claim per paragraph, each traceable to a page.\n4. Never use the words listed under "Words to avoid".',
+  });
+  const priceSkill = store.createSkill(meId, {
+    spaceId,
+    name: 'Competitor price check',
+    description: 'When asked how our pricing compares',
+    body: '1. Read Competitive notes and Pricing and packaging.\n2. Compare per-agent price plan by plan.\n3. Say where we are cheaper, where we are not, and name the source page for each number.',
+  });
+  store.setAgentSkill(maya.id, editor.id, copySkill.id, true);
+  store.setAgentSkill(meId, scout.id, priceSkill.id, true);
+
+  // Things brought in from elsewhere keep a note of where they came from.
+  store.createResource(maya.id, {
+    spaceId,
+    kind: 'doc',
+    parentId: pmm.id,
+    title: 'Beta customer call, Harbor Support',
+    body: '# Beta customer call, Harbor Support\n\n**Ana:** The handoff notes are the thing. We would pay for those alone.\n\n**Maya:** How long before a new hire answers on their own now?\n\n**Ana:** Four days for the last one. It used to be closer to three weeks.\n\n**Maya:** Anything missing?\n\n**Ana:** Reporting. I still export to a spreadsheet every Friday.',
+    source: { name: 'harbor-support-call.vtt', type: 'transcript' },
+  });
+  const old = store.createResource(jon.id, {
+    spaceId,
+    kind: 'doc',
+    parentId: product.id,
+    title: 'Relay 1.5 retro',
+    body: '# Relay 1.5 retro\n\nShipped late by two weeks. The cause was scope added after design review.',
+  });
+  store.updateResource(jon.id, old.id, { archived: true });
+
   const step = (title: string, patch = {}) => {
     const goal = store.createGoal(meId, { spaceId, title });
     store.updateGoal(meId, goal.id, patch);

@@ -19,6 +19,7 @@ const types: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.png': 'image/png',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
 };
 
 export type AppOptions = {
@@ -39,6 +40,8 @@ export function createApp(options: AppOptions) {
     options.staticDir === undefined
       ? fileURLToPath(new URL('../dist/', import.meta.url))
       : options.staticDir;
+  // When set, joining needs this code: the least a hosted copy should ask before real accounts exist.
+  const accessCode = (options.env ?? process.env).ACCESS_CODE?.trim() || '';
   const presence = new Map<Id, Presence>();
   const streams = new Map<ServerResponse, Id>();
   let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -112,24 +115,38 @@ export function createApp(options: AppOptions) {
     const method = req.method ?? 'GET';
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
+    if (path === '/api/config' && method === 'GET')
+      return send(res, 200, { accessCode: !!accessCode });
     if (path === '/api/profiles' && method === 'GET')
       return send(
         res,
         200,
-        store.profiles().map(({ id, name, color }) => ({ id, name, color })),
+        // With an access code set, the list of people is not shown to someone who has not joined.
+        accessCode ? [] : store.profiles().map(({ id, name, color }) => ({ id, name, color })),
       );
     if (path === '/api/join' && method === 'POST') {
       const input = await body(req);
+      if (accessCode && String(input.code ?? '').trim() !== accessCode)
+        throw new AccessError('That access code is not right.');
+      const named = String(input.name ?? '')
+        .trim()
+        .toLowerCase();
+      // With a code, people come back by typing their name again.
+      const returning = accessCode
+        ? store.profiles().find((p) => p.name.toLowerCase() === named)
+        : undefined;
       const user = input.userId
         ? store.user(String(input.userId))
-        : store.createHuman(String(input.name ?? ''));
+        : (returning ?? store.createHuman(String(input.name ?? '')));
       if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
       const token = store.createSession(user.id);
       return send(
         res,
         200,
         { ok: true },
-        { 'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/` },
+        {
+          'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`,
+        },
       );
     }
     const me: User | null = store.userForToken(cookie(req));
@@ -457,9 +474,20 @@ export function createApp(options: AppOptions) {
     }
     try {
       const content = await readFile(file);
+      const page = file.endsWith('index.html');
       res.writeHead(200, {
         'content-type': types[extname(file)] ?? 'application/octet-stream',
         'x-content-type-options': 'nosniff',
+        // Built files carry a fingerprint in their name and never change; the page itself is always fresh.
+        'cache-control': page ? 'no-cache' : 'public, max-age=31536000, immutable',
+        ...(page
+          ? {
+              'content-security-policy':
+                "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+              'referrer-policy': 'same-origin',
+              'x-frame-options': 'DENY',
+            }
+          : {}),
       });
       res.end(content);
     } catch {
@@ -471,6 +499,7 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
+      if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {
