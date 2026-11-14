@@ -423,6 +423,9 @@ export class AgentEngine {
           `I couldn't finish that: ${reason}`,
           job,
           runtime.id,
+          undefined,
+          [],
+          relay,
         );
       return;
     }

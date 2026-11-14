@@ -1062,3 +1062,27 @@ test('the bar can put a question to one of the space agents privately', async ()
     store.projectAgent(other.id)!.id,
   );
 });
+
+test('a space agent asked from the bar says so when it fails, instead of going silent', async () => {
+  const runtime: AgentRuntime = {
+    id: 'broken',
+    label: 'Broken',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      throw new Error('the model could not be reached');
+    },
+  };
+  const { store, engine, dylan, project, agent, snap } = setup(runtime);
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'anything',
+    context: { resourceIds: [], spaceId: project.id, handTo: agent.id },
+  });
+  await engine.idle();
+  const reply = snap(dylan.id)
+    .messages.filter((m) => m.conversationId === mine.id)
+    .at(-1)!;
+  assert.equal(reply.authorId, agent.id);
+  assert.match(reply.text, /could not be reached/);
+});
