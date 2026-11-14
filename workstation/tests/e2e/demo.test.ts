@@ -71,8 +71,9 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByLabel('Name the shared space').fill('Launch');
   await dylan.getByLabel('Name the shared space').press('Enter');
   await dylan.locator('.space-name', { hasText: 'Launch' }).waitFor();
-  await dylan.getByRole('button', { name: 'Add a person' }).click();
+  await dylan.getByRole('button', { name: 'Invite people' }).click();
   await dylan.getByRole('button', { name: 'Add Maya' }).click();
+  await dylan.keyboard.press('Escape');
   await maya.locator('.space-name').click();
   await maya.getByRole('menuitemradio', { name: 'Launch' }).click();
 

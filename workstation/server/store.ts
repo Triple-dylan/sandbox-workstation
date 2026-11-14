@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
   CANVAS_KINDS,
@@ -41,6 +41,8 @@ export class InputError extends Error {
 }
 
 const now = () => new Date().toISOString();
+const hash = (token: string) => createHash('sha256').update(token).digest('base64url');
+const later = (ms: number) => new Date(Date.now() + ms).toISOString();
 const id = () => randomUUID();
 const json = (value: unknown) => (value == null ? null : JSON.stringify(value));
 export const titleFrom = (body: string) =>
@@ -164,8 +166,11 @@ export class Store {
   version = 0;
   private listeners = new Set<(event: ChangeEvent) => void>();
   readonly db: Db;
-  constructor(db: Db) {
+  /** Invitation only: people outside your spaces are not visible and cannot be messaged. */
+  closed = false;
+  constructor(db: Db, options: { closed?: boolean } = {}) {
     this.db = db;
+    this.closed = !!options.closed;
     // Earlier versions kept loose pieces on one board per space. They now live on a canvas page.
     const loose = this.all(
       `select distinct space_id, owner_id from resources where deleted = 0 and parent_id is null and kind in ('note','pin','image','plan')`,
@@ -342,13 +347,93 @@ export class Store {
     if (!this.user(userId) || this.user(userId)!.kind !== 'human')
       throw new InputError('Unknown person.');
     const token = randomBytes(24).toString('base64url');
-    this.run('insert into sessions values (?, ?)', token, userId);
+    // Only a hash is kept, so the database alone never lets anyone sign in as someone.
+    this.run('insert into sessions values (?, ?)', hash(token), userId);
     return token;
   }
   userForToken(token: string | undefined) {
     if (!token) return null;
-    const row = this.get('select user_id from sessions where token = ?', token);
+    const row =
+      this.get('select user_id from sessions where token = ?', hash(token)) ??
+      // Sessions made before tokens were hashed.
+      this.get('select user_id from sessions where token = ?', token);
     return row ? this.user(row.user_id) : null;
+  }
+  endSession(token: string | undefined) {
+    if (token) this.run('delete from sessions where token in (?, ?)', hash(token), token);
+  }
+
+  // ---------- invitations and sign-in links ----------
+
+  /** The space's current invite link, made if there is none. Anyone in a shared space may invite. */
+  invite(actorId: Id, spaceId: Id, fresh = false) {
+    const space = this.requireMember(actorId, spaceId);
+    if (space.kind !== 'project') throw new InputError('Only shared spaces take invitations.');
+    if (fresh) this.run('update invites set revoked = 1 where space_id = ?', spaceId);
+    const current = this.get(
+      'select * from invites where space_id = ? and revoked = 0 and expires_at > ? order by created_at desc limit 1',
+      spaceId,
+      now(),
+    );
+    if (current) return { token: current.token as string, expiresAt: current.expires_at as string };
+    const token = randomBytes(18).toString('base64url');
+    const expiresAt = later(14 * 86_400_000);
+    this.run(
+      'insert into invites (token, space_id, created_by, created_at, expires_at) values (?, ?, ?, ?, ?)',
+      token,
+      spaceId,
+      actorId,
+      now(),
+      expiresAt,
+    );
+    return { token, expiresAt };
+  }
+  private liveInvite(token: string) {
+    const row = this.get(
+      'select * from invites where token = ? and revoked = 0 and expires_at > ?',
+      String(token ?? ''),
+      now(),
+    );
+    if (!row)
+      throw new AccessError('This invite link has expired or been replaced. Ask for a new one.');
+    return row;
+  }
+  /** What an invite link leads to, shown before someone joins. */
+  inviteInfo(token: string) {
+    const row = this.liveInvite(token);
+    return {
+      spaceName: this.space(row.space_id)!.name,
+      invitedBy: this.user(row.created_by)?.name ?? 'Someone',
+    };
+  }
+  acceptInvite(userId: Id, token: string) {
+    const row = this.liveInvite(token);
+    this.run('insert or ignore into members values (?, ?, ?)', row.space_id, userId, 'member');
+    this.run('update invites set uses = uses + 1 where token = ?', row.token);
+    this.changed();
+    return this.space(row.space_id)!;
+  }
+  /** A one-time link to sign in as yourself on another device, good for fifteen minutes. */
+  signInLink(userId: Id) {
+    const token = randomBytes(24).toString('base64url');
+    this.run(
+      'insert into signin_links values (?, ?, ?, 0)',
+      hash(token),
+      userId,
+      later(15 * 60_000),
+    );
+    return { token, expiresAt: later(15 * 60_000) };
+  }
+  useSignInLink(token: string) {
+    const row = this.get(
+      'select * from signin_links where token_hash = ? and used = 0 and expires_at > ?',
+      hash(String(token ?? '')),
+      now(),
+    );
+    if (!row)
+      throw new AccessError('This sign-in link has been used or has expired. Make a new one.');
+    this.run('update signin_links set used = 1 where token_hash = ?', row.token_hash);
+    return this.user(row.user_id)!;
   }
 
   // ---------- access ----------
@@ -475,6 +560,8 @@ export class Store {
     if (space.kind !== 'project') throw new InputError('Only projects can be shared.');
     const user = this.user(userId);
     if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
+    if (this.closed && !this.memberSpaces(actorId).some((id) => this.isMember(userId, id)))
+      throw new InputError('Invite them with a link instead.');
     this.run('insert or ignore into members values (?, ?, ?)', spaceId, userId, 'member');
     this.changed();
   }
@@ -1052,6 +1139,11 @@ export class Store {
     const other = this.user(otherId);
     if (!other || other.kind !== 'human' || otherId === actorId)
       throw new InputError('Choose another person.');
+    if (
+      this.closed &&
+      !this.memberSpaces(actorId).some((spaceId) => this.isMember(otherId, spaceId))
+    )
+      throw new InputError('You can message people you share a space with.');
     const existing = this.get(
       `select c.id from conversations c where c.kind = 'dm'
        and (select count(*) from participants p where p.conversation_id = c.id) = 2
@@ -1704,7 +1796,7 @@ export class Store {
       .map(toUser)
       .filter(
         (u) =>
-          u.kind === 'human' ||
+          (u.kind === 'human' && (!this.closed || u.id === userId || visibleUserIds.has(u.id))) ||
           visibleUserIds.has(u.id) ||
           // Only each person's prime agent; any other private agents they make stay unseen.
           (u.role === 'personal' &&

@@ -917,7 +917,10 @@ test('hosting: a health check, an access code, and pages served with safe header
       body: JSON.stringify(body),
     });
   assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), { ok: true, version: 0 });
-  assert.deepEqual(await (await fetch(`${base}/api/config`)).json(), { accessCode: true });
+  assert.deepEqual(await (await fetch(`${base}/api/config`)).json(), {
+    accessCode: true,
+    mode: 'open',
+  });
   assert.equal((await post('/api/join', { name: 'Dylan' })).status, 403);
   const joined = await post(
     '/api/join',
@@ -927,7 +930,7 @@ test('hosting: a health check, an access code, and pages served with safe header
   assert.equal(joined.status, 200);
   assert.match(
     joined.headers.get('set-cookie')!,
-    /HttpOnly; SameSite=Strict; Path=\/; Max-Age=\d+; Secure/,
+    /HttpOnly; SameSite=Lax; Path=\/; Max-Age=\d+; Secure/,
   );
   // People are not listed to someone outside, and come back by name.
   assert.deepEqual(await (await fetch(`${base}/api/profiles`)).json(), []);
@@ -1085,4 +1088,78 @@ test('a space agent asked from the bar says so when it fails, instead of going s
     .at(-1)!;
   assert.equal(reply.authorId, agent.id);
   assert.match(reply.text, /could not be reached/);
+});
+
+test('hosted by invitation: invite links, sign-in links, and nobody visible outside your spaces', async () => {
+  const app = createApp({
+    dbPath: ':memory:',
+    staticDir: null,
+    runtime: scriptedRuntime,
+    env: { SIGN_IN: 'invite', ACCESS_CODE: 'first-in' },
+  });
+  opened.push(app);
+  await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+  const client = () => {
+    let jar = '';
+    const call = async (path: string, body?: unknown) => {
+      const res = await fetch(base + path, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', 'x-workstation': '1', cookie: jar },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const set = res.headers.get('set-cookie');
+      if (set) jar = set.split(';')[0];
+      return { status: res.status, data: (await res.json().catch(() => ({}))) as any };
+    };
+    return call;
+  };
+  const dylan = client();
+  assert.deepEqual((await dylan('/api/config')).data, { accessCode: true, mode: 'invite' });
+  assert.equal((await dylan('/api/join', { name: 'Dylan' })).status, 403, 'no invite, no code');
+  assert.equal((await dylan('/api/join', { name: 'Dylan', code: 'first-in' })).status, 200);
+  const space = (await dylan('/api/projects', { name: 'Launch' })).data;
+  const invite = (await dylan('/api/invites', { spaceId: space.id })).data;
+  assert.equal(
+    (await dylan('/api/invites', { spaceId: space.id })).data.token,
+    invite.token,
+    'same link until replaced',
+  );
+  // Someone with the link sees where it leads, joins, and lands in the space.
+  const maya = client();
+  assert.deepEqual((await maya(`/api/invite/${invite.token}`)).data, {
+    spaceName: 'Launch',
+    invitedBy: 'Dylan',
+  });
+  assert.equal((await maya('/api/join', { name: 'Maya', invite: invite.token })).status, 200);
+  const mayaView = (await maya('/api/snapshot')).data;
+  assert.ok(mayaView.spaces.some((s: any) => s.id === space.id));
+  assert.equal(mayaView.signIn, 'invite');
+  // Someone in no shared space is invisible to them, and cannot be messaged or added by id.
+  const sam = client();
+  assert.equal((await sam('/api/join', { name: 'Sam', code: 'first-in' })).status, 200);
+  const samId = (await sam('/api/snapshot')).data.me.id;
+  assert.ok(!mayaView.users.some((u: any) => u.name === 'Sam'));
+  assert.equal((await maya('/api/dms', { userId: samId })).status, 400);
+  assert.equal((await maya(`/api/projects/${space.id}/members`, { userId: samId })).status, 400);
+  assert.deepEqual((await sam('/api/profiles')).data, []);
+  // A replaced link stops working.
+  const fresh = (await dylan('/api/invites', { spaceId: space.id, fresh: true })).data;
+  assert.notEqual(fresh.token, invite.token);
+  assert.equal((await client()('/api/join', { name: 'Late', invite: invite.token })).status, 403);
+  // Signing in on another device: once, then never again.
+  const link = (await maya('/api/signin-links', {})).data;
+  const phone = client();
+  assert.equal((await phone('/api/join', { signin: link.token })).status, 200);
+  assert.equal((await phone('/api/snapshot')).data.me.name, 'Maya');
+  assert.equal((await client()('/api/join', { signin: link.token })).status, 403);
+  // Signing out ends that session only.
+  await phone('/api/logout', {});
+  assert.equal((await phone('/api/snapshot')).status, 401);
+  assert.equal((await maya('/api/snapshot')).status, 200);
+  // An existing person accepts an invite from inside.
+  const other = (await sam('/api/projects', { name: 'Other' })).data;
+  const samInvite = (await sam('/api/invites', { spaceId: other.id })).data;
+  assert.equal((await maya('/api/invites/accept', { token: samInvite.token })).status, 200);
+  assert.ok((await maya('/api/snapshot')).data.users.some((u: any) => u.name === 'Sam'));
 });

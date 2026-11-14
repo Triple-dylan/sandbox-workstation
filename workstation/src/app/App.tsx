@@ -13,7 +13,8 @@ import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
-import { AgentBuilder, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { AgentBuilder, Invite, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
 import { PAGE_KINDS } from '../../shared/types.ts';
 import {
@@ -111,6 +112,20 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       setUi({ panes: shownPanes, active, spaceId: space.id });
   });
   useEffect(() => applyTheme(ui.theme), [ui.theme]);
+  // Already signed in and opened an invite link: join that space and go to it.
+  useEffect(() => {
+    const token = linkToken('invite');
+    clearLink();
+    if (!token) return;
+    void run(() => api<{ id: string; name: string }>('/invites/accept', { body: { token } })).then(
+      (joined) => {
+        if (!joined) return;
+        setUi({ spaceId: joined.id, panes: [], active: 0 });
+        notify(`You joined ${joined.name}.`);
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.size = ui.prefs.size;
@@ -519,6 +534,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         {ui.dialog === 'shortcuts' && <Shortcuts />}
         {ui.dialog === 'agent' && <AgentBuilder />}
         {ui.dialog === 'paste' && <PasteText />}
+        {ui.dialog === 'invite' && <Invite />}
         <input
           ref={fileInput}
           type="file"

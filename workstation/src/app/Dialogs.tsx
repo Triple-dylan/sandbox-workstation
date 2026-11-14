@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Copy, Link2 } from 'lucide-react';
 import { Lock, Users, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Character } from '../features/agents/Character.tsx';
@@ -144,6 +145,7 @@ export function Settings() {
         ],
         (v) => set({ list: v === 'shown' }),
       )}
+      <DeviceLink />
       <div className="setting">
         <span>Shortcuts</span>
         <button className="plain" onClick={() => setUi({ dialog: 'shortcuts' })}>
@@ -342,6 +344,126 @@ export function AgentBuilder() {
           Create {shared ? 'shared' : 'private'} agent
         </button>
       </div>
+    </Dialog>
+  );
+}
+
+function copy(text: string, notify: (t: string) => void, what: string) {
+  void navigator.clipboard?.writeText(text).then(
+    () => notify(`${what} copied.`),
+    () => notify('Copy did not work here. Select the link and copy it.'),
+  );
+}
+
+/** A link to sign in as yourself on another device. One use, fifteen minutes. */
+function DeviceLink() {
+  const { notify } = useWorkspace();
+  const [link, setLink] = useState('');
+  return (
+    <div className="setting stack">
+      <span>Sign in on another device</span>
+      {link ? (
+        <span className="link-out">
+          <input
+            readOnly
+            value={link}
+            aria-label="Sign-in link"
+            onFocus={(e) => e.target.select()}
+          />
+          <button className="primary" onClick={() => copy(link, notify, 'Sign-in link')}>
+            <Copy size={13} /> Copy
+          </button>
+        </span>
+      ) : (
+        <button
+          className="plain"
+          onClick={() =>
+            void api<{ token: string }>('/signin-links', { body: {} }).then(
+              (r) => setLink(`${location.origin}/?signin=${r.token}`),
+              (e) => notify((e as Error).message),
+            )
+          }
+        >
+          <Link2 size={13} /> Make a sign-in link
+        </button>
+      )}
+      <small>
+        Open it on the other device within 15 minutes. It works once. Anyone holding it can sign in
+        as you, so send it only to yourself.
+      </small>
+    </div>
+  );
+}
+
+/** Inviting people into the shared space you are in. */
+export function Invite() {
+  const { s, space, notify, run } = useWorkspace();
+  const [link, setLink] = useState<{ token: string; expiresAt: string } | null>(null);
+  const [error, setError] = useState('');
+  const make = async (fresh = false) => {
+    try {
+      setLink(await api('/invites', { body: { spaceId: space.id, fresh } }));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+  if (!link && !error) void make();
+  const url = link ? `${location.origin}/?invite=${link.token}` : '';
+  const others = s.users.filter(
+    (u) =>
+      u.kind === 'human' &&
+      u.id !== s.me.id &&
+      !s.members.some((m) => m.spaceId === space.id && m.userId === u.id),
+  );
+  return (
+    <Dialog title={`Invite people to ${space.name}`}>
+      {error && <p className="join-error">{error}</p>}
+      {link && (
+        <>
+          <span className="link-out">
+            <input
+              readOnly
+              value={url}
+              aria-label="Invite link"
+              onFocus={(e) => e.target.select()}
+            />
+            <button className="primary" onClick={() => copy(url, notify, 'Invite link')}>
+              <Copy size={13} /> Copy
+            </button>
+          </span>
+          <p className="dialog-note">
+            Anyone with this link can join {space.name} until{' '}
+            {new Date(link.expiresAt).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            })}
+            . They see what is shared with the space, never what is private to you.{' '}
+            <button className="link" onClick={() => void make(true)}>
+              Make a new link
+            </button>{' '}
+            to stop the old one working.
+          </p>
+        </>
+      )}
+      {others.length > 0 && (
+        <div>
+          <span className="label">People you already work with</span>
+          <div className="chips">
+            {others.map((p) => (
+              <button
+                key={p.id}
+                onClick={() =>
+                  void run(() =>
+                    api(`/projects/${space.id}/members`, { body: { userId: p.id } }),
+                  ).then((ok) => ok && notify(`${p.name} can now open ${space.name}.`))
+                }
+              >
+                Add {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }

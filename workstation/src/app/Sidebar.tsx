@@ -54,10 +54,6 @@ export function Sidebar() {
   const agents = [...members.filter((u) => u.kind === 'agent' && u.role === 'project'), ...mine];
   const dmWith = (person: User) =>
     s.conversations.find((c) => c.kind === 'dm' && c.participantIds.includes(person.id));
-  const outsiders = s.users.filter(
-    (u) =>
-      u.kind === 'human' && !s.members.some((m) => m.spaceId === space.id && m.userId === u.id),
-  );
 
   // Everyone has a prime agent. Teammates see it beside the person, and see when it is at work.
   const prime = (person: User) =>
@@ -359,11 +355,11 @@ export function Sidebar() {
         <h2>
           {shared ? 'People and agents' : 'Your agents'}
           <span>
-            {shared && outsiders.length > 0 && (
+            {shared && (
               <button
-                aria-label="Add a person"
-                title="Add a person"
-                onClick={() => setAdding('person')}
+                aria-label="Invite people"
+                title="Invite people"
+                onClick={() => setUi({ dialog: 'invite' })}
               >
                 <Users size={13} />
               </button>
@@ -378,24 +374,6 @@ export function Sidebar() {
           </span>
         </h2>
         {form('agent', shared ? 'Name an agent for this space' : 'Name your new agent')}
-        {adding === 'person' && (
-          <div className="list-form people">
-            {outsiders.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  setAdding(null);
-                  void run(() =>
-                    api(`/projects/${space.id}/members`, { body: { userId: p.id } }),
-                  ).then((ok) => ok && notify(`${p.name} can now open ${space.name}.`));
-                }}
-              >
-                <Actor user={p} jobs={s.jobs} size={18} /> Add {p.name}
-              </button>
-            ))}
-            <button onClick={() => setAdding(null)}>Cancel</button>
-          </div>
-        )}
         {shared &&
           people.map((p) => {
             const dm = dmWith(p);

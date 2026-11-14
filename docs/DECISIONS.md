@@ -2,6 +2,11 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-14
+
+- **Hosting on Railway** (Dylan: "ok, railway works").
+- *Assumed, stated to Dylan:* sign-in by invite links and one-time device links rather than email for now, since email needs a separate service. The database stays on a Railway volume until a team outgrows one server.
+
 ## 2026-11-13
 
 - **No Catch up page.** Dylan: "this is simply a bad idea. why does it cover literally everything. you are starting to compartmentalize the ui again." Removed. What is waiting on you or has changed is marked on the page, person or channel in the list. A space opens on its work.

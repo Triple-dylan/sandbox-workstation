@@ -32,7 +32,7 @@ export type Ui = {
   /** Pages added to what it looks at by dropping them on the bar. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
-  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste';
+  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'invite';
   /** How things look for this person. */
   prefs: {
     size: 's' | 'm' | 'l';

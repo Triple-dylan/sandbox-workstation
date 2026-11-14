@@ -270,6 +270,8 @@ export type Snapshot = {
   presence: Presence[];
   lastRead: Record<Id, string>;
   runtime: { id: string; label: string; model?: string };
+  /** How people get in: anyone picks a name (local), or by invitation (hosted). */
+  signIn?: 'open' | 'invite';
 };
 
 /** What the composer sends. Exactly one destination; never inferred from a selection. */

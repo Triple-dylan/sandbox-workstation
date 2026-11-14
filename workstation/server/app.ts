@@ -30,8 +30,13 @@ export type AppOptions = {
   env?: NodeJS.ProcessEnv;
 };
 
+const segments0 = (path: string) => path.split('/')[2] ?? '';
+
 export function createApp(options: AppOptions) {
-  const store = new Store(openDb(options.dbPath));
+  const env = options.env ?? process.env;
+  // Hosted copies run by invitation; a local copy lets anyone pick a name.
+  const mode: 'open' | 'invite' = env.SIGN_IN === 'invite' ? 'invite' : 'open';
+  const store = new Store(openDb(options.dbPath), { closed: mode === 'invite' });
   const runtime = options.runtime ?? selectRuntime(options.env ?? process.env, store);
   const engine = new AgentEngine(store, runtime, {
     maintenanceDelayMs: options.maintenanceDelayMs,
@@ -41,7 +46,22 @@ export function createApp(options: AppOptions) {
       ? fileURLToPath(new URL('../dist/', import.meta.url))
       : options.staticDir;
   // When set, joining needs this code: the least a hosted copy should ask before real accounts exist.
-  const accessCode = (options.env ?? process.env).ACCESS_CODE?.trim() || '';
+  const accessCode = env.ACCESS_CODE?.trim() || '';
+  // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
+  const attempts = new Map<string, { n: number; at: number }>();
+  const slowDown = (req: IncomingMessage) => {
+    const who = String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? '')
+      .split(',')[0]
+      .trim();
+    const seen = attempts.get(who);
+    const fresh = !seen || Date.now() - seen.at > 60_000;
+    const next = fresh ? { n: 1, at: Date.now() } : { n: seen.n + 1, at: seen.at };
+    attempts.set(who, next);
+    if (attempts.size > 5000) attempts.clear();
+    if (next.n > 20) throw new InputError('Too many tries. Wait a minute and try again.');
+  };
+  const cookieFor = (req: IncomingMessage, token: string) =>
+    `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`;
   const presence = new Map<Id, Presence>();
   const streams = new Map<ServerResponse, Id>();
   let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -116,45 +136,65 @@ export function createApp(options: AppOptions) {
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
     if (path === '/api/config' && method === 'GET')
-      return send(res, 200, { accessCode: !!accessCode });
+      return send(res, 200, { accessCode: !!accessCode, mode });
+    if (segments0(path) === 'invite' && method === 'GET') {
+      slowDown(req);
+      return send(res, 200, store.inviteInfo(path.split('/')[3] ?? ''));
+    }
     if (path === '/api/profiles' && method === 'GET')
       return send(
         res,
         200,
         // With an access code set, the list of people is not shown to someone who has not joined.
-        accessCode ? [] : store.profiles().map(({ id, name, color }) => ({ id, name, color })),
+        accessCode || mode === 'invite'
+          ? []
+          : store.profiles().map(({ id, name, color }) => ({ id, name, color })),
       );
     if (path === '/api/join' && method === 'POST') {
       const input = await body(req);
-      if (accessCode && String(input.code ?? '').trim() !== accessCode)
-        throw new AccessError('That access code is not right.');
-      const named = String(input.name ?? '')
-        .trim()
-        .toLowerCase();
-      // With a code, people come back by typing their name again.
-      const returning = accessCode
-        ? store.profiles().find((p) => p.name.toLowerCase() === named)
-        : undefined;
-      const user = input.userId
-        ? store.user(String(input.userId))
-        : (returning ?? store.createHuman(String(input.name ?? '')));
+      slowDown(req);
+      let user: User | null = null;
+      if (typeof input.signin === 'string') user = store.useSignInLink(input.signin);
+      else if (mode === 'invite') {
+        // A new account needs an invite link, or the setup code for the first people in.
+        const invite = typeof input.invite === 'string' ? input.invite : '';
+        if (invite) store.inviteInfo(invite);
+        else if (!accessCode || String(input.code ?? '').trim() !== accessCode)
+          throw new AccessError(
+            accessCode ? 'That setup code is not right.' : 'You need an invite link to join.',
+          );
+        user = store.createHuman(String(input.name ?? ''));
+        if (invite) store.acceptInvite(user.id, invite);
+      } else {
+        if (accessCode && String(input.code ?? '').trim() !== accessCode)
+          throw new AccessError('That access code is not right.');
+        const named = String(input.name ?? '')
+          .trim()
+          .toLowerCase();
+        const returning = accessCode
+          ? store.profiles().find((p) => p.name.toLowerCase() === named)
+          : undefined;
+        user = input.userId
+          ? store.user(String(input.userId))
+          : (returning ?? store.createHuman(String(input.name ?? '')));
+        if (user && typeof input.invite === 'string' && input.invite)
+          store.acceptInvite(user.id, input.invite);
+      }
       if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
       const token = store.createSession(user.id);
-      return send(
-        res,
-        200,
-        { ok: true },
-        {
-          'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : ''}`,
-        },
-      );
+      return send(res, 200, { ok: true }, { 'set-cookie': cookieFor(req, token) });
     }
     const me: User | null = store.userForToken(cookie(req));
     if (!me) return send(res, 401, { error: 'Sign in first.' });
-    if (path === '/api/logout' && method === 'POST')
+    if (path === '/api/logout' && method === 'POST') {
+      store.endSession(cookie(req));
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
+    }
     if (path === '/api/snapshot' && method === 'GET')
-      return send(res, 200, store.snapshot(me.id, [...presence.values()], runtimeInfo));
+      return send(res, 200, {
+        ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
+        signIn: mode,
+      });
     if (path === '/api/events' && method === 'GET') {
       res.writeHead(200, {
         'content-type': 'text/event-stream',
@@ -211,6 +251,12 @@ export function createApp(options: AppOptions) {
       }
       return send(res, 200, { ok: true });
     }
+    if (path === '/api/invites' && method === 'POST')
+      return send(res, 200, store.invite(me.id, str('spaceId'), input.fresh === true));
+    if (path === '/api/invites/accept' && method === 'POST')
+      return send(res, 200, store.acceptInvite(me.id, str('token')));
+    if (path === '/api/signin-links' && method === 'POST')
+      return send(res, 200, store.signInLink(me.id));
     if (path === '/api/projects' && method === 'POST')
       return send(res, 200, store.createProject(me.id, str('name')));
     if (segments[0] === 'projects' && segments[2] === 'members' && method === 'POST') {

@@ -8,6 +8,13 @@ create table if not exists users (
   character text, owner_id text, space_id text, role text, created_at text not null
 );
 create table if not exists sessions (token text primary key, user_id text not null);
+create table if not exists invites (
+  token text primary key, space_id text not null, created_by text not null, created_at text not null,
+  expires_at text not null, revoked integer not null default 0, uses integer not null default 0
+);
+create table if not exists signin_links (
+  token_hash text primary key, user_id text not null, expires_at text not null, used integer not null default 0
+);
 create table if not exists spaces (
   id text primary key, kind text not null, name text not null, owner_id text not null, created_at text not null
 );

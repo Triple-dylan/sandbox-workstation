@@ -1,0 +1,8 @@
+.env
+.git
+**/node_modules
+workstation/dist
+workstation/dist-inpage
+workstation/data
+workstation/test-results
+docs
