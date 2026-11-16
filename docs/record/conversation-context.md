@@ -484,3 +484,5 @@ Later, a list: "when in canvas a hard scroll makes the whole harness scroll to t
 On that build (with a screenshot of the docked bar over a document): "needless black bar that hides content as you scroll by. again, this type of thing should never exist. window sharing feature is broken, and the way you described it is likely not what we want anyhow. conversation windows have tons of empty space, lacking useful things. shared context exists in this harness. this should alwys be felt or accessible. convos in general are extremely lacking. channel resources dont even exist. lots needs to be adjusted across all pages so users understand if there is a collaborative agent working on something. if someones personal agent is doing something (everyone should or could have a prime agent). ease of use here and interconnectivity across features needs lots of thought."
 
 On the bar's "This page" label: "what is this supposed to indicate on the agent chat bar. and we have multiple agents? are we sure this totally make sense? a chat bar with the limited funcitonality of literally only chatting?"
+
+On the list: "So much info and chats on the left hand"

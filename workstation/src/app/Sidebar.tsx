@@ -9,7 +9,6 @@ import {
   Share2,
   Upload,
   Settings as Cog,
-  Archive,
   Users,
 } from 'lucide-react';
 import { api } from '../data/client.ts';
@@ -37,7 +36,6 @@ export function Sidebar() {
   const items = s.resources.filter((r) => r.spaceId === space.id);
   const folders = items.filter((r) => r.kind === 'folder');
   const pages = items.filter((r) => isPage(r.kind) && !r.archived);
-  const archived = items.filter((r) => isPage(r.kind) && r.archived).length;
   const folderIds = new Set(folders.map((f) => f.id));
   const inFolder = (id: string | null) =>
     pages.filter((p) => (p.parentId && folderIds.has(p.parentId) ? p.parentId : null) === id);
@@ -244,16 +242,28 @@ export function Sidebar() {
           </div>
         )}
         {form('space', 'Name the shared space')}
+        <div className="space-tools">
+          <button
+            className="find"
+            onClick={() => pick({ title: 'Find', chats: true, onPick: (t) => open(t) })}
+          >
+            <Search size={14} /> <span>Find</span> <kbd>⌘K</kbd>
+          </button>
+          <button
+            aria-label="Graph"
+            title="Graph: everything in this space"
+            aria-pressed={isOpen({ type: 'graph' })}
+            onClick={() => open({ type: 'graph' })}
+          >
+            <Share2 size={15} />
+          </button>
+          <button aria-label="New page" title="New page" onClick={() => setUi({ creating: true })}>
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="list-scroll">
-        <button
-          className="list-row"
-          aria-current={isOpen({ type: 'graph' }) ? 'page' : undefined}
-          onClick={() => open({ type: 'graph' })}
-        >
-          <Share2 size={14} /> <span>Graph</span>
-        </button>
         <h2>
           Pages
           <span>
@@ -267,13 +277,6 @@ export function Sidebar() {
             <button aria-label="New folder" title="New folder" onClick={() => setAdding('folder')}>
               <KindIcon kind="folder" size={13} />
             </button>
-            <button
-              aria-label="New page"
-              title="New page"
-              onClick={() => setUi({ creating: true })}
-            >
-              <Plus size={14} />
-            </button>
           </span>
         </h2>
         {form('folder', 'Name the folder')}
@@ -284,7 +287,14 @@ export function Sidebar() {
           const inside = inFolder(f.id);
           // The space's own context folder only shows once something is in it.
           if (f.role && inside.length === 0) return null;
-          const shut = closed[f.id];
+          // Folders stay folded unless they hold the page you are on or something for you.
+          const wanted = inside.some(
+            (p) =>
+              isOpen({ type: 'page', id: p.id }) ||
+              waitingOn(s, p) > 0 ||
+              atWork(s, { resourceId: p.id }).length > 0,
+          );
+          const shut = closed[f.id] ?? !wanted;
           return (
             <div key={f.id} className="list-folder">
               <button
@@ -300,20 +310,7 @@ export function Sidebar() {
             </div>
           );
         })}
-        {inFolder(null)
-          .filter((p) => p.role === 'orientation')
-          .map(pageRow)}
         {pages.length === 0 && <p className="list-empty">No pages yet.</p>}
-        {archived > 0 && (
-          <button
-            className="list-row quiet"
-            onClick={() => open({ type: 'graph' })}
-            title="See the archive on the graph"
-          >
-            <Archive size={14} /> <span>Archive</span>
-            <small>{archived}</small>
-          </button>
-        )}
 
         {shared && (
           <>
@@ -353,7 +350,7 @@ export function Sidebar() {
         )}
 
         <h2>
-          {shared ? 'People and agents' : 'Your agents'}
+          {shared ? 'Team' : 'Your agents'}
           <span>
             {shared && (
               <button
@@ -374,76 +371,69 @@ export function Sidebar() {
           </span>
         </h2>
         {form('agent', shared ? 'Name an agent for this space' : 'Name your new agent')}
-        {shared &&
-          people.map((p) => {
-            const dm = dmWith(p);
-            const unread = dm ? unreadIn(dm, s) : 0;
-            const online = s.presence.some((x) => x.userId === p.id && x.online);
+        <div className="who-strip" role="list">
+          {shared &&
+            people.map((p) => {
+              const dm = dmWith(p);
+              const unread = dm ? unreadIn(dm, s) : 0;
+              const online = s.presence.some((x) => x.userId === p.id && x.online);
+              const here = where(p);
+              return (
+                <button
+                  key={p.id}
+                  role="listitem"
+                  className={`who-chip ${online ? 'online' : ''}`}
+                  aria-current={dm && isOpen({ type: 'chat', id: dm.id }) ? 'page' : undefined}
+                  aria-label={`Message ${p.name}${unread ? `, ${unread} unread` : ''}`}
+                  title={`${p.name}${here ? ` · ${here}` : ''}${primeBusy(p) ? ` · ${prime(p)!.name} is working` : ''}`}
+                  onClick={async (e) => {
+                    const beside = e.metaKey || e.ctrlKey || e.altKey;
+                    const chat =
+                      dm ??
+                      (await run(() => api<{ id: string }>('/dms', { body: { userId: p.id } })));
+                    if (chat) open({ type: 'chat', id: chat.id }, beside);
+                  }}
+                >
+                  <Actor user={p} jobs={s.jobs} size={26} />
+                  {primeBusy(p) && (
+                    <span className="chip-orb">
+                      <Character agent={prime(p)!} size={20} state="working" />
+                    </span>
+                  )}
+                  {unread > 0 && <b className="count">{unread}</b>}
+                </button>
+              );
+            })}
+          {agents.map((a) => {
+            const busy = s.activity.some((x) => x.agentId === a.id && x.status === 'working');
+            const here = where(a);
             return (
               <button
-                key={p.id}
-                className={`list-row person ${unread ? 'unread' : ''}`}
-                aria-current={dm && isOpen({ type: 'chat', id: dm.id }) ? 'page' : undefined}
-                title={`Message ${p.name}`}
-                onClick={async (e) => {
-                  const beside = e.metaKey || e.ctrlKey || e.altKey;
-                  const chat =
-                    dm ??
-                    (await run(() => api<{ id: string }>('/dms', { body: { userId: p.id } })));
-                  if (chat) open({ type: 'chat', id: chat.id }, beside);
-                }}
+                key={a.id}
+                role="listitem"
+                className={`who-chip agent ${busy ? 'busy' : ''}`}
+                aria-current={isOpen({ type: 'who', id: a.id }) ? 'page' : undefined}
+                aria-label={a.name}
+                title={`${a.name} · ${a.role === 'personal' ? 'private to you' : 'shared'}${here ? ` · ${here}` : ''}`}
+                onClick={(e) => open({ type: 'who', id: a.id }, e.metaKey || e.ctrlKey || e.altKey)}
               >
-                <span className={`dot-wrap ${online ? 'online' : ''}`}>
-                  <Actor user={p} jobs={s.jobs} size={20} />
-                </span>
-                <span className="truncate">{p.name}</span>
-                <small className="truncate">{where(p)}</small>
-                {prime(p) && (
-                  <span
-                    className="row-orb"
-                    title={`${prime(p)!.name}${primeBusy(p) ? ' is working' : ''}`}
-                  >
-                    <Character
-                      agent={prime(p)!}
-                      size={20}
-                      state={primeBusy(p) ? 'working' : 'idle'}
-                    />
-                  </span>
+                <Character
+                  agent={a}
+                  size={26}
+                  state={busy ? 'working' : agentState(a.id, s.jobs)}
+                />
+                {a.role === 'personal' && (
+                  <i className="chip-lock">
+                    <Lock size={8} />
+                  </i>
                 )}
-                {unread > 0 && <b className="count">{unread}</b>}
               </button>
             );
           })}
-        {agents.map((a) => (
-          <button
-            key={a.id}
-            className="list-row person"
-            aria-current={isOpen({ type: 'who', id: a.id }) ? 'page' : undefined}
-            onClick={(e) => open({ type: 'who', id: a.id }, e.metaKey || e.ctrlKey || e.altKey)}
-          >
-            <Character agent={a} size={20} state={agentState(a.id, s.jobs)} />
-            <span className="truncate">{a.name}</span>
-            <small className="truncate">{where(a)}</small>
-            <i
-              className="reach"
-              title={a.role === 'personal' ? 'Private to you' : `Shared with ${space.name}`}
-            >
-              {a.role === 'personal' ? <Lock size={11} /> : <Users size={11} />}
-            </i>
-          </button>
-        ))}
+        </div>
       </div>
 
       <div className="list-foot">
-        <button
-          className="list-row"
-          onClick={() => pick({ title: 'Find', chats: true, onPick: (t) => open(t) })}
-        >
-          <Search size={14} /> <span>Find</span> <kbd>⌘K</kbd>
-        </button>
-        <button className="list-row" onClick={() => setUi({ creating: true })}>
-          <Plus size={14} /> <span>New page</span>
-        </button>
         <div className="me">
           <Actor user={s.me} jobs={s.jobs} size={22} />
           <span className="truncate">{s.me.name}</span>

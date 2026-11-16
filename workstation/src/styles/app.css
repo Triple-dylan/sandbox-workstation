@@ -4822,3 +4822,103 @@ button.scope[aria-expanded='true'] {
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- a quieter list ---------- */
+.space-tools {
+  display: flex;
+  gap: 4px;
+  padding: 6px 2px 2px;
+}
+.space-tools button {
+  height: 32px;
+  min-width: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-s);
+  color: var(--ink-2);
+}
+.space-tools button:hover,
+.space-tools button[aria-pressed='true'] {
+  background: var(--wash);
+  color: var(--ink);
+}
+.space-tools .find {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--wash);
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+.space-tools .find kbd {
+  margin-left: auto;
+}
+.sidebar h2 {
+  padding-top: 18px;
+}
+.who-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 6px 8px;
+}
+.who-chip {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.who-chip:hover,
+.who-chip[aria-current='page'] {
+  background: var(--wash-2);
+}
+.who-chip.online::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  border: 2px solid var(--bg);
+}
+.who-chip .count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  margin: 0;
+}
+.who-chip .chip-orb {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: inline-flex;
+  background: var(--bg);
+  border-radius: 50%;
+}
+.who-chip .chip-lock {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.who-chip:not(.agent) + .who-chip.agent {
+  margin-left: 8px;
+}
+.who-chip.agent.busy {
+  background: var(--wash);
+}
