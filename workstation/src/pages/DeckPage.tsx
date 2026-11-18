@@ -4,10 +4,18 @@ import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { Md, deckSlides } from '../app/util.tsx';
 import type { Resource } from '../../shared/types.ts';
+import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
+import { Avatar } from '../features/agents/Character.tsx';
 
 /** A deck: a list of slides, each a title and some writing, with a way to present them. */
 export function DeckPage({ page }: { page: Resource }) {
-  const { run } = useWorkspace();
+  const { run, user } = useWorkspace();
+  const team = useTeamCursors(page.id);
+  const shareSpot = useShareCursor(page.id);
+  const onSlide = (i: number) =>
+    Object.entries(team).flatMap(([id, c]) =>
+      c.kind === 'slide' && c.slide === i && user(id) ? [user(id)!] : [],
+    );
   const [slides, setSlides] = useState(() => deckSlides(page.body));
   const [at, setAt] = useState(0);
   const [presenting, setPresenting] = useState(false);
@@ -35,6 +43,8 @@ export function DeckPage({ page }: { page: Resource }) {
   };
   useEffect(() => () => clearTimeout(timer.current), []);
   const index = Math.min(at, slides.length - 1);
+  // Which slide you are on, for teammates.
+  useEffect(() => shareSpot({ kind: 'slide', slide: index }), [index]); // eslint-disable-line react-hooks/exhaustive-deps
   const slide = slides[index];
   const change = (patch: Partial<typeof slide>) =>
     save(slides.map((x, i) => (i === index ? { ...x, ...patch } : x)));
@@ -65,6 +75,13 @@ export function DeckPage({ page }: { page: Resource }) {
               <button aria-current={i === index} onClick={() => setAt(i)}>
                 <small>{i + 1}</small>
                 <span className="thumb">
+                  {onSlide(i).length > 0 && (
+                    <span className="slide-who">
+                      {onSlide(i).map((u) => (
+                        <Avatar key={u.id} user={u} size={16} />
+                      ))}
+                    </span>
+                  )}
                   <strong>{x.title || 'Untitled slide'}</strong>
                   <span>{x.body.replace(/[#*_`>-]/g, ' ').slice(0, 60)}</span>
                 </span>

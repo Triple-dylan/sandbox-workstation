@@ -486,3 +486,5 @@ On that build (with a screenshot of the docked bar over a document): "needless b
 On the bar's "This page" label: "what is this supposed to indicate on the agent chat bar. and we have multiple agents? are we sure this totally make sense? a chat bar with the limited funcitonality of literally only chatting?"
 
 On the list: "So much info and chats on the left hand"
+
+On cursors: "On canvas and on docs, etc, other users need to be able to see the cursor for their teammates. This feature should be toggle able in a users settings"

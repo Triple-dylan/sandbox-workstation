@@ -4,6 +4,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-14
 
+- **Teammates' cursors** show on canvases (pointer), documents (caret and selection, named), sheets (the cell) and decks (the slide). Two switches in Settings: see teammates' cursors, and share mine. Nothing is stored. *Assumed:* the switches are per browser for now.
 - **A quieter list.** Dylan: "So much info and chats on the left hand". Find, Graph and New page share one row at the top; folders stay folded unless they hold the page you are on or something for you; Orientation and Archive leave the list (Find and the graph still reach them); people and agents are one row of faces, with names and status on hover.
 - **Hosting on Railway** (Dylan: "ok, railway works").
 - *Assumed, stated to Dylan:* sign-in by invite links and one-time device links rather than email for now, since email needs a separate service. The database stays on a Railway volume until a team outgrows one server.

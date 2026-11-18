@@ -39,6 +39,7 @@ import { ago } from '../app/util.tsx';
 import { Actor, Character, nameStyle } from '../features/agents/Character.tsx';
 import { ApprovalCard, MessageView, agentsIn } from '../features/feed/Feed.tsx';
 import { PageFeed, usePageFeed } from './PageFeed.tsx';
+import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 import type { Id, Message, Resource } from '../../shared/types.ts';
 
 type Revision = { id: string; authorId: string; body: string; createdAt: string };
@@ -64,6 +65,58 @@ function locate(doc: PmNode, quote: string) {
   });
   return found as { from: number; to: number } | null;
 }
+
+type Caret = { id: string; name: string; color: string; from: number; to: number };
+const caretsKey = new PluginKey('team-carets');
+/** Where teammates are in the text: a caret in their colour with their name, and what they have selected. */
+const TeamCarets = Extension.create<object, { items: Caret[] }>({
+  name: 'teamCarets',
+  addStorage() {
+    return { items: [] };
+  },
+  addProseMirrorPlugins() {
+    const storage = this.storage;
+    return [
+      new Plugin({
+        key: caretsKey,
+        props: {
+          decorations(state) {
+            const end = state.doc.content.size;
+            const clamp = (n: number) => Math.max(1, Math.min(end, n));
+            const found = storage.items.flatMap((c) => {
+              const from = clamp(Math.min(c.from, c.to));
+              const to = clamp(Math.max(c.from, c.to));
+              const caret = Decoration.widget(
+                to,
+                () => {
+                  const el = document.createElement('span');
+                  el.className = 'team-caret';
+                  el.style.setProperty('--who', c.color);
+                  const tag = document.createElement('span');
+                  tag.className = 'team-caret-name';
+                  tag.textContent = c.name;
+                  el.append(tag);
+                  return el;
+                },
+                { key: `caret-${c.id}-${to}`, side: 1 },
+              );
+              return from < to
+                ? [
+                    Decoration.inline(from, to, {
+                      class: 'team-selection',
+                      style: `--who: ${c.color}`,
+                    }),
+                    caret,
+                  ]
+                : [caret];
+            });
+            return DecorationSet.create(state.doc, found);
+          },
+        },
+      }),
+    ];
+  },
+});
 
 const marksKey = new PluginKey('comment-marks');
 /** Draws comments and highlights over the text without changing the document itself. */
@@ -129,6 +182,12 @@ export function DocPage({ page }: { page: Resource }) {
   const sheet = useRef<HTMLDivElement>(null);
   const saved = useRef(page.body);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const team = useTeamCursors(page.id);
+  const shareNow = useShareCursor(page.id);
+  // The editor keeps its first callbacks; this always reaches the current setting.
+  const shareRef = useRef(shareNow);
+  shareRef.current = shareNow;
+  const shareSpot = (spot: Parameters<typeof shareNow>[0]) => shareRef.current(spot);
   // Typing "/" on an empty line offers the blocks you can insert.
   const [slash, setSlash] = useState<{
     top: number;
@@ -169,6 +228,7 @@ export function DocPage({ page }: { page: Resource }) {
       }),
       Markdown.configure({ html: false, tightLists: true, transformPastedText: true }),
       CommentMarks,
+      TeamCarets,
     ],
     content: page.body,
     editable: !locked,
@@ -181,7 +241,15 @@ export function DocPage({ page }: { page: Resource }) {
       setTick((t) => t + 1);
       checkSlash.current(editor);
     },
+    onFocus: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      shareSpot({ kind: 'text', from, to });
+    },
     onSelectionUpdate: ({ editor }) => {
+      {
+        const { from, to } = editor.state.selection;
+        if (editor.isFocused) shareSpot({ kind: 'text', from, to });
+      }
       checkSlash.current(editor);
       const { from, to, empty } = editor.state.selection;
       if (empty || !sheet.current) return setSelection(null);
@@ -198,6 +266,26 @@ export function DocPage({ page }: { page: Resource }) {
   });
   // Save whatever is unsent when the page closes.
   useEffect(() => flush, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Teammates' carets, redrawn whenever one moves.
+  const carets = Object.entries(team)
+    .filter(
+      (entry): entry is [string, Extract<(typeof team)[string], { kind: 'text' }>] =>
+        entry[1].kind === 'text',
+    )
+    .map(([id, c]) => ({
+      id,
+      name: user(id)?.name ?? 'Someone',
+      color: user(id)?.color ?? '#888',
+      from: c.from,
+      to: c.to,
+    }));
+  const caretKey = carets.map((c) => `${c.id}:${c.from}:${c.to}`).join('|');
+  useEffect(() => {
+    if (!editor) return;
+    editor.storage.teamCarets.items = carets;
+    editor.view.dispatch(editor.state.tr.setMeta(caretsKey, true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caretKey, editor]);
   // Someone else's change (a teammate, an accepted suggestion) appears unless you have unsent typing.
   useEffect(() => {
     if (!editor) return;

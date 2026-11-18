@@ -145,6 +145,28 @@ export function Settings() {
         ],
         (v) => set({ list: v === 'shown' }),
       )}
+      {seg(
+        "Teammates' cursors",
+        prefs.seeCursors === false ? 'hide' : 'show',
+        [
+          ['show', 'Show'],
+          ['hide', 'Hide'],
+        ],
+        (v) => set({ seeCursors: v === 'show' }),
+      )}
+      {seg(
+        'Share my cursor',
+        prefs.shareCursor === false ? 'off' : 'on',
+        [
+          ['on', 'On'],
+          ['off', 'Off'],
+        ],
+        (v) => set({ shareCursor: v === 'on' }),
+      )}
+      <p className="dialog-note">
+        On canvases, documents, sheets and decks, teammates on the same page see where you are, and
+        you see them. Turning sharing off stops sending yours straight away.
+      </p>
       <DeviceLink />
       <div className="setting">
         <span>Shortcuts</span>

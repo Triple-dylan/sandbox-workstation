@@ -92,6 +92,11 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
 
   // Dylan selects text and asks the space's agent to change it; Maya accepts the suggestion.
   await row(dylan, 'Brief').click();
+  // Clear the selection left from asking the agent, so its toolbar is out of the way.
+  await dylan
+    .locator('.tiptap p', { hasText: 'Boxes cost' })
+    .click({ position: { x: 615, y: 12 } });
+  await dylan.locator('.select-tools').waitFor({ state: 'detached' });
   await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
   await dylan.getByRole('button', { name: 'Ask an agent' }).click();
   await dylan.getByLabel('Which agent').selectOption({ index: 1 });
@@ -107,6 +112,45 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByLabel(/Say something to everyone on this page/).fill('Deciding Friday.');
   await dylan.getByLabel(/Say something to everyone on this page/).press('Enter');
   await maya.locator('.page-feed .msg', { hasText: 'Deciding Friday.' }).waitFor();
+
+  // Each sees where the other is in the document, by name.
+  await maya.locator('.tiptap p', { hasText: 'Boxes cost' }).click();
+  await dylan.locator('.team-caret', { hasText: 'Maya' }).waitFor();
+  // Clear the selection left from asking the agent, so its toolbar is out of the way.
+  await dylan
+    .locator('.tiptap p', { hasText: 'Boxes cost' })
+    .click({ position: { x: 615, y: 12 } });
+  await dylan.locator('.select-tools').waitFor({ state: 'detached' });
+  await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
+  await maya.locator('.team-caret', { hasText: 'Dylan' }).waitFor();
+  await maya.locator('.team-selection').first().waitFor();
+  // Turning off "Teammates' cursors" hides them for you at once.
+  await dylan.keyboard.press('Escape');
+  await dylan.keyboard.press('Control+,');
+  await dylan
+    .getByRole('radiogroup', { name: "Teammates' cursors" })
+    .getByRole('radio', { name: 'Hide' })
+    .click();
+  await dylan.locator('.team-caret').waitFor({ state: 'detached' });
+  await dylan
+    .getByRole('radiogroup', { name: "Teammates' cursors" })
+    .getByRole('radio', { name: 'Show' })
+    .click();
+  await dylan.keyboard.press('Escape');
+  await maya.locator('.tiptap p', { hasText: 'Boxes cost' }).click();
+  await dylan.locator('.team-caret', { hasText: 'Maya' }).waitFor();
+  // Turning off "Share my cursor" takes yours away from everyone else straight away.
+  await maya.keyboard.press('Control+,');
+  await maya
+    .getByRole('radiogroup', { name: 'Share my cursor' })
+    .getByRole('radio', { name: 'Off' })
+    .click();
+  await dylan.locator('.team-caret', { hasText: 'Maya' }).waitFor({ state: 'detached' });
+  await maya
+    .getByRole('radiogroup', { name: 'Share my cursor' })
+    .getByRole('radio', { name: 'On' })
+    .click();
+  await maya.keyboard.press('Escape');
 
   // Dylan's own agent answers only Dylan.
   await dylan.getByLabel(/Ask Dylan's agent/).fill('summarize this');

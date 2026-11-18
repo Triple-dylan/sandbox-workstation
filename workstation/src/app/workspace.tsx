@@ -39,6 +39,10 @@ export type Ui = {
     density: 'roomy' | 'compact';
     accent: number | null;
     list: boolean;
+    /** See where teammates are on a page. */
+    seeCursors: boolean;
+    /** Let teammates see where you are. */
+    shareCursor: boolean;
   };
   /** With two pages side by side: the share of the width the first one takes. */
   split: number;
@@ -60,7 +64,14 @@ export const initialUi: Ui = {
   barAgent: null,
   barSees: 'screen',
   barExtras: [],
-  prefs: { size: 'm', density: 'roomy', accent: null, list: true },
+  prefs: {
+    size: 'm',
+    density: 'roomy',
+    accent: null,
+    list: true,
+    seeCursors: true,
+    shareCursor: true,
+  },
 };
 
 export type Picker = {

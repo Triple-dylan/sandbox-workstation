@@ -299,4 +299,11 @@ export const REACTIONS = ['👍', '✅', '👀', '🎉', '❤️'] as const;
 /** A teammate's pointer on a canvas, sent live and never stored. */
 /** A message passed between two people's browsers to set up a live window share. Never stored. */
 export type Signal = { from: Id; data: Record<string, unknown> };
-export type Cursor = { userId: Id; resourceId: Id; x: number; y: number };
+/** Where a teammate is on a page right now. Sent live and never stored. */
+export type Spot =
+  | { kind: 'point'; x: number; y: number }
+  | { kind: 'text'; from: number; to: number }
+  | { kind: 'cell'; row: number; col: number }
+  | { kind: 'slide'; slide: number }
+  | { kind: 'gone' };
+export type Cursor = { userId: Id; resourceId: Id } & Spot;

@@ -5,16 +5,27 @@ import { useWorkspace } from '../app/workspace.tsx';
 import { sheetRows } from '../app/util.tsx';
 import { colName, evaluate, toNumber } from '../features/sheet/formula.ts';
 import type { Resource } from '../../shared/types.ts';
+import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 
 /** A sheet: rows and columns, with sums. Each cell is saved on its own, so two people can work at once. */
 export function SheetPage({ page }: { page: Resource }) {
-  const { s, run, pick, notify } = useWorkspace();
+  const { s, run, pick, notify, user } = useWorkspace();
   const stored = sheetRows(page.body);
   const width = Math.max(4, ...stored.map((r) => r.length));
   const rows = Array.from({ length: Math.max(8, stored.length) }, (_, r) =>
     Array.from({ length: width }, (_, c) => stored[r]?.[c] ?? ''),
   );
   const [focus, setFocus] = useState<{ r: number; c: number } | null>(null);
+  const team = useTeamCursors(page.id);
+  const shareSpot = useShareCursor(page.id);
+  // Who is on which cell, so each cell can show its teammate.
+  const onCell = new Map<string, { name: string; color: string }>();
+  for (const [id, c] of Object.entries(team))
+    if (c.kind === 'cell')
+      onCell.set(`${c.row}:${c.col}`, {
+        name: user(id)?.name ?? 'Someone',
+        color: user(id)?.color ?? '#888',
+      });
   const [value, setValue] = useState('');
   const [picked, setPicked] = useState<{ from: number; to: number } | null>(null);
   const grid = useRef<HTMLTableElement>(null);
@@ -135,14 +146,23 @@ export function SheetPage({ page }: { page: Resource }) {
                   return (
                     <td
                       key={c}
-                      className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''}`}
+                      className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${onCell.has(`${r}:${c}`) ? 'teammate' : ''}`}
+                      style={
+                        onCell.has(`${r}:${c}`)
+                          ? ({ '--who': onCell.get(`${r}:${c}`)!.color } as React.CSSProperties)
+                          : undefined
+                      }
                     >
+                      {onCell.has(`${r}:${c}`) && (
+                        <span className="cell-who">{onCell.get(`${r}:${c}`)!.name}</span>
+                      )}
                       <input
                         data-cell={`${r}:${c}`}
                         value={shown}
                         aria-label={`${colName(c)}${r + 1}`}
                         onFocus={() => {
                           setFocus({ r, c });
+                          shareSpot({ kind: 'cell', row: r, col: c });
                           setValue(cell);
                           before.current = cell;
                         }}

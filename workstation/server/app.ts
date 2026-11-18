@@ -224,17 +224,27 @@ export function createApp(options: AppOptions) {
       return send(res, 200, { ok: true });
     }
     if (path === '/api/cursor' && method === 'POST') {
-      // Pointers are passed straight to the other people who can open that canvas; nothing is stored.
-      const canvas = store.resource(str('resourceId'));
-      if (canvas && store.canReadResource(me.id, canvas)) {
-        const data = JSON.stringify({
-          userId: me.id,
-          resourceId: canvas.id,
-          x: Math.round(Number(input.x) || 0),
-          y: Math.round(Number(input.y) || 0),
-        });
+      // Where someone is on a page, passed straight to the others who can open it. Nothing is stored.
+      const page = store.resource(str('resourceId'));
+      const n = (key: string) =>
+        Math.max(0, Math.min(1_000_000, Math.round(Number(input[key]) || 0)));
+      const kind = str('kind') || 'point';
+      const spot =
+        kind === 'point'
+          ? { kind, x: n('x'), y: n('y') }
+          : kind === 'text'
+            ? { kind, from: n('from'), to: n('to') }
+            : kind === 'cell'
+              ? { kind, row: n('row'), col: n('col') }
+              : kind === 'slide'
+                ? { kind, slide: n('slide') }
+                : kind === 'gone'
+                  ? { kind }
+                  : null;
+      if (page && spot && store.canReadResource(me.id, page)) {
+        const data = JSON.stringify({ userId: me.id, resourceId: page.id, ...spot });
         for (const [stream, userId] of streams)
-          if (userId !== me.id && store.canReadResource(userId, canvas))
+          if (userId !== me.id && store.canReadResource(userId, page))
             stream.write(`event: cursor\ndata: ${data}\n\n`);
       }
       return send(res, 200, { ok: true });

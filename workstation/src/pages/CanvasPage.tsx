@@ -17,7 +17,8 @@ import {
   Trash2,
   Type,
 } from 'lucide-react';
-import { api, onCursor } from '../data/client.ts';
+import { api } from '../data/client.ts';
+import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, Md, deckSlides, sheetRows } from '../app/util.tsx';
 import { DRAG } from '../app/scope.ts';
@@ -256,11 +257,11 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
   const [moving, setMoving] = useState<Record<Id, Placement>>({});
   const [marquee, setMarquee] = useState<Placement | null>(null);
   const [commenting, setCommenting] = useState<Id | null>(null);
-  const [cursors, setCursors] = useState<Record<Id, { x: number; y: number; at: number }>>({});
+  const cursors = useTeamCursors(page.id);
+  const shareSpot = useShareCursor(page.id);
   const scroller = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const file = useRef<HTMLInputElement>(null);
-  const lastCursor = useRef(0);
   /** The view keeps fitting the room it has until you zoom by hand. */
   const auto = useRef(true);
   const manual = (change: (z: number) => number) => {
@@ -287,28 +288,6 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
       a.proposal.kind === 'create-doc' &&
       a.proposal.resourceId === page.id,
   );
-
-  useEffect(
-    () =>
-      onCursor((c) => {
-        if (c.resourceId === page.id)
-          setCursors((old) => ({ ...old, [c.userId]: { x: c.x, y: c.y, at: Date.now() } }));
-      }),
-    [page.id],
-  );
-  useEffect(() => {
-    const timer = setInterval(
-      () =>
-        setCursors((old) => {
-          const fresh = Object.fromEntries(
-            Object.entries(old).filter(([, c]) => Date.now() - c.at < 5000),
-          );
-          return Object.keys(fresh).length === Object.keys(old).length ? old : fresh;
-        }),
-      2000,
-    );
-    return () => clearInterval(timer);
-  }, []);
 
   const point = (e: { clientX: number; clientY: number }) => {
     const box = stage.current!.getBoundingClientRect();
@@ -797,10 +776,8 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             style={{ width: WIDTH, height: HEIGHT, transform: `scale(${zoom})` }}
             onPointerDown={onBackground}
             onPointerMove={(e) => {
-              if (Date.now() - lastCursor.current < 120) return;
-              lastCursor.current = Date.now();
               const { x, y } = point(e);
-              void api('/cursor', { body: { resourceId: page.id, x, y } }).catch(() => undefined);
+              shareSpot({ kind: 'point', x: Math.round(x), y: Math.round(y) });
             }}
           >
             {placed.length === 0 && pending.length === 0 && (
@@ -892,7 +869,8 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             {Object.entries(cursors).map(([id, c]) => {
               const who = user(id);
               return (
-                who && (
+                who &&
+                c.kind === 'point' && (
                   <span
                     key={id}
                     className="cursor"

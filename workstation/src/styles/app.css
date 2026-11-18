@@ -4922,3 +4922,61 @@ button.scope[aria-expanded='true'] {
 .who-chip.agent.busy {
   background: var(--wash);
 }
+
+/* ---------- teammates on the page ---------- */
+.team-caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1.25em;
+  vertical-align: text-bottom;
+  border-left: 2px solid var(--who);
+  margin: 0 -1px;
+  pointer-events: none;
+}
+.team-caret-name {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 0 6px;
+  border-radius: 4px 4px 4px 0;
+  background: var(--who);
+  color: #fff;
+  user-select: none;
+}
+.team-selection {
+  background: color-mix(in oklab, var(--who) 22%, transparent);
+}
+.sheet td.teammate {
+  position: relative;
+  outline: 2px solid var(--who);
+  outline-offset: -2px;
+}
+.cell-who {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  z-index: 2;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 0 5px;
+  border-radius: 3px 3px 0 0;
+  background: var(--who);
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.thumb {
+  position: relative;
+}
+.slide-who {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  gap: 2px;
+}
