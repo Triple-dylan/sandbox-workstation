@@ -4,6 +4,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-14
 
+- **Agents are tagged in the feed, not picked from a menu.** Dylan approved the mockup. Typing "@" suggests the agents in the conversation; "@Scout" anywhere, or "Scout, …" at the start, addresses it; tags show highlighted in messages. The bar always talks to your own agent; "@Scout" in it brings Scout in privately. The private panel idea (mockups 2 and 3) was not right and is being reworked, with different behaviour on canvases than on documents and sheets.
 - **Teammates' cursors** show on canvases (pointer), documents (caret and selection, named), sheets (the cell) and decks (the slide). Two switches in Settings: see teammates' cursors, and share mine. Nothing is stored. *Assumed:* the switches are per browser for now.
 - **A quieter list.** Dylan: "So much info and chats on the left hand". Find, Graph and New page share one row at the top; folders stay folded unless they hold the page you are on or something for you; Orientation and Archive leave the list (Find and the graph still reach them); people and agents are one row of faces, with names and status on hover.
 - **Hosting on Railway** (Dylan: "ok, railway works").

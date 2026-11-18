@@ -216,6 +216,20 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await row(dylan, 'general').click();
   await dylan.locator('.feed .msg', { hasText: 'Stall is confirmed.' }).waitFor();
 
+  // Agents are tagged in the feed: "@" suggests them, and the tagged one answers in the thread.
+  if (await dylan.locator('.bar-panel').isVisible())
+    await dylan.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
+  const box = dylan.getByLabel('Message #general');
+  await box.click();
+  await box.pressSequentially('@Laun');
+  await dylan.getByRole('listbox', { name: 'Tag an agent' }).waitFor();
+  await box.press('Enter');
+  await box.pressSequentially('summarize');
+  await dylan.getByText('Launch agent will answer here').waitFor();
+  await box.press('Enter');
+  await dylan.locator('.feed .msg .mention', { hasText: '@Launch agent' }).first().waitFor();
+  await maya.locator('.feed .msg.from-agent', { hasText: 'Launch' }).first().waitFor();
+
   // The graph shows Dylan's private page to Dylan only.
   await dylan.getByRole('button', { name: 'Graph', exact: true }).click();
   await dylan.locator('.graph-node.is-private', { hasText: 'Only for Dylan' }).waitFor();

@@ -4,11 +4,9 @@ import {
   ChevronDown,
   FilePlus2,
   History,
-  Lock,
   Maximize2,
   MessageSquareReply,
   Star,
-  Users,
   X,
   Zap,
 } from 'lucide-react';
@@ -19,6 +17,7 @@ import { chatTitle, scopeOf } from './util.tsx';
 import { writeSaved } from './saved.ts';
 import { useWorkspace } from './workspace.tsx';
 import { DRAG } from './scope.ts';
+import { addressed, useMentions } from '../features/feed/mentions.tsx';
 import type { Message } from '../../shared/types.ts';
 
 /**
@@ -42,11 +41,16 @@ export function Bar({ pill }: { pill: boolean }) {
     commands,
     resource,
   } = useWorkspace();
-  const [menu, setMenu] = useState<'agent' | 'sees' | null>(null);
+  const [menu, setMenu] = useState<'sees' | null>(null);
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState('');
   const box = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const roster = s.users.filter(
+    (u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === space.id && !u.retired,
+  );
+  // The bar talks to your own agent. Tagging @Scout brings one of the space's in, privately.
+  const mentions = useMentions({ text, setText, agents: roster, jobs: s.jobs, box });
   const scope = scopeOf(ui, s, columns);
   const thread = myChat ? s.messages.filter((m) => m.conversationId === myChat.id) : [];
   const lastId = thread.at(-1)?.id;
@@ -76,11 +80,8 @@ export function Bar({ pill }: { pill: boolean }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [ui.barOpen, setUi]);
   if (!myAgent || !myChat) return null;
-  const roster = s.users.filter(
-    (u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === space.id && !u.retired,
-  );
-  // Your own agent unless you chose one of the space's; either way the exchange is private to you.
-  const talking = roster.find((a) => a.id === ui.barAgent) ?? myAgent;
+  const tagged = addressed(text, roster);
+  const talking = tagged ?? myAgent;
   const own = talking.id === myAgent.id;
   const state = s.activity.some((a) => a.agentId === talking.id && a.status === 'working')
     ? 'working'
@@ -103,7 +104,7 @@ export function Bar({ pill }: { pill: boolean }) {
 
   const put = async (body: string) => {
     setMenu(null);
-    await ask(body, { handTo: own ? null : talking.id });
+    await ask(body, { handTo: addressed(body, roster)?.id ?? null });
   };
   // A line starting with "/" does something instead of asking: the same actions as Find.
   const typedCommand = text.startsWith('/') ? text.slice(1).trim().toLowerCase() : null;
@@ -363,36 +364,12 @@ export function Bar({ pill }: { pill: boolean }) {
           ))}
         </div>
       )}
-      {menu === 'agent' && (
-        <div className="bar-menu" role="menu" aria-label="Who to ask">
-          <p>Who you are asking. Whoever you pick answers only to you.</p>
-          {[myAgent, ...roster].map((a) => (
-            <button
-              key={a.id}
-              role="menuitemradio"
-              aria-checked={a.id === talking.id}
-              onClick={() => {
-                setUi({ barAgent: a.id === myAgent.id ? null : a.id });
-                setMenu(null);
-                box.current?.focus();
-              }}
-            >
-              <Character agent={a} size={28} />
-              <span>
-                <strong>{a.name}</strong>
-                <small>
-                  {a.id === myAgent.id
-                    ? 'Your own. Sees what you can see, and can pass work to the others.'
-                    : a.purpose || `Shared with ${space.name}`}
-                </small>
-              </span>
-              {a.id === myAgent.id ? <Lock size={12} /> : <Users size={12} />}
-            </button>
-          ))}
-          <button className="plain" onClick={() => (setMenu(null), setUi({ dialog: 'agent' }))}>
-            + New agent
-          </button>
-        </div>
+      {mentions.menu && <div className="bar-mentions">{mentions.menu}</div>}
+      {tagged && !mentions.menu && (
+        <p className="bar-note">
+          <Character agent={tagged} size={16} /> {tagged.name} will answer you here. Only you see
+          it.
+        </p>
       )}
       {menu === 'sees' && (
         <div className="bar-menu" role="menu" aria-label="What it looks at">
@@ -464,24 +441,34 @@ export function Bar({ pill }: { pill: boolean }) {
         <button
           type="button"
           className="bar-agent"
-          aria-label={`Asking ${talking.name}. Change who you ask`}
-          aria-expanded={menu === 'agent'}
-          onClick={() => setMenu(menu === 'agent' ? null : 'agent')}
+          aria-label={
+            ui.barOpen ? 'Hide the conversation' : 'Show your conversation with your agent'
+          }
+          title="Your agent. Only you see what it says."
+          onClick={() => setUi({ barOpen: !ui.barOpen })}
         >
-          <Character agent={talking} size={28} state={state} />
-          <span className="truncate">{own ? 'Your agent' : talking.name}</span>
-          <ChevronDown size={12} />
+          <Character agent={myAgent} size={28} state={state} />
         </button>
         <textarea
           ref={box}
           rows={1}
           value={text}
-          placeholder={`Ask ${own ? 'your agent' : talking.name}, or / to do something`}
+          placeholder={`Ask your agent · @ to bring in ${
+            roster
+              .map((a) => a.name)
+              .slice(0, 3)
+              .join(', ') || 'an agent'
+          } · / to do something`}
           aria-label={`Ask ${talking.name}`}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            mentions.track(e);
+          }}
+          onSelect={mentions.track}
           onKeyDown={(e) => {
+            if (mentions.onKey(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               void send();

@@ -25,8 +25,6 @@ export type Ui = {
   nav: boolean;
   creating: boolean;
   graphScope: 'space' | 'everything';
-  /** Who the bar is talking to: your own agent (null), or one of the space's, privately. */
-  barAgent: Id | null;
   /** What the bar's agent looks at: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';
   /** Pages added to what it looks at by dropping them on the bar. */
@@ -61,7 +59,6 @@ export const initialUi: Ui = {
   graphScope: 'space',
   split: 0.5,
   dialog: null,
-  barAgent: null,
   barSees: 'screen',
   barExtras: [],
   prefs: {

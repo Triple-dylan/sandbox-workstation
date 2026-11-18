@@ -4980,3 +4980,95 @@ button.scope[aria-expanded='true'] {
   display: inline-flex;
   gap: 2px;
 }
+
+/* ---------- tagging agents in the feed ---------- */
+.composer {
+  position: relative;
+}
+.mention-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  width: min(320px, 100%);
+  background: var(--glass-solid);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--lift);
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mention-menu p {
+  padding: 5px 8px 3px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.mention-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  text-align: left;
+  color: var(--ink-2);
+}
+.mention-menu button > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.mention-menu strong {
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.mention-menu small {
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mention-menu button[aria-selected='true'] {
+  background: var(--wash-2);
+}
+.speaking-to {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 3px 4px 2px;
+}
+.mention {
+  background: color-mix(in oklab, var(--mark-edge) 18%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+  border-radius: 5px;
+  padding: 0 4px;
+}
+
+.bar-mentions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 56;
+}
+.bar-mentions .mention-menu {
+  bottom: 6px;
+}
+.bar-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.bar-agent {
+  padding: 0 4px;
+}

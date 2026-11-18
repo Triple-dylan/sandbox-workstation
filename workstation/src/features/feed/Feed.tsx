@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp, AtSign, Check, CornerDownRight, Paperclip, SmilePlus, X } from 'lucide-react';
+import { ArrowUp, Check, CornerDownRight, Paperclip, SmilePlus, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { KindIcon, Md, ago, clock, excerpt, sheetRows } from '../../app/util.tsx';
 import { Actor, Character, agentState, nameStyle } from '../agents/Character.tsx';
 import { proposalText } from '../agents/proposal.ts';
+import { addressed, markMentions, useMentions } from './mentions.tsx';
 import { DRAG, pagesNamed } from '../../app/scope.ts';
 import { evaluate } from '../sheet/formula.ts';
 import { REACTIONS } from '../../../shared/types.ts';
@@ -169,6 +170,7 @@ export function MessageView({
   const author = user(m.authorId);
   const to = user(m.addressedTo);
   const anchored = m.anchor && resource(m.anchor.resourceId);
+  const mentionable = s.users.filter((u) => !u.retired).map((u) => u.name);
   const conversationSpace = s.conversations.find((c) => c.id === m.conversationId)?.spaceId ?? null;
   const react = (emoji: string) => {
     setReacting(false);
@@ -194,7 +196,7 @@ export function MessageView({
             {m.anchor.quote ? `“${m.anchor.quote.slice(0, 140)}”` : anchored?.title}
           </button>
         )}
-        <Md text={m.text} />
+        <Md text={markMentions(m.text, mentionable)} />
         {m.embed && <LivePiece embed={m.embed} />}
         <SourceChips ids={m.sourceIds} />
         <SourceChips
@@ -278,8 +280,6 @@ export function Composer({
   const text = ui.drafts[draftKey] ?? '';
   const setText = (value: string) =>
     setUi((old) => ({ drafts: { ...old.drafts, [draftKey]: value } }));
-  const [agentId, setAgentId] = useState<Id | null>(null);
-  const [choosing, setChoosing] = useState(false);
   const [attached, setAttached] = useState<Id | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const agents = conversation
@@ -288,9 +288,15 @@ export function Composer({
         (u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === space.id && !u.retired,
       );
   const privateAgent = conversation?.kind === 'agent-private';
-  // Typing @Name at the start addresses that agent, the way people expect.
-  const named = agents.find((a) => text.toLowerCase().startsWith(`@${a.name.toLowerCase()}`));
-  const target = named ?? agents.find((a) => a.id === agentId) ?? null;
+  // An agent is spoken to the way a person is: tagged with @Name, or named at the start.
+  const target = privateAgent ? null : (addressed(text, agents) ?? null);
+  const mentions = useMentions({
+    text,
+    setText,
+    agents: privateAgent ? [] : agents,
+    jobs: s.jobs,
+    box,
+  });
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -301,7 +307,7 @@ export function Composer({
     if (autoFocus) box.current?.focus();
   }, [autoFocus]);
   const send = async () => {
-    const body = (named ? text.slice(named.name.length + 1) : text).trim();
+    const body = text.trim();
     if (!body) return;
     const chat = conversation ?? (await ensure?.());
     if (!chat) return;
@@ -310,7 +316,7 @@ export function Composer({
         body: {
           conversationId: chat.id,
           text: body,
-          addressedTo: privateAgent ? null : (target?.id ?? null),
+          addressedTo: target?.id ?? null,
           replyTo: replyTo ?? null,
           anchor: anchor ?? null,
           embed: attached ? { resourceId: attached } : null,
@@ -352,65 +358,29 @@ export function Composer({
           </button>
         </p>
       )}
+      {mentions.menu}
+      {target && (
+        <p className="speaking-to">
+          <Character agent={target} size={16} state={agentState(target.id, s.jobs)} />
+          {target.name} will answer here, where everyone in this conversation can see it.
+        </p>
+      )}
       <div className="composer-row">
-        {!privateAgent && agents.length > 0 && (
-          <span className="to-pick">
-            <button
-              type="button"
-              className={target ? 'on' : ''}
-              aria-expanded={choosing}
-              aria-label={target ? `Addressed to ${target.name}. Change` : 'Address an agent'}
-              title={target ? `To ${target.name}` : 'Address an agent'}
-              onClick={() => setChoosing((v) => !v)}
-            >
-              {target ? (
-                <Character agent={target} size={20} state={agentState(target.id, s.jobs)} />
-              ) : (
-                <AtSign size={14} />
-              )}
-            </button>
-            {choosing && (
-              <span className="menu" role="menu">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={!target}
-                  onClick={() => {
-                    setAgentId(null);
-                    setChoosing(false);
-                  }}
-                >
-                  Everyone here
-                </button>
-                {agents.map((a) => (
-                  <button
-                    type="button"
-                    key={a.id}
-                    role="menuitemradio"
-                    aria-checked={target?.id === a.id}
-                    onClick={() => {
-                      setAgentId(a.id);
-                      setChoosing(false);
-                      box.current?.focus();
-                    }}
-                  >
-                    <Character agent={a} size={20} /> Ask {a.name}
-                  </button>
-                ))}
-              </span>
-            )}
-          </span>
-        )}
         <textarea
           ref={box}
           rows={1}
           value={text}
           placeholder={
-            target && !privateAgent ? `Ask ${target.name}, in front of everyone here` : placeholder
+            agents.length && !privateAgent ? `${placeholder} · @ to tag an agent` : placeholder
           }
           aria-label={placeholder}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            mentions.track(e);
+          }}
+          onSelect={mentions.track}
           onKeyDown={(e) => {
+            if (mentions.onKey(e)) return;
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               void send();

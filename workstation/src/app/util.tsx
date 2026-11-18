@@ -96,7 +96,22 @@ export function excerpt(r: Resource, length = 160) {
 export function Md({ text }: { text: string }) {
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          // Someone tagged with @Name shows as a tag, not a link.
+          a: ({ href, children, ...rest }) =>
+            href === '#mention' ? (
+              <span className="mention">{children}</span>
+            ) : (
+              <a href={href} target="_blank" rel="noreferrer" {...rest}>
+                {children}
+              </a>
+            ),
+        }}
+      >
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }

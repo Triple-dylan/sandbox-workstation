@@ -488,3 +488,5 @@ On the bar's "This page" label: "what is this supposed to indicate on the agent 
 On the list: "So much info and chats on the left hand"
 
 On cursors: "On canvas and on docs, etc, other users need to be able to see the cursor for their teammates. This feature should be toggle able in a users settings"
+
+On the agent dropdown: "Idk if the agent drop down makes a ton of sense. I think the collab chats can have agents that are tagged or prompted naturally in the feed. I think private chats may need to be a seperate window or popout on the right hand side. thoughts?" On the mockups: "ok 1 is good. 2/3 need some work. Something doesnt feel right here, and in addition this needs different fucntionality when a canvas is open, vs when other doc types are open. im not sure, but either way the current private panel isnt ideal."
