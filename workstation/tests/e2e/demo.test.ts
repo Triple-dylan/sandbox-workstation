@@ -98,12 +98,14 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
     .click({ position: { x: 615, y: 12 } });
   await dylan.locator('.select-tools').waitFor({ state: 'detached' });
   await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
-  await dylan.getByRole('button', { name: 'Ask an agent' }).click();
-  await dylan.getByLabel('Which agent').selectOption({ index: 1 });
+  await dylan.getByRole('button', { name: 'Comment' }).click();
+  await dylan.getByLabel('Ask an agent to answer here').selectOption({ index: 1 });
   await dylan
-    .getByLabel('What should the agent do')
+    .getByLabel('Comment', { exact: true })
     .fill('replace this with: Boxes cost $61 for 60.');
-  await dylan.getByLabel('What should the agent do').press('Enter');
+  await dylan.getByLabel('Comment', { exact: true }).press('Enter');
+  // Beside the text a comment is a small mark; opening it shows the suggestion to accept.
+  await maya.locator('.cface').first().click();
   await maya.getByRole('button', { name: 'Accept' }).click();
   await dylan.locator('.tiptap', { hasText: 'Boxes cost $61 for 60.' }).waitFor();
   await maya.locator('.tiptap', { hasText: 'Boxes cost $61 for 60.' }).waitFor();
@@ -152,14 +154,38 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
     .click();
   await maya.keyboard.press('Escape');
 
-  // Dylan's own agent answers only Dylan.
-  await dylan.getByLabel(/Ask Dylan's agent/).fill('summarize this');
-  await dylan.getByLabel(/Ask Dylan's agent/).press('Enter');
-  await dylan.locator('.bar-thread .msg.from-agent').waitFor();
-  await dylan.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
-  await maya.locator('.bar-history').click();
-  assert.equal(await maya.locator('.bar-thread .msg').count(), 0);
-  await maya.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
+  // Dylan's own agent, on the right, answers only Dylan.
+  await dylan.getByLabel('Ask your agent').fill('summarize this');
+  await dylan.getByLabel('Ask your agent').press('Enter');
+  await dylan.locator('.rail .rail-answer').waitFor();
+  await maya.locator('.rail').waitFor();
+  assert.equal(await maya.locator('.rail .rail-answer').count(), 0);
+  // Selecting text and asking points the rail at it; the answer shows what it was about.
+  await dylan
+    .locator('.tiptap p', { hasText: 'Boxes cost' })
+    .click({ position: { x: 615, y: 12 } });
+  await dylan.locator('.select-tools').waitFor({ state: 'detached' });
+  await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
+  await dylan.getByRole('button', { name: 'Ask an agent' }).click();
+  await dylan.locator('.rail-asking', { hasText: 'Boxes cost' }).waitFor();
+  await dylan.getByLabel('Ask your agent').fill('is this right?');
+  await dylan.getByLabel('Ask your agent').press('Enter');
+  await dylan.locator('.rail-answer .rail-ref', { hasText: 'Boxes cost' }).waitFor();
+  // Sharing an answer: the main chat is offered, and the message says whose agent it came from.
+  await dylan.locator('.rail-answer').last().getByRole('button', { name: 'Share' }).click();
+  await dylan.getByRole('menuitem', { name: /general/ }).click();
+  await dylan.locator('.rail-shared', { hasText: 'general' }).waitFor();
+  await row(maya, 'general').click();
+  await maya.locator('.feed .msg', { hasText: 'from Dylan’s agent' }).waitFor();
+  // ⌘J puts you in your agent's box; pressed there, it folds the rail to a slim strip.
+  await dylan.keyboard.press('Control+j');
+  await dylan.waitForFunction(
+    () => document.activeElement?.getAttribute('aria-label') === 'Ask your agent',
+  );
+  await dylan.keyboard.press('Control+j');
+  await dylan.locator('.rail-strip').waitFor();
+  await dylan.locator('.rail-strip').click();
+  await dylan.locator('.rail .rail-top').waitFor();
 
   // A canvas arranged together: Dylan places a sticky, Maya moves it, Dylan sees it move.
   await newPage(dylan, 'Canvas', 'Board');
@@ -217,8 +243,6 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.feed .msg', { hasText: 'Stall is confirmed.' }).waitFor();
 
   // Agents are tagged in the feed: "@" suggests them, and the tagged one answers in the thread.
-  if (await dylan.locator('.bar-panel').isVisible())
-    await dylan.locator('.bar-panel').getByRole('button', { name: 'Close' }).click();
   const box = dylan.getByLabel('Message #general');
   await box.click();
   await box.pressSequentially('@Laun');

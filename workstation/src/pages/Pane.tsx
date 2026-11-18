@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Avatar, Character, agentState } from '../features/agents/Character.tsx';
-import { KindIcon, chatTitle, kindName } from '../app/util.tsx';
+import { KindIcon, ago, chatTitle, kindName } from '../app/util.tsx';
 import { useWorkspace, type Target } from '../app/workspace.tsx';
 import { agentLabel, atWork, usedIn } from '../app/scope.ts';
 import type { Resource, User } from '../../shared/types.ts';
@@ -231,7 +231,7 @@ export function Pane({
     ? s.conversations.find((c) => c.kind === 'discussion' && c.resourceId === page.id)
     : undefined;
   const said = feed
-    ? s.messages.filter((m) => m.conversationId === feed.id && !m.replyTo).length
+    ? s.messages.filter((m) => m.conversationId === feed.id && !m.replyTo && !m.anchor).length
     : 0;
   const talk = async () => {
     const chatFor =
@@ -348,6 +348,40 @@ export function Pane({
           ))}
         </span>
         <span className="pane-actions">
+          {page && page.kind === 'doc' && said > 0 && (
+            <button
+              className="talk-chip"
+              title="Go to the conversation at the end of this page"
+              onClick={(e) =>
+                e.currentTarget
+                  .closest('.pane')
+                  ?.querySelector('.doc-feed')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+            >
+              <span className="talk-faces">
+                {[
+                  ...new Set(
+                    s.messages
+                      .filter((m) => m.conversationId === feed!.id && !m.anchor)
+                      .map((m) => m.authorId)
+                      .reverse(),
+                  ),
+                ]
+                  .slice(0, 2)
+                  .map((id) => user(id))
+                  .filter((u): u is User => !!u)
+                  .map((u) => (
+                    <Avatar key={u.id} user={u} size={16} />
+                  ))}
+              </span>
+              {said} said ·{' '}
+              {ago(
+                s.messages.filter((m) => m.conversationId === feed!.id && !m.anchor).at(-1)!
+                  .createdAt,
+              )}
+            </button>
+          )}
           {page && page.kind !== 'doc' && (
             <button
               aria-label="Talk about this page"

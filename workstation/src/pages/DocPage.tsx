@@ -35,6 +35,7 @@ import TableHeader from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
+import { useFading, useSpot } from '../app/spot.ts';
 import { ago } from '../app/util.tsx';
 import { Actor, Character, nameStyle } from '../features/agents/Character.tsx';
 import { ApprovalCard, MessageView, agentsIn } from '../features/feed/Feed.tsx';
@@ -158,7 +159,7 @@ const HIGHLIGHT = 'Highlighted';
  * what people see. Comments sit beside the text they are about; the page's own feed is underneath.
  */
 export function DocPage({ page }: { page: Resource }) {
-  const { s, run, user, ask, myAgent, notify } = useWorkspace();
+  const { s, ui, setUi, run, user, ask, notify } = useWorkspace();
   const { feed, ensure } = usePageFeed(page);
   const locked = page.role === 'orientation';
   const [state, setState] = useState<'saved' | 'saving'>('saved');
@@ -174,6 +175,7 @@ export function DocPage({ page }: { page: Resource }) {
   const [draftText, setDraftText] = useState('');
   const [draftAgent, setDraftAgent] = useState<Id>('mine');
   const [active, setActive] = useState<Id | null>(null);
+  const [opened, setOpened] = useState<Id | null>(null);
   const [showResolved, setShowResolved] = useState(false);
   const [tops, setTops] = useState<Record<Id, number>>({});
   const [stack, setStack] = useState(false);
@@ -321,7 +323,7 @@ export function DocPage({ page }: { page: Resource }) {
 
   useLayoutEffect(() => {
     if (!scroller.current) return;
-    const observer = new ResizeObserver(([entry]) => setStack(entry.contentRect.width < 820));
+    const observer = new ResizeObserver(([entry]) => setStack(entry.contentRect.width < 560));
     observer.observe(scroller.current);
     return () => observer.disconnect();
   }, []);
@@ -355,6 +357,39 @@ export function DocPage({ page }: { page: Resource }) {
     if (moved) setTops(next);
   });
 
+  // Where a quoted line sits on the sheet, as a band across the text column.
+  const bandOf = (quote: string) => {
+    if (!editor || !sheet.current) return null;
+    const at = locate(editor.state.doc, quote);
+    if (!at) return null;
+    const box = sheet.current.getBoundingClientRect();
+    const text = sheet.current.querySelector('.doc-text')!.getBoundingClientRect();
+    const a = editor.view.coordsAtPos(at.from);
+    const b = editor.view.coordsAtPos(at.to);
+    return {
+      top: a.top - box.top + sheet.current.scrollTop - 4,
+      left: text.left - box.left - 10,
+      width: text.width + 20,
+      height: b.bottom - a.top + 8,
+    };
+  };
+  // A line someone pointed at from a conversation: brought into view and lit for a moment.
+  const [litQuote, setLit] = useFading<string>(5000);
+  useSpot(page.id, (spot) => {
+    if (!spot.quote) return;
+    const band = bandOf(spot.quote);
+    if (!band) return notify('That text has since changed on the page.');
+    setLit(spot.quote);
+    sheet.current?.scrollTo({ top: Math.max(0, band.top - 140), behavior: 'smooth' });
+  });
+  const lit = litQuote ? bandOf(litQuote) : null;
+  // While you choose where to share something, the line it would land on is lit faintly.
+  const previewQuote =
+    ui.preview && 'resourceId' in ui.preview && ui.preview.resourceId === page.id
+      ? ui.preview.quote
+      : undefined;
+  const previewBand = previewQuote ? bandOf(previewQuote) : null;
+
   const projectAgents = useMemo(
     () =>
       feed
@@ -372,6 +407,7 @@ export function DocPage({ page }: { page: Resource }) {
     if (!selection) return;
     setDraft({ quote: selection.quote, mode, top: selection.top });
     setDraftText('');
+    setDraftAgent(mode === 'comment' ? '' : 'mine');
     setSelection(null);
   };
   const post = async (text: string, quote: string, agentId?: Id) => {
@@ -393,8 +429,12 @@ export function DocPage({ page }: { page: Resource }) {
     const { quote, mode } = draft;
     const text = draftText.trim();
     setDraft(null);
+    if (mode === 'comment') {
+      flush();
+      return void (await post(text, quote, draftAgent || undefined));
+    }
     if (mode === 'ask' && draftAgent === 'mine') {
-      // Your own agent answers privately, in the bar.
+      // Your own agent answers privately, in the rail.
       flush();
       return ask(text, { anchor: { resourceId: page.id, quote } });
     }
@@ -500,12 +540,12 @@ export function DocPage({ page }: { page: Resource }) {
     const replies = all.filter((x) => x.replyTo === m.id);
     const gone = editor ? !locate(editor.state.doc, m.anchor!.quote) : false;
     const plain = m.text === HIGHLIGHT;
-    return (
+    const people = [...new Set([m.authorId, ...replies.map((r) => r.authorId)])]
+      .map((id) => user(id))
+      .filter((u) => !!u);
+    const full = (
       <div
-        key={m.id}
-        data-card={m.id}
-        className={`comment ${active === m.id ? 'active' : ''} ${m.resolved ? 'resolved' : ''} ${plain ? 'plain' : ''}`}
-        style={stack ? undefined : { top: tops[m.id] ?? 0 }}
+        className={`comment ${stack ? '' : 'pop'} ${active === m.id ? 'active' : ''} ${m.resolved ? 'resolved' : ''} ${plain ? 'plain' : ''}`}
         onMouseEnter={() => setActive(m.id)}
         onMouseLeave={() => setActive((a) => (a === m.id ? null : a))}
       >
@@ -565,6 +605,36 @@ export function DocPage({ page }: { page: Resource }) {
             <Check size={12} /> {m.resolved ? 'Reopen' : plain ? 'Remove' : 'Resolve'}
           </button>
         </form>
+      </div>
+    );
+    if (stack)
+      return (
+        <div key={m.id} data-card={m.id}>
+          {full}
+        </div>
+      );
+    // Beside the text, a comment is a small mark with the faces of who is in it; it opens on click.
+    return (
+      <div
+        key={m.id}
+        data-card={m.id}
+        className={`cface-wrap ${opened === m.id ? 'open' : ''}`}
+        style={{ top: tops[m.id] ?? 0 }}
+      >
+        <button
+          className={`cface ${active === m.id || opened === m.id ? 'on' : ''} ${m.resolved ? 'resolved' : ''}`}
+          aria-expanded={opened === m.id}
+          aria-label={`${plain ? 'Highlight' : 'Comment'} by ${author?.name ?? 'someone'}${replies.length ? `, ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}` : ''}`}
+          onClick={() => setOpened(opened === m.id ? null : m.id)}
+          onMouseEnter={() => setActive(m.id)}
+          onMouseLeave={() => setActive((a) => (a === m.id ? null : a))}
+        >
+          {people.slice(0, 2).map((u) => (
+            <Actor key={u.id} user={u} jobs={s.jobs} size={18} />
+          ))}
+          {!plain && replies.length + 1 > 1 && <small>{replies.length + 1}</small>}
+        </button>
+        {opened === m.id && full}
       </div>
     );
   };
@@ -662,6 +732,8 @@ export function DocPage({ page }: { page: Resource }) {
         </ol>
       )}
       <div className="doc-sheet" ref={sheet}>
+        {lit && <div className="spot-band" style={lit} aria-hidden />}
+        {previewBand && <div className="spot-band preview" style={previewBand} aria-hidden />}
         <div className="doc-text">
           <EditorContent editor={editor} className="markdown reader-body" />
           {slash && offered.length > 0 && (
@@ -731,7 +803,18 @@ export function DocPage({ page }: { page: Resource }) {
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => begin('comment')}>
                 <MessageSquarePlus size={13} /> Comment
               </button>
-              <button onMouseDown={(e) => e.preventDefault()} onClick={() => begin('ask')}>
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                title="Ask your own agent about this. Only you see the answer."
+                onClick={() => {
+                  if (!selection) return;
+                  setUi({
+                    asking: { resourceId: page.id, quote: selection.quote },
+                    railOpen: true,
+                  });
+                  setSelection(null);
+                }}
+              >
                 <Sparkles size={13} /> Ask an agent
               </button>
               <button onMouseDown={(e) => e.preventDefault()} onClick={() => void highlight()}>
@@ -759,16 +842,16 @@ export function DocPage({ page }: { page: Resource }) {
               }}
             >
               <p className="comment-quote">“{draft.quote.slice(0, 90)}”</p>
-              {draft.mode === 'ask' && (
+              {projectAgents.length > 0 && (
                 <select
                   value={draftAgent}
-                  aria-label="Which agent"
+                  aria-label="Ask an agent to answer here"
                   onChange={(e) => setDraftAgent(e.target.value)}
                 >
-                  {myAgent && <option value="mine">{myAgent.name} · answers only to you</option>}
+                  <option value="">Just a comment</option>
                   {projectAgents.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.name} · everyone on this page sees it
+                      Ask {a.name} to answer here · everyone sees it
                     </option>
                   ))}
                 </select>

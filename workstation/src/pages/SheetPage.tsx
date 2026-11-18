@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '../data/client.ts';
+import { useFading, useSpot } from '../app/spot.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { sheetRows } from '../app/util.tsx';
 import { colName, evaluate, toNumber } from '../features/sheet/formula.ts';
@@ -10,6 +11,15 @@ import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts'
 /** A sheet: rows and columns, with sums. Each cell is saved on its own, so two people can work at once. */
 export function SheetPage({ page }: { page: Resource }) {
   const { s, run, pick, notify, user } = useWorkspace();
+  // Rows someone pointed at from a conversation: brought into view and lit for a moment.
+  const [lit, setLit] = useFading<[number, number]>(6000);
+  useSpot(page.id, (spot) => {
+    if (!spot.rows) return;
+    setLit(spot.rows);
+    grid.current
+      ?.querySelectorAll('tbody tr')
+      [spot.rows[0]]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
   const stored = sheetRows(page.body);
   const width = Math.max(4, ...stored.map((r) => r.length));
   const rows = Array.from({ length: Math.max(8, stored.length) }, (_, r) =>
@@ -121,7 +131,10 @@ export function SheetPage({ page }: { page: Resource }) {
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r} className={`${r === 0 ? 'head' : ''} ${inPick(r) ? 'picked' : ''}`}>
+              <tr
+                key={r}
+                className={`${r === 0 ? 'head' : ''} ${inPick(r) ? 'picked' : ''} ${lit && r >= lit[0] && r <= lit[1] ? 'lit' : ''}`}
+              >
                 <th>
                   <button
                     aria-label={`Select row ${r + 1}`}

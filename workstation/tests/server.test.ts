@@ -1163,3 +1163,51 @@ test('hosted by invitation: invite links, sign-in links, and nobody visible outs
   assert.equal((await maya('/api/invites/accept', { token: samInvite.token })).status, 200);
   assert.ok((await maya('/api/snapshot')).data.users.some((u: any) => u.name === 'Sam'));
 });
+
+test('sharing from your agent: it says whose agent said it, keeps only sources others can open, and can be taken back', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  const myAgent = snap(dylan.id).users.find(
+    (u) => u.role === 'personal' && u.ownerId === dylan.id,
+  )!;
+  const brief = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Brief',
+    body: 'Boxes cost $58.',
+  });
+  const notes = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'My notes',
+    body: 'private',
+    visibility: 'private',
+  });
+  const answer = store.postMessage(
+    myAgent.id,
+    { conversationId: mine.id, text: 'Boxes went up to $61.' },
+    { sourceIds: [brief.id, notes.id] },
+  );
+  const shared = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'Boxes went up to $61.',
+    sharedFrom: answer.id,
+  });
+  assert.deepEqual(shared.sharedFrom, { agentId: myAgent.id, ownerId: dylan.id });
+  assert.deepEqual(shared.sourceIds, [brief.id], 'a page only Dylan can open is left out');
+  const seen = snap(maya.id).messages.find((m) => m.id === shared.id)!;
+  assert.equal(seen.sharedFrom?.agentId, myAgent.id);
+  // Only your own private conversation can be shared from, and only by you.
+  assert.throws(() =>
+    store.postMessage(maya.id, { conversationId: general.id, text: 'x', sharedFrom: answer.id }),
+  );
+  const dm = store.openDm(dylan.id, sam.id);
+  assert.throws(() =>
+    store.postMessage(dylan.id, { conversationId: general.id, text: 'x', sharedFrom: shared.id }),
+  );
+  assert.ok(dm);
+  // Taken back: gone for everyone. Nobody else can take it back.
+  assert.throws(() => store.deleteMessage(maya.id, shared.id));
+  store.deleteMessage(dylan.id, shared.id);
+  assert.ok(!snap(maya.id).messages.some((m) => m.id === shared.id));
+});

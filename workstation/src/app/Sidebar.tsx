@@ -41,6 +41,8 @@ export function Sidebar() {
     pages.filter((p) => (p.parentId && folderIds.has(p.parentId) ? p.parentId : null) === id);
 
   const channels = s.conversations.filter((c) => c.kind === 'channel' && c.spaceId === space.id);
+  const previewing =
+    ui.preview && 'conversationId' in ui.preview ? ui.preview.conversationId : null;
   const members = s.members
     .filter((m) => m.spaceId === space.id)
     .map((m) => user(m.userId))
@@ -182,6 +184,29 @@ export function Sidebar() {
     );
   };
 
+  // A space's main chat is pinned first, above its pages.
+  const main = channels.find((c) => c.title === 'general');
+  const channelRow = (c: (typeof channels)[number], pinned = false) => {
+    const unread = unreadIn(c, s);
+    return (
+      <button
+        key={c.id}
+        draggable
+        onDragStart={(e) =>
+          e.dataTransfer.setData(DRAG, JSON.stringify({ type: 'chat', id: c.id }))
+        }
+        className={`list-row ${unread ? 'unread' : ''} ${previewing === c.id ? 'share-preview' : ''}`}
+        aria-current={isOpen({ type: 'chat', id: c.id }) ? 'page' : undefined}
+        onClick={(e) => open({ type: 'chat', id: c.id }, e.metaKey || e.ctrlKey || e.altKey)}
+      >
+        <KindIcon kind="channel" />
+        <span className="truncate">{chatTitle(c, s)}</span>
+        {pinned && !unread && <small className="main-chat">Main chat</small>}
+        {unread > 0 && <b className="count">{unread}</b>}
+      </button>
+    );
+  };
+
   return (
     <nav className="sidebar" aria-label="Space">
       <div className="space-head">
@@ -264,6 +289,7 @@ export function Sidebar() {
       </div>
 
       <div className="list-scroll">
+        {shared && main && <div className="list-main">{channelRow(main, true)}</div>}
         <h2>
           Pages
           <span>
@@ -325,27 +351,7 @@ export function Sidebar() {
               </button>
             </h2>
             {form('channel', 'Name the channel')}
-            {channels.map((c) => {
-              const unread = unreadIn(c, s);
-              return (
-                <button
-                  key={c.id}
-                  draggable
-                  onDragStart={(e) =>
-                    e.dataTransfer.setData(DRAG, JSON.stringify({ type: 'chat', id: c.id }))
-                  }
-                  className={`list-row ${unread ? 'unread' : ''}`}
-                  aria-current={isOpen({ type: 'chat', id: c.id }) ? 'page' : undefined}
-                  onClick={(e) =>
-                    open({ type: 'chat', id: c.id }, e.metaKey || e.ctrlKey || e.altKey)
-                  }
-                >
-                  <KindIcon kind="channel" />
-                  <span className="truncate">{chatTitle(c, s)}</span>
-                  {unread > 0 && <b className="count">{unread}</b>}
-                </button>
-              );
-            })}
+            {channels.filter((c) => c.id !== main?.id).map((c) => channelRow(c))}
           </>
         )}
 

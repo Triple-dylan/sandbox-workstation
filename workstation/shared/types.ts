@@ -169,6 +169,8 @@ export type Message = {
   embed: { resourceId: Id; from?: number; to?: number } | null;
   /** The pages an agent's answer drew on. */
   sourceIds: Id[];
+  /** Shared from someone's private conversation with their agent: whose agent said it. */
+  sharedFrom: { agentId: Id; ownerId: Id } | null;
   reactions: { emoji: string; userIds: Id[] }[];
   createdAt: string;
 };
@@ -283,6 +285,8 @@ export type SendRequest = {
   anchor?: Anchor | null;
   replyTo?: Id | null;
   embed?: { resourceId: Id; from?: number; to?: number } | null;
+  /** Shares an answer from your private conversation with your agent; it keeps that answer's sources. */
+  sharedFrom?: Id | null;
   /** What the sender was looking at: pages in view or selected, and the space. Context, never a recipient. */
   context?: {
     resourceIds: Id[];

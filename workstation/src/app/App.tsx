@@ -5,7 +5,7 @@ import { KindIcon, chatTitle } from './util.tsx';
 import { api, useSession } from '../data/client.ts';
 import { Join } from './Join.tsx';
 import { Sidebar } from './Sidebar.tsx';
-import { Bar } from './Bar.tsx';
+import { Rail } from './Rail.tsx';
 import { Find } from './Find.tsx';
 import { NewPage } from './NewPage.tsx';
 import { Pane } from '../pages/Pane.tsx';
@@ -97,7 +97,12 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const columns: 1 | 2 = width >= 1160 ? 2 : 1;
+  // Your agent's rail takes room beside the middle on wide windows; on narrow ones it lies over it.
+  const railDocks = width >= 1180;
+  useEffect(() => {
+    if (!railDocks) setUi({ railOpen: false });
+  }, [railDocks, setUi]);
+  const columns: 1 | 2 = width - (railDocks && ui.railOpen ? 384 : 56) >= 1080 ? 2 : 1;
 
   // The space in view: the remembered one if it still exists, else the first shared space, else your own.
   const space =
@@ -212,6 +217,15 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       }),
     [s, setUi],
   );
+  const jump = useCallback<Workspace['jump']>(
+    (spot, note) => {
+      const page = s.resources.find((r) => r.id === spot.resourceId);
+      if (!page) return notify('That page is no longer available to you.');
+      open({ type: 'page', id: page.id }, true);
+      setUi({ focus: { ...spot, note: note ?? spot.note, at: Date.now() } });
+    },
+    [s, open, setUi, notify],
+  );
   const closePane = useCallback<Workspace['closePane']>(
     (index) =>
       setUi((old) => {
@@ -231,7 +245,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const ask = useCallback<Workspace['ask']>(
     async (text, extra) => {
       if (!myChat) return notify('Your agent is not available.');
-      setUi({ barOpen: true });
+      setUi({ railOpen: true });
       await run(() =>
         api('/messages', {
           body: {
@@ -347,7 +361,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       },
       { label: 'New agent', run: () => setUi({ dialog: 'agent' }) },
       { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
-      { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ barOpen: true }) },
+      { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ railOpen: true }) },
       { label: 'Settings', hint: '⌘ ,', run: () => setUi({ dialog: 'settings' }) },
       { label: 'Shortcuts', hint: '⌘ /', run: () => setUi({ dialog: 'shortcuts' }) },
     ],
@@ -365,6 +379,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       notify,
       run,
       open,
+      jump,
       closePane,
       pick: (p) => setPicker(p.title === 'Find' && !p.actions ? finder() : p),
       menu: (event, items) => {
@@ -379,7 +394,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       ask,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s, ui, space, columns, notify, run, open, closePane, ask, bring],
+    [s, ui, space, columns, notify, run, open, jump, closePane, ask, bring],
   );
 
   const visible = columns === 1 ? [shownPanes[active]] : shownPanes;
@@ -423,7 +438,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     }
     return { title: 'Graph', icon: <Share2 size={13} /> };
   };
-  const chatOnly = visible.every((t) => t.type === 'chat');
   return (
     <WorkspaceContext.Provider value={value}>
       <div
@@ -527,8 +541,8 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
               );
             })}
           </div>
-          <Bar pill={chatOnly && !ui.barOpen} />
         </main>
+        <Rail docked={railDocks} />
         {picker && <Find picker={picker} close={() => setPicker(null)} />}
         {ui.dialog === 'settings' && <Settings />}
         {ui.dialog === 'shortcuts' && <Shortcuts />}

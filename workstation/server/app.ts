@@ -293,6 +293,7 @@ export function createApp(options: AppOptions) {
               ? { resourceId: input.anchor.resourceId, quote: String(input.anchor.quote ?? '') }
               : null,
           replyTo: str('replyTo') || null,
+          sharedFrom: str('sharedFrom') || null,
           embed:
             input.embed && typeof input.embed.resourceId === 'string'
               ? {
@@ -324,6 +325,10 @@ export function createApp(options: AppOptions) {
       method === 'POST'
     ) {
       store.resolveMessage(me.id, segments[1], input.resolved !== false);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'messages' && segments[1] && !segments[2] && method === 'DELETE') {
+      store.deleteMessage(me.id, segments[1]);
       return send(res, 200, { ok: true });
     }
     if (segments[0] === 'messages' && segments[1] && segments[2] === 'react' && method === 'POST') {

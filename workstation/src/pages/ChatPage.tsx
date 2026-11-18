@@ -1,18 +1,17 @@
 import { Plus, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
-import { KindIcon, ago, chatTitle, excerpt } from '../app/util.tsx';
-import { DRAG, pagesNamed } from '../app/scope.ts';
-import { Actor, Character, agentState } from '../features/agents/Character.tsx';
-import { Feed, agentsIn } from '../features/feed/Feed.tsx';
-import type { Conversation, Id, Resource, User } from '../../shared/types.ts';
+import { KindIcon, ago, chatTitle } from '../app/util.tsx';
+import { DRAG, atWork, pagesNamed } from '../app/scope.ts';
+import { Feed } from '../features/feed/Feed.tsx';
+import type { Conversation, Id, Resource } from '../../shared/types.ts';
 
 /**
- * A conversation as a page. The messages sit beside what they are about: the conversation's
- * resources, the pages people have brought up, and who (people and agents) is in it.
+ * A conversation as a page. The pages it works from are pinned along the top with what is happening
+ * on each, and the pages people have brought up follow them. Your own agent is on the right.
  */
 export function ChatPage({ chat }: { chat: Conversation }) {
-  const { s, setUi, resource, open, pick, run, space, user } = useWorkspace();
+  const { s, resource, open, pick, run, space, user } = useWorkspace();
   const name = chatTitle(chat, s);
   const channel = chat.kind === 'channel';
   const about = chat.kind === 'discussion' ? resource(chat.resourceId) : undefined;
@@ -35,31 +34,97 @@ export function ChatPage({ chat }: { chat: Conversation }) {
     )
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 6);
-  const agents = agentsIn(chat, s.users);
-  const people = (
-    channel || chat.kind === 'discussion'
-      ? s.members.filter((m) => m.spaceId === chat.spaceId).map((m) => user(m.userId))
-      : chat.participantIds.map((id) => user(id))
-  ).filter((u): u is User => !!u && u.kind === 'human');
-  const here = new Set(
-    s.presence.filter((p) => p.online && p.conversationId === chat.id).map((p) => p.userId),
-  );
-  const card = (p: Resource, extra?: React.ReactNode) => (
-    <div key={p.id} className="res">
-      <button onClick={() => open({ type: 'page', id: p.id }, true)} title="Open beside">
-        <KindIcon kind={p.kind} size={14} />
-        <span>
-          <strong className="truncate">{p.title}</strong>
-          <small>{excerpt(p, 80) || 'Empty so far.'}</small>
+  // What is happening on a pinned page right now, in a few words.
+  const status = (p: Resource) => {
+    const working = atWork(s, { resourceId: p.id })[0];
+    if (working) return `${working.name} is working on it`;
+    const there = s.presence.find((x) => x.online && x.resourceId === p.id && x.userId !== s.me.id);
+    if (there) return `${user(there.userId)?.name ?? 'Someone'} is in it now`;
+    const by = user(p.updatedBy);
+    return `${by && by.id !== s.me.id ? `${by.name.replace(/ \(example\)$/, '')} edited` : 'Edited'} ${ago(p.updatedAt)}`;
+  };
+  const pinRow = (channel || about) && (
+    <div
+      className="chat-pins"
+      aria-label={channel ? 'Pages this channel works from' : 'What this is about'}
+      onDragOver={(e) => channel && [...e.dataTransfer.types].includes(DRAG) && e.preventDefault()}
+      onDrop={(e) => {
+        try {
+          const t = JSON.parse(e.dataTransfer.getData(DRAG));
+          if (t.type !== 'page') return;
+          e.preventDefault();
+          pin(t.id, true);
+        } catch {
+          // Not something from the list.
+        }
+      }}
+    >
+      {[...(about ? [about] : []), ...pinned].map((p) => (
+        <span key={p.id} className="chat-pin">
+          <button onClick={() => open({ type: 'page', id: p.id }, true)} title="Open beside">
+            <strong>
+              <KindIcon kind={p.kind} size={13} /> <span className="truncate">{p.title}</span>
+            </strong>
+            <small className="truncate">{status(p)}</small>
+          </button>
+          {channel && (
+            <button
+              className="chat-pin-x"
+              aria-label={`Unpin ${p.title}`}
+              title="Unpin"
+              onClick={() => pin(p.id, false)}
+            >
+              <X size={11} />
+            </button>
+          )}
         </span>
-      </button>
-      {extra}
+      ))}
+      {channel && (
+        <button
+          className="chat-pin add"
+          title="Pin a page this channel works from. You can also drag one here from the list."
+          onClick={() =>
+            pick({
+              title: `Pin a page to #${name}`,
+              filter: (r) =>
+                r.visibility === 'space' &&
+                r.spaceId === space.id &&
+                !chat.pinnedIds.includes(r.id),
+              onPick: (t) => t.type === 'page' && pin(t.id, true),
+            })
+          }
+        >
+          <Plus size={13} /> Pin a page
+        </button>
+      )}
+      {brought.length > 0 && (
+        <span className="chat-brought">
+          <small>Brought up</small>
+          {brought.slice(0, 4).map(({ page }) => (
+            <button
+              key={page.id}
+              onClick={() => open({ type: 'page', id: page.id }, true)}
+              onContextMenu={(e) =>
+                channel && page.visibility === 'space' && (e.preventDefault(), pin(page.id, true))
+              }
+              title={
+                channel && page.visibility === 'space'
+                  ? 'Open beside · right-click to pin'
+                  : 'Open beside'
+              }
+            >
+              <KindIcon kind={page.kind} size={12} /> <span className="truncate">{page.title}</span>
+            </button>
+          ))}
+        </span>
+      )}
     </div>
   );
   return (
     <div className="chat-page">
       <Feed
         conversation={chat}
+        top={pinRow || undefined}
         draftKey={`chat:${chat.id}`}
         placeholder={
           channel
@@ -78,139 +143,6 @@ export function ChatPage({ chat }: { chat: Conversation }) {
               : `Only you and ${name} see this conversation.`
         }
       />
-      <aside className="chat-context" aria-label="What this conversation is about">
-        {about && (
-          <section>
-            <h3>About</h3>
-            {card(about)}
-          </section>
-        )}
-        {channel && (
-          <section
-            onDragOver={(e) => [...e.dataTransfer.types].includes(DRAG) && e.preventDefault()}
-            onDrop={(e) => {
-              try {
-                const t = JSON.parse(e.dataTransfer.getData(DRAG));
-                if (t.type !== 'page') return;
-                e.preventDefault();
-                pin(t.id, true);
-              } catch {
-                // Not something from the list.
-              }
-            }}
-          >
-            <h3>
-              Resources
-              <button
-                aria-label="Add a resource"
-                title="Add a page as a resource of this channel"
-                onClick={() =>
-                  pick({
-                    title: `Add a resource to #${name}`,
-                    filter: (r) =>
-                      r.visibility === 'space' &&
-                      r.spaceId === space.id &&
-                      !chat.pinnedIds.includes(r.id),
-                    onPick: (t) => t.type === 'page' && pin(t.id, true),
-                  })
-                }
-              >
-                <Plus size={13} />
-              </button>
-            </h3>
-            {pinned.length === 0 && (
-              <p className="hint">
-                The pages this channel works from. Add one, or drag it here from the list.
-              </p>
-            )}
-            {pinned.map((p) =>
-              card(
-                p,
-                <button
-                  className="res-x"
-                  aria-label={`Remove ${p.title} from resources`}
-                  onClick={() => pin(p.id, false)}
-                >
-                  <X size={12} />
-                </button>,
-              ),
-            )}
-          </section>
-        )}
-        {brought.length > 0 && (
-          <section>
-            <h3>Brought up here</h3>
-            {brought.map(({ page, at }) =>
-              card(
-                page,
-                channel && page.visibility === 'space' ? (
-                  <button
-                    className="res-x"
-                    title="Keep as a resource"
-                    aria-label={`Keep ${page.title} as a resource`}
-                    onClick={() => pin(page.id, true)}
-                  >
-                    <Plus size={12} />
-                  </button>
-                ) : (
-                  <time>{ago(at)}</time>
-                ),
-              ),
-            )}
-          </section>
-        )}
-        {agents.length > 0 && (
-          <section>
-            <h3>Agents here</h3>
-            {agents.map((a) => {
-              const state = s.activity.some((x) => x.agentId === a.id && x.status === 'working')
-                ? 'working'
-                : agentState(a.id, s.jobs);
-              return (
-                <div key={a.id} className="res who-row">
-                  <button onClick={() => open({ type: 'who', id: a.id }, true)}>
-                    <Character agent={a} size={28} state={state} />
-                    <span>
-                      <strong>{a.name}</strong>
-                      <small>
-                        {state === 'working' ? 'Working now' : a.purpose || 'Shared with the space'}
-                      </small>
-                    </span>
-                  </button>
-                  {chat.kind !== 'agent-private' && (
-                    <button
-                      className="res-x wide"
-                      onClick={() =>
-                        setUi((old) => ({
-                          drafts: { ...old.drafts, [`chat:${chat.id}`]: `@${a.name} ` },
-                        }))
-                      }
-                    >
-                      Ask
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </section>
-        )}
-        {chat.kind !== 'agent-private' && (
-          <section>
-            <h3>People</h3>
-            <p className="people">
-              {people.map((p) => (
-                <span
-                  key={p.id}
-                  className={here.has(p.id) ? 'here' : ''}
-                  title={`${p.name}${here.has(p.id) ? ' is here now' : ''}`}
-                >
-                  <Actor user={p} jobs={s.jobs} size={22} /> {p.id === s.me.id ? 'You' : p.name}
-                </span>
-              ))}
-            </p>
-          </section>
-        )}
-      </aside>
     </div>
   );
 }

@@ -107,6 +107,7 @@ export function openDb(path: string): Db {
     'alter table messages add column embed text',
     'alter table messages add column sources text',
     'alter table messages add column context text',
+    'alter table messages add column shared_from text',
   ])
     try {
       db.exec(change);

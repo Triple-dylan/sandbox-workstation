@@ -701,7 +701,7 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             : tool !== 'select'
               ? 'Click on the canvas to place it.'
               : selection.length
-                ? `${selection.length} selected. Ask your agent about ${selection.length === 1 ? 'it' : 'them'} in the bar.`
+                ? `${selection.length} selected. Ask your agent about ${selection.length === 1 ? 'it' : 'them'} on the right.`
                 : ''}
       </p>
       <div className="canvas-zoom">
@@ -1098,7 +1098,7 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
             { label: 'Comment', run: () => setCommenting(p.id) },
             {
               label: 'Ask your agent about this',
-              run: () => setUi({ selection: [p.id], barOpen: true }),
+              run: () => setUi({ selection: [p.id], railOpen: true }),
             },
             ...(textKinds.includes(p.kind)
               ? [{ label: 'Edit text', run: () => setEditing(p.id) }]

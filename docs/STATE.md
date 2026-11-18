@@ -1,6 +1,6 @@
 # Current state
 
-_Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
+_Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 ## Open it
 
@@ -14,11 +14,11 @@ _Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
 
 **Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). The line between the two is a handle: drag to resize, double-click to even out, and a control on it swaps sides. In a narrow window the two become tabs named after the pages, each with its own close, and the list becomes a drawer.
 
-**Bottom: your own agent's bar.** Private to you, on every screen. A label says what it will look at ("This page", "2 selected", "Both pages", "Whole space"), worked out from what is on screen. Answers open above the bar with the pages they came from. It can hand work to one of the space's agents, which then answers in the same private conversation. Any answer can be saved as a private page or put into the reply box of the conversation on screen for you to send. On a conversation page it shrinks to "Ask your agent".
+**Right: your own agent's rail.** Private to you, on every screen; » or ⌘J folds it to a slim strip with a dot when an answer is waiting. It says what it is reading ("This page", "2 selected", "This channel", your selection), offers a few one-click asks for what is on screen, shows what it is working on, and @ brings in one of the space's agents to answer you privately. Answers point at the text they are about (click to see it on the page) and can be shared, turned into a suggested edit, put on the board, used as your reply or saved as a private page. Sharing offers the best places first, lights the place you hover, says whose agent it came from, keeps only sources everyone there can open, and can be undone for ten minutes. On narrow windows the rail lies over the page and starts folded.
 
 ## Pages
 
-- **Document.** Edited in place, saved as you type, stored as Markdown, with history. Select text to Comment, Ask an agent, or Highlight. Comments sit in the margin level with their text, take replies and are resolved. Asking a space agent gets a suggested edit with Accept and Decline; asking your own agent answers privately in the bar.
+- **Document.** Edited in place, saved as you type, stored as Markdown, with history. Full width. Select text to Comment, Ask an agent (your rail, about that text), or Highlight. A comment is a small mark with faces beside its line that opens on click; it takes replies, is resolved, and can ask a space agent to answer where everyone sees it, which gets a suggested edit with Accept and Decline. The page's conversation is at its end; the header shows when people are talking.
 - **Sheet.** Rows and columns with `=SUM(B2:B5)`, `AVERAGE`, `MIN`, `MAX`, `COUNT` and arithmetic. Each cell saves on its own, so two people can edit at once. Select rows to share them live in a conversation.
 - **Deck.** Slides with a title and text, reorder, and a full-screen Present.
 - **Canvas.** Text, sticky notes, shapes, sections, arrows, pictures, the plan, and any page placed as a live card. Drag, resize, marquee-select, comment on a piece. Everyone on the canvas sees the same arrangement and each other's pointers. What you select is what your agent is asked about; a page an agent drafts for the canvas appears on it with Keep and Discard.
@@ -27,7 +27,7 @@ _Updated 2026-11-12._ What is being built and why is in `docs/PLAN.md`.
 
 ## Conversations
 
-Channels, direct messages and conversations with an agent are pages too. Threads sit under messages; reactions; pinned pages along the top of a channel; a page or rows of a sheet inside a message stay live. Addressing an agent is always deliberate (the @ button or `@Name`).
+Channels, direct messages and conversations with an agent are pages too. Every shared space has a main chat, #general, pinned first in the list. Threads sit under messages; reactions; a "New since you were here" line; pinned pages along the top of a channel with what is happening on each, then the pages people have brought up; a page or rows of a sheet inside a message stay live, and the rows open the sheet beside at those rows, lit. A shared answer says whose agent it came from. Addressing an agent is always deliberate (the @ button or `@Name`).
 
 ## Graph
 

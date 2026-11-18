@@ -117,6 +117,7 @@ const toMessage = (r: Row): Message => ({
   resolved: !!r.resolved,
   embed: parse<Message['embed']>(r.embed),
   sourceIds: parse<Id[]>(r.sources) ?? [],
+  sharedFrom: parse<Message['sharedFrom']>(r.shared_from),
   reactions: [],
   createdAt: r.created_at,
 });
@@ -1237,6 +1238,32 @@ export class Store {
       )
         throw new InputError('Share this item before discussing it with others.');
     }
+    // Sharing an answer from your private conversation: it must be yours, and it keeps only the
+    // sources everyone at the destination could already open.
+    let shared: { agentId: Id; ownerId: Id } | null = null;
+    let sharedSources: Id[] = [];
+    if (request.sharedFrom) {
+      if (actor.kind !== 'human') throw new InputError('Only people share answers.');
+      const original = this.get('select * from messages where id = ?', request.sharedFrom);
+      const from = original && this.conversation(original.conversation_id);
+      if (
+        !original ||
+        !from ||
+        from.kind !== 'agent-private' ||
+        !from.participantIds.includes(actorId) ||
+        this.user(original.author_id)?.kind !== 'agent'
+      )
+        throw new AccessError('Not available.');
+      shared = { agentId: original.author_id, ownerId: actorId };
+      sharedSources = (parse<Id[]>(original.sources) ?? []).filter((sourceId) => {
+        const source = this.resource(sourceId);
+        return (
+          !!source &&
+          this.canReadResource(actorId, source) &&
+          (conversation.kind === 'agent-private' || source.visibility !== 'private')
+        );
+      });
+    }
     if (request.replyTo) {
       const parent = this.get('select conversation_id from messages where id = ?', request.replyTo);
       if (!parent || parent.conversation_id !== conversation.id)
@@ -1244,7 +1271,7 @@ export class Store {
     }
     const messageId = id();
     this.run(
-      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context, shared_from) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       messageId,
       conversation.id,
       actorId,
@@ -1262,7 +1289,7 @@ export class Store {
       now(),
       delegated ? 1 : 0,
       json(request.embed ?? null),
-      json(extra.sourceIds?.length ? extra.sourceIds : null),
+      json(extra.sourceIds?.length ? extra.sourceIds : sharedSources.length ? sharedSources : null),
       json(
         request.context
           ? {
@@ -1273,11 +1300,22 @@ export class Store {
             }
           : null,
       ),
+      json(shared),
     );
     const message = toMessage(this.get('select * from messages where id = ?', messageId)!);
     if (actor.kind === 'human') this.markRead(actorId, conversation.id);
     this.changed({ type: 'message', message });
     return message;
+  }
+  /** Takes back something you said: only its author can, and only for a few minutes. */
+  deleteMessage(actorId: Id, messageId: Id) {
+    const row = this.get('select * from messages where id = ?', messageId);
+    if (!row || row.author_id !== actorId) throw new AccessError('Not available.');
+    if (Date.now() - Date.parse(row.created_at) > 10 * 60_000)
+      throw new InputError('It has been up too long to take back. Reply instead.');
+    this.run('delete from reactions where message_id = ?', messageId);
+    this.run('delete from messages where id = ? or reply_to = ?', messageId, messageId);
+    this.changed();
   }
   messages(conversationId: Id, limit = 300) {
     return this.all(

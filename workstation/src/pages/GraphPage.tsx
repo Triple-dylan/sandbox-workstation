@@ -20,7 +20,7 @@ const same = (a: GraphFilter, b: GraphFilter) =>
 
 /**
  * The graph is your own view of everything you can see in a space, private and shared. You narrow
- * it with filters and saved views, and ask your agent about it from the bar; answers light up the
+ * it with filters and saved views, and ask your agent about it from the rail; answers light up the
  * pages they came from instead of sending you somewhere else.
  */
 export function GraphPage() {
@@ -38,7 +38,7 @@ export function GraphPage() {
   const answer = myChat
     ? s.messages.filter((m) => m.conversationId === myChat.id && m.authorId !== s.me.id).at(-1)
     : undefined;
-  const lit = ui.barOpen && answer ? answer.sourceIds : [];
+  const lit = ui.railOpen && answer ? answer.sourceIds : [];
   const filtering = !same(filter, noFilter);
   const toggle = (patch: Partial<GraphFilter>) => {
     setSinceVisit(false);
@@ -225,7 +225,7 @@ export function GraphPage() {
               </button>
             )}
           </div>
-          <small className="hint">Selected. Ask your agent about it in the bar below.</small>
+          <small className="hint">Selected. Ask your agent about it on the right.</small>
         </aside>
       )}
       {lit.length > 0 && (

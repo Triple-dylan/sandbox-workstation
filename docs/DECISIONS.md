@@ -2,6 +2,16 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-18
+
+- **Your agent lives on the right.** A rail, always reachable, private to you; » or ⌘J folds it to a slim strip with a dot when an answer is waiting, and ⌘J from anywhere puts you in its box. It replaces the floating bottom bar, so there is one place to talk to your agent. It offers the few things worth doing with what is on screen (by page kind, selection or channel), shows what it is working on, and its answers point at the text they are about. On narrow windows it lies over the page and starts folded. *Supersedes* "the person's own agent as a floating bar" (2026-11-12). The 2026-11-12 "no permanent chat rail on the right" still holds for team talk: the rail is only ever your own agent.
+- **Team talk stays in the middle, with what it is about.** Checked against the approved six screens after a drift (a rail with direct messages, a docked conversation box, margin threads plus a strip). A document is full width; a comment is a small mark with faces beside its line that opens on click; the page's own conversation is at the end of the page and scrolls with it, and the header says when people are talking. Canvases keep comments as pins. A channel is a page whose content is the conversation, with its pinned pages along the top showing what is happening on each, and a "New since you were here" line. The channel's side column (resources, agents, people) is gone: resources became the pinned row, people and agents are in the Team row.
+- **Every shared space has a main chat:** #general, pinned first in the list above Pages, marked "Main chat".
+- **Selecting text and choosing Ask an agent** points your rail at it. A comment can still ask a space agent to answer where everyone sees it.
+- **Sharing from your agent, quietly.** Highlight part of an answer (or use Share under it): a short list opens, best place first with why (the line it is about, the main chat, the conversation or page on screen, a teammate), keys 1–4 and Enter. Hovering a place lights only that place, faintly. Shared, the message says whose agent it came from and keeps only sources everyone there can open; the answer remembers where it went, with Undo for ten minutes. *Rejected:* dimming the screen and labelling every destination ("eh more sublte").
+- **Things shared in chat lead back to their source.** Rows of a sheet open the sheet beside the chat at those rows, lit; a quoted line opens its document at that line, lit.
+- **pstack skills** (the Claude Code port of Poteto's pstack) are kept in the repository's `.claude/` so every session on it has them.
+
 ## 2026-11-14
 
 - **Agents are tagged in the feed, not picked from a menu.** Dylan approved the mockup. Typing "@" suggests the agents in the conversation; "@Scout" anywhere, or "Scout, …" at the start, addresses it; tags show highlighted in messages. The bar always talks to your own agent; "@Scout" in it brings Scout in privately. The private panel idea (mockups 2 and 3) was not right and is being reworked, with different behaviour on canvases than on documents and sheets.

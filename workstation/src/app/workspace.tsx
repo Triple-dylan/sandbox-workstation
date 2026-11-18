@@ -8,6 +8,16 @@ export type Target =
 export const sameTarget = (a: Target, b: Target) =>
   a.type === b.type && ('id' in a ? a.id : '') === ('id' in b ? b.id : '');
 
+/** A place inside a page. */
+export type Spot = {
+  resourceId: Id;
+  quote?: string;
+  rows?: [number, number];
+  pieceId?: Id;
+  note?: string;
+  at?: number;
+};
+
 /** View state only. Records live on the server; nothing here grants or implies access. */
 export type Ui = {
   spaceId: Id | null;
@@ -15,8 +25,14 @@ export type Ui = {
   panes: Target[];
   active: number;
   theme: 'system' | 'light' | 'dark';
-  /** The answer panel above the agent bar. */
-  barOpen: boolean;
+  /** Your agent's rail on the right. Closed, it is a slim strip one click (or ⌘J) away. */
+  railOpen: boolean;
+  /** Text you picked on a page to ask your agent about. */
+  asking: { resourceId: Id; quote: string } | null;
+  /** A spot to bring into view and light briefly: a quoted line, rows of a sheet, a piece of a board. */
+  focus: Spot | null;
+  /** Where something is about to be shared, lit faintly while you choose. */
+  preview: Spot | { conversationId: Id } | null;
   /** Things selected on a canvas or in the graph; they become what the agent is asked about. */
   selection: Id[];
   /** Unsent text in feeds, by conversation or page. */
@@ -25,9 +41,9 @@ export type Ui = {
   nav: boolean;
   creating: boolean;
   graphScope: 'space' | 'everything';
-  /** What the bar's agent looks at: what is on screen, the whole space, or nothing but your words. */
+  /** What your agent reads: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';
-  /** Pages added to what it looks at by dropping them on the bar. */
+  /** Pages added to what it looks at by dropping them on your agent's rail. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
   dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'invite';
@@ -51,7 +67,10 @@ export const initialUi: Ui = {
   panes: [],
   active: 0,
   theme: 'system',
-  barOpen: false,
+  railOpen: typeof window !== 'undefined' && window.innerWidth >= 1180,
+  asking: null,
+  focus: null,
+  preview: null,
   selection: [],
   drafts: {},
   nav: false,
@@ -97,6 +116,8 @@ export type Workspace = {
   run: <T>(work: () => Promise<T>) => Promise<T | undefined>;
   /** Opens something in the active pane, or beside it. */
   open: (target: Target, beside?: boolean) => void;
+  /** Opens a page beside and brings one spot in it into view, lit for a moment. */
+  jump: (spot: Spot, note?: string) => void;
   closePane: (index: number) => void;
   pick: (picker: Picker) => void;
   /** A menu at the pointer: the quick things to do with whatever was right-clicked. */

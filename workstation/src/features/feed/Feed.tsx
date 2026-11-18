@@ -1,5 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, CornerDownRight, Paperclip, SmilePlus, X } from 'lucide-react';
+import {
+  ArrowUp,
+  ArrowUpRight,
+  Check,
+  CornerDownRight,
+  Paperclip,
+  SmilePlus,
+  X,
+} from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { KindIcon, Md, ago, clock, excerpt, sheetRows } from '../../app/util.tsx';
@@ -80,7 +88,7 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
 
 /** A piece of a page shown inside a message. It is the page itself, not a copy. */
 export function LivePiece({ embed }: { embed: NonNullable<Message['embed']> }) {
-  const { resource, open, run } = useWorkspace();
+  const { resource, jump, run } = useWorkspace();
   const page = resource(embed.resourceId);
   if (!page) return <div className="live gone">This page is no longer available to you.</div>;
   const rows = page.kind === 'sheet' ? sheetRows(page.body) : [];
@@ -90,10 +98,28 @@ export function LivePiece({ embed }: { embed: NonNullable<Message['embed']> }) {
     <div className="live">
       <header>
         <KindIcon kind={page.kind} />
-        <button className="link" onClick={() => open({ type: 'page', id: page.id }, true)}>
+        <button
+          className="link"
+          onClick={() =>
+            jump(
+              page.kind === 'sheet'
+                ? { resourceId: page.id, rows: [from, to] }
+                : { resourceId: page.id },
+            )
+          }
+        >
           {page.title}
         </button>
         <small>live · also changes the page</small>
+        {page.kind === 'sheet' && (
+          <button
+            className="live-open"
+            title="Open the sheet beside, at these rows"
+            onClick={() => jump({ resourceId: page.id, rows: [from, to] })}
+          >
+            <ArrowUpRight size={12} /> Rows {from + 1}–{to + 1}
+          </button>
+        )}
       </header>
       {page.kind === 'sheet' ? (
         <table>
@@ -165,7 +191,7 @@ export function MessageView({
   /** Leave out reactions and reply, for compact threads. */
   quiet?: boolean;
 }) {
-  const { s, user, run, resource, open } = useWorkspace();
+  const { s, user, run, resource, jump } = useWorkspace();
   const [reacting, setReacting] = useState(false);
   const author = user(m.authorId);
   const to = user(m.addressedTo);
@@ -186,12 +212,25 @@ export function MessageView({
           {m.delegated && <span className="to">ongoing</span>}
           <time title={new Date(m.createdAt).toLocaleString()}>{clock(m.createdAt)}</time>
           {m.runtime === 'scripted' && <span className="tag">scripted stand-in</span>}
+          {m.sharedFrom && (
+            <span
+              className="msg-shared"
+              title="Shared from a private conversation with their agent"
+            >
+              <Character agent={user(m.sharedFrom.agentId)!} size={14} /> from{' '}
+              {m.sharedFrom.ownerId === s.me.id ? 'your' : `${user(m.sharedFrom.ownerId)?.name}’s`}{' '}
+              agent
+            </span>
+          )}
         </p>
         {m.anchor && (
           <button
             className="quote"
             disabled={!anchored}
-            onClick={() => anchored && open({ type: 'page', id: anchored.id }, true)}
+            title={anchored ? `Show it on ${anchored.title}` : undefined}
+            onClick={() =>
+              anchored && jump({ resourceId: anchored.id, quote: m.anchor!.quote || undefined })
+            }
           >
             {m.anchor.quote ? `“${m.anchor.quote.slice(0, 140)}”` : anchored?.title}
           </button>
@@ -444,6 +483,7 @@ export function Feed({
   empty,
   latest,
   onEarlier,
+  top,
 }: {
   conversation: Conversation | undefined;
   ensure?: () => Promise<Conversation | undefined>;
@@ -455,8 +495,12 @@ export function Feed({
   latest?: number;
   /** What "earlier" does when only the last few are shown. */
   onEarlier?: () => void;
+  /** Shown above the messages and scrolling with them: a channel's pinned pages. */
+  top?: React.ReactNode;
 }) {
   const { s, run } = useWorkspace();
+  // Where you left off, as it was when you arrived; reading the feed moves the real marker on.
+  const [since] = useState(() => (conversation ? s.lastRead[conversation.id] : undefined));
   const [replying, setReplying] = useState<Id | null>(null);
   const [expanded, setExpanded] = useState<Record<Id, boolean>>({});
   const [all, setAll] = useState(false);
@@ -479,6 +523,7 @@ export function Feed({
   return (
     <div className="feed">
       <div className="feed-list">
+        {top}
         {roots.length === 0 && <p className="feed-empty">{empty ?? 'Nothing here yet.'}</p>}
         {shown.length < roots.length && (
           <button className="link earlier" onClick={() => (onEarlier ? onEarlier() : setAll(true))}>
@@ -492,8 +537,21 @@ export function Feed({
           const stamp = new Date(m.createdAt).toDateString();
           const newDay = stamp !== day;
           day = stamp;
+          const firstNew =
+            !!since &&
+            !latest &&
+            m.createdAt > since &&
+            m.authorId !== s.me.id &&
+            !shown.some(
+              (x) => x.createdAt > since && x.authorId !== s.me.id && x.createdAt < m.createdAt,
+            );
           return (
             <div key={m.id} className="thread">
+              {firstNew && (
+                <p className="since" role="separator">
+                  <span>New since you were here</span>
+                </p>
+              )}
               {newDay && !latest && (
                 <p className="day">
                   <span>
