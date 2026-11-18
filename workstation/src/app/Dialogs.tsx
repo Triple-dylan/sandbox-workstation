@@ -35,7 +35,7 @@ function Dialog({
 
 export const shortcuts: [string, string][] = [
   ['⌘ K', 'Find a page, or do something'],
-  ['⌘ J', 'Ask your agent'],
+  ['⌘ J', 'Your agent: go to its box; again to fold it away'],
   ['⌘ \\', 'Show or hide the list'],
   ['⌘ ,', 'Settings'],
   ['⌘ /', 'This list of shortcuts'],

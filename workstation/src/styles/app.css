@@ -5540,3 +5540,23 @@ button.chat-pin.add:hover {
 .talk-faces > * + * {
   margin-left: -5px;
 }
+.rail-stop {
+  margin-left: auto;
+  font-size: 12px;
+}
+.rail-stopped {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.decided {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: max-content;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f7a45;
+  background: color-mix(in oklab, #2f9e5a 14%, transparent);
+  border-radius: 999px;
+  padding: 1px 9px;
+}

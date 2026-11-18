@@ -10,6 +10,8 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **Selecting text and choosing Ask an agent** points your rail at it. A comment can still ask a space agent to answer where everyone sees it.
 - **Sharing from your agent, quietly.** Highlight part of an answer (or use Share under it): a short list opens, best place first with why (the line it is about, the main chat, the conversation or page on screen, a teammate), keys 1–4 and Enter. Hovering a place lights only that place, faintly. Shared, the message says whose agent it came from and keeps only sources everyone there can open; the answer remembers where it went, with Undo for ten minutes. *Rejected:* dimming the screen and labelling every destination ("eh more sublte").
 - **Things shared in chat lead back to their source.** Rows of a sheet open the sheet beside the chat at those rows, lit; a quoted line opens its document at that line, lit.
+- **Stop and Decided.** Work your agent is doing can be stopped from the rail; nothing is said or changed afterwards (the model call itself is not cut short). In a channel anyone can mark a message Decided; agents receive it as settled, and a cached answer no longer applies once something new is decided.
+- **Quotes from a board piece** open the board centred on that piece, selected.
 - **pstack skills** (the Claude Code port of Poteto's pstack) are kept in the repository's `.claude/` so every session on it has them.
 
 ## 2026-11-14

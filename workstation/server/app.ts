@@ -517,6 +517,10 @@ export function createApp(options: AppOptions) {
           input.decision === 'approved' ? 'approved' : 'declined',
         ),
       );
+    if (segments[0] === 'jobs' && segments[1] && segments[2] === 'stop' && method === 'POST') {
+      store.stopJob(me.id, segments[1]);
+      return send(res, 200, { ok: true });
+    }
     if (segments[0] === 'assignments' && segments[2] === 'stop' && method === 'POST') {
       store.stopAssignment(me.id, segments[1]);
       return send(res, 200, { ok: true });

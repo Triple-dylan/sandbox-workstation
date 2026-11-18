@@ -14,7 +14,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 **Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). The line between the two is a handle: drag to resize, double-click to even out, and a control on it swaps sides. In a narrow window the two become tabs named after the pages, each with its own close, and the list becomes a drawer.
 
-**Right: your own agent's rail.** Private to you, on every screen; » or ⌘J folds it to a slim strip with a dot when an answer is waiting. It says what it is reading ("This page", "2 selected", "This channel", your selection), offers a few one-click asks for what is on screen, shows what it is working on, and @ brings in one of the space's agents to answer you privately. Answers point at the text they are about (click to see it on the page) and can be shared, turned into a suggested edit, put on the board, used as your reply or saved as a private page. Sharing offers the best places first, lights the place you hover, says whose agent it came from, keeps only sources everyone there can open, and can be undone for ten minutes. On narrow windows the rail lies over the page and starts folded.
+**Right: your own agent's rail.** Private to you, on every screen; » or ⌘J folds it to a slim strip with a dot when an answer is waiting. It says what it is reading ("This page", "2 selected", "This channel", your selection), offers a few one-click asks for what is on screen, shows what it is working on with a Stop, and @ brings in one of the space's agents to answer you privately. Answers point at the text they are about (click to see it on the page) and can be shared, turned into a suggested edit, put on the board, used as your reply or saved as a private page. Sharing offers the best places first, lights the place you hover, says whose agent it came from, keeps only sources everyone there can open, and can be undone for ten minutes. On narrow windows the rail lies over the page and starts folded.
 
 ## Pages
 
@@ -27,7 +27,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 ## Conversations
 
-Channels, direct messages and conversations with an agent are pages too. Every shared space has a main chat, #general, pinned first in the list. Threads sit under messages; reactions; a "New since you were here" line; pinned pages along the top of a channel with what is happening on each, then the pages people have brought up; a page or rows of a sheet inside a message stay live, and the rows open the sheet beside at those rows, lit. A shared answer says whose agent it came from. Addressing an agent is always deliberate (the @ button or `@Name`).
+Channels, direct messages and conversations with an agent are pages too. Every shared space has a main chat, #general, pinned first in the list. Threads sit under messages; reactions; a "New since you were here" line; any message can be marked Decided, which agents treat as settled; pinned pages along the top of a channel with what is happening on each, then the pages people have brought up; a page or rows of a sheet inside a message stay live, and the rows open the sheet beside at those rows, lit. A shared answer says whose agent it came from. Addressing an agent is always deliberate (the @ button or `@Name`).
 
 ## Graph
 

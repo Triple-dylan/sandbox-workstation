@@ -1422,6 +1422,18 @@ export class Store {
     );
     this.changed();
   }
+  /** Stops work in hand: whoever asked can, and anyone in the space for its shared work. */
+  stopJob(actorId: Id, jobId: Id) {
+    const job = this.job(jobId);
+    if (!job || (job.status !== 'running' && job.status !== 'queued'))
+      throw new InputError('That has already finished.');
+    const conversation = job.conversationId ? this.conversation(job.conversationId) : null;
+    const allowed = conversation
+      ? this.canReadConversation(actorId, conversation)
+      : this.isMember(actorId, job.spaceId);
+    if (!allowed || this.user(actorId)?.kind !== 'human') throw new AccessError('Not available.');
+    this.setJob(jobId, 'failed', { error: `Stopped by ${this.user(actorId)!.name}` });
+  }
   createAssignment(input: {
     agentId: Id;
     spaceId: Id;

@@ -28,6 +28,94 @@ import type { Id, Message, Resource } from '../../shared/types.ts';
 
 type Ask = { label: string; ask: string };
 
+/** The few things worth doing with what is on screen, one click each. */
+const ASKS: Record<
+  'selection' | 'pieces' | 'doc' | 'sheet' | 'deck' | 'canvas' | 'chat' | 'space',
+  Ask[]
+> = {
+  selection: [
+    { label: 'Rewrite it', ask: 'Rewrite this so it is clearer. Keep the meaning.' },
+    { label: 'Make it shorter', ask: 'Make this shorter without losing anything that matters.' },
+    {
+      label: 'Check it',
+      ask: 'Is this right? Check it against our pages and say what supports or contradicts it.',
+    },
+    { label: 'Find support for it', ask: 'Find what in our pages supports this, and quote it.' },
+  ],
+  pieces: [
+    {
+      label: 'What if this slips?',
+      ask: 'What happens to the rest of the plan if what I selected slips by a week? Name what moves.',
+    },
+    { label: 'Summarise', ask: 'Summarise what I have selected in a few lines.' },
+    {
+      label: 'Find related',
+      ask: 'What else in this space relates to what I have selected? Name the pages.',
+    },
+    {
+      label: 'Turn it into a page',
+      ask: 'Create a document that pulls together what I have selected.',
+    },
+  ],
+  doc: [
+    {
+      label: 'Check the claims',
+      ask: 'Which claims on this page are not backed up by our other pages? Quote each line.',
+    },
+    {
+      label: 'What changed lately',
+      ask: 'What changed on this page recently, and who changed it?',
+    },
+    {
+      label: 'What is unclear or missing',
+      ask: 'What is unclear, unsupported or missing on this page? Be specific.',
+    },
+    { label: 'Summarise', ask: 'Summarise this page in five lines or fewer.' },
+  ],
+  sheet: [
+    { label: 'What stands out', ask: 'What stands out in this sheet? Name the rows.' },
+    {
+      label: 'Check the maths',
+      ask: 'Check the numbers and formulas in this sheet. Name any row that looks wrong.',
+    },
+  ],
+  deck: [
+    {
+      label: 'Tighten the slides',
+      ask: 'Which slides are too long or unclear? Suggest shorter wording for each.',
+    },
+    { label: 'Speaker notes', ask: 'Draft short speaker notes for each slide.' },
+  ],
+  canvas: [
+    {
+      label: 'What is this board saying',
+      ask: 'Explain what this canvas lays out and what is still undecided.',
+    },
+    {
+      label: 'What is at risk',
+      ask: 'What on this board is at risk of slipping, and what depends on it?',
+    },
+  ],
+  chat: [
+    {
+      label: 'Catch me up',
+      ask: 'Catch me up on this conversation since I was last here: what was decided and what is open.',
+    },
+    {
+      label: 'What was decided',
+      ask: 'List what has been decided in this conversation, with who decided it.',
+    },
+    { label: 'What needs me', ask: 'What in this conversation is waiting on me?' },
+    { label: 'Draft my reply', ask: 'Draft a short reply from me to the latest message here.' },
+  ],
+  space: [
+    {
+      label: 'What changed lately',
+      ask: 'What changed in this space recently, and what needs me? Name the pages.',
+    },
+  ],
+};
+
 /**
  * Your own agent, always on the right and private to you. Closed, it is a slim strip one click or ⌘J
  * away. It reads what is on screen, offers the few things worth doing with it, shows what it is
@@ -176,104 +264,18 @@ export function Rail({ docked }: { docked: boolean }) {
         ? `Looking at ${ui.selection.length} selected`
         : `Reading ${scope.label.toLowerCase()}`;
 
-  // The few things worth doing with what is on screen, one click each.
-  const suggestions: Ask[] = asking
-    ? [
-        { label: 'Rewrite it', ask: 'Rewrite this so it is clearer. Keep the meaning.' },
-        {
-          label: 'Make it shorter',
-          ask: 'Make this shorter without losing anything that matters.',
-        },
-        {
-          label: 'Check it',
-          ask: 'Is this right? Check it against our pages and say what supports or contradicts it.',
-        },
-        {
-          label: 'Find support for it',
-          ask: 'Find what in our pages supports this, and quote it.',
-        },
-      ]
-    : ui.selection.length && page?.kind === 'canvas'
-      ? [
-          {
-            label: 'What if this slips?',
-            ask: 'What happens to the rest of the plan if what I selected slips by a week? Name what moves.',
-          },
-          { label: 'Summarise', ask: 'Summarise what I have selected in a few lines.' },
-          {
-            label: 'Find related',
-            ask: 'What else in this space relates to what I have selected? Name the pages.',
-          },
-          {
-            label: 'Turn it into a page',
-            ask: 'Create a document that pulls together what I have selected.',
-          },
-        ]
-      : page?.kind === 'doc'
-        ? [
-            {
-              label: 'Check the claims',
-              ask: 'Which claims on this page are not backed up by our other pages? Quote each line.',
-            },
-            {
-              label: 'What changed lately',
-              ask: 'What changed on this page recently, and who changed it?',
-            },
-            {
-              label: 'What is unclear or missing',
-              ask: 'What is unclear, unsupported or missing on this page? Be specific.',
-            },
-            { label: 'Summarise', ask: 'Summarise this page in five lines or fewer.' },
-          ]
-        : page?.kind === 'sheet'
-          ? [
-              { label: 'What stands out', ask: 'What stands out in this sheet? Name the rows.' },
-              {
-                label: 'Check the maths',
-                ask: 'Check the numbers and formulas in this sheet. Name any row that looks wrong.',
-              },
-            ]
-          : page?.kind === 'deck'
-            ? [
-                {
-                  label: 'Tighten the slides',
-                  ask: 'Which slides are too long or unclear? Suggest shorter wording for each.',
-                },
-                { label: 'Speaker notes', ask: 'Draft short speaker notes for each slide.' },
-              ]
-            : page?.kind === 'canvas'
-              ? [
-                  {
-                    label: 'What is this board saying',
-                    ask: 'Explain what this canvas lays out and what is still undecided.',
-                  },
-                  {
-                    label: 'What is at risk',
-                    ask: 'What on this board is at risk of slipping, and what depends on it?',
-                  },
-                ]
-              : chat
-                ? [
-                    {
-                      label: 'Catch me up',
-                      ask: 'Catch me up on this conversation since I was last here: what was decided and what is open.',
-                    },
-                    {
-                      label: 'What was decided',
-                      ask: 'List what has been decided in this conversation, with who decided it.',
-                    },
-                    { label: 'What needs me', ask: 'What in this conversation is waiting on me?' },
-                    {
-                      label: 'Draft my reply',
-                      ask: 'Draft a short reply from me to the latest message here.',
-                    },
-                  ]
-                : [
-                    {
-                      label: 'What changed lately',
-                      ask: 'What changed in this space recently, and what needs me? Name the pages.',
-                    },
-                  ];
+  const suggestions =
+    ASKS[
+      asking
+        ? 'selection'
+        : ui.selection.length && page?.kind === 'canvas'
+          ? 'pieces'
+          : chat
+            ? 'chat'
+            : page && page.kind in ASKS
+              ? (page.kind as keyof typeof ASKS)
+              : 'space'
+    ];
   const skills = s.skills.filter((k) => (myAgent.skillIds ?? []).includes(k.id));
 
   const put = async (words: string) => {
@@ -377,6 +379,15 @@ export function Rail({ docked }: { docked: boolean }) {
   };
 
   const lastAsk = thread.map((m) => m.authorId).lastIndexOf(s.me.id);
+  // The last thing asked was stopped before an answer came.
+  const lastJob = s.jobs
+    .filter((j) => j.conversationId === myChat.id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .at(-1);
+  const stopped =
+    lastJob?.status === 'failed' &&
+    lastJob.error?.startsWith('Stopped') &&
+    thread.at(-1)?.authorId === s.me.id;
   const latest = thread.slice(Math.max(0, lastAsk - 1)).slice(-6);
 
   const answer = (m: Message) => {
@@ -559,7 +570,7 @@ export function Rail({ docked }: { docked: boolean }) {
         </div>
       </div>
 
-      <div className="rail-body" ref={body}>
+      <div className="rail-body" ref={body} onScroll={() => picked && setPicked(null)}>
         {thread.length === 0 && (
           <p className="rail-empty">
             Ask about what is on screen or the whole space. Only you see this. Type @ to bring in{' '}
@@ -592,6 +603,7 @@ export function Rail({ docked }: { docked: boolean }) {
             answer(m)
           ),
         )}
+        {!busy && stopped && <p className="rail-stopped">Stopped. Nothing was changed.</p>}
         {busy && (
           <div className="rail-work" role="status">
             <p>
@@ -599,6 +611,12 @@ export function Rail({ docked }: { docked: boolean }) {
               {user(busy.agentId)?.id === myAgent.id
                 ? 'Working on it'
                 : `${user(busy.agentId)?.name} is working on it`}
+              <button
+                className="link rail-stop"
+                onClick={() => void run(() => api(`/jobs/${busy.id}/stop`, { body: {} }))}
+              >
+                Stop
+              </button>
             </p>
             <span className="rail-progress" />
           </div>

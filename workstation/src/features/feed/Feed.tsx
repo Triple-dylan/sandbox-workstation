@@ -237,6 +237,11 @@ export function MessageView({
         )}
         <Md text={markMentions(m.text, mentionable)} />
         {m.embed && <LivePiece embed={m.embed} />}
+        {m.resolved && !m.anchor && (
+          <span className="decided" title="Marked decided. Agents treat it as settled.">
+            <Check size={12} /> Decided
+          </span>
+        )}
         <SourceChips ids={m.sourceIds} />
         <SourceChips
           label="Mentions"
@@ -284,6 +289,21 @@ export function MessageView({
               {onReply && (
                 <button onClick={onReply}>
                   <CornerDownRight size={13} /> Reply
+                </button>
+              )}
+              {onReply && !m.anchor && (
+                <button
+                  aria-pressed={m.resolved}
+                  title={
+                    m.resolved ? 'No longer decided' : 'Mark as decided; agents treat it as settled'
+                  }
+                  onClick={() =>
+                    void run(() =>
+                      api(`/messages/${m.id}/resolve`, { body: { resolved: !m.resolved } }),
+                    )
+                  }
+                >
+                  <Check size={13} /> {m.resolved ? 'Undecide' : 'Decided'}
                 </button>
               )}
             </span>

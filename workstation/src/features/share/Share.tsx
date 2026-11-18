@@ -12,6 +12,10 @@ type Place = {
   icon: React.ReactNode;
   label: string;
   detail: string;
+  /** How it is named once shared: "#general", "a comment on …". */
+  sharedAs: string;
+  /** Lands as a comment on the line it is about. */
+  onLine?: boolean;
   preview: { resourceId: Id; quote: string } | { conversationId: Id } | null;
   go: () => Promise<{ conversationId: Id } | null>;
 };
@@ -35,6 +39,8 @@ export function useSharePlaces(m: Message, about: { resourceId: Id; quote: strin
       key: `line:${page.id}`,
       icon: <MessageSquareQuote size={13} />,
       label: `Comment on “${short}”`,
+      sharedAs: `a comment on “${short}”`,
+      onLine: true,
       detail: `The line it is about · everyone on ${page.title}`,
       preview: about,
       go: async () => ({ conversationId: (await discussionOf(page.id)).id }),
@@ -53,6 +59,7 @@ export function useSharePlaces(m: Message, about: { resourceId: Id; quote: strin
       key: `chat:${main.id}`,
       icon: <Hash size={13} />,
       label: main.title,
+      sharedAs: `#${main.title}`,
       detail: `Main chat · ${people.length + 1} people`,
       preview: { conversationId: main.id },
       go: async () => ({ conversationId: main.id }),
@@ -69,6 +76,10 @@ export function useSharePlaces(m: Message, about: { resourceId: Id; quote: strin
             ? (user(c.participantIds.find((p) => p !== s.me.id))?.name ?? 'Message')
             : c.title,
         detail: 'Open beside you',
+        sharedAs:
+          c.kind === 'dm'
+            ? (user(c.participantIds.find((p) => p !== s.me.id))?.name ?? 'them')
+            : `#${c.title}`,
         preview: { conversationId: c.id },
         go: async () => ({ conversationId: c.id }),
       });
@@ -81,6 +92,7 @@ export function useSharePlaces(m: Message, about: { resourceId: Id; quote: strin
         key: `talk:${r.id}`,
         icon: <FileText size={13} />,
         label: 'Talk about this page',
+        sharedAs: `the talk on ${r.title}`,
         detail: r.title,
         preview: null,
         go: async () => ({ conversationId: (await discussionOf(r.id)).id }),
@@ -97,6 +109,7 @@ export function useSharePlaces(m: Message, about: { resourceId: Id; quote: strin
         </span>
       ),
       label: who.name.replace(/ \(example\)$/, ''),
+      sharedAs: who.name.replace(/ \(example\)$/, ''),
       detail: 'Directly',
       preview: null,
       go: async () => ({
@@ -155,20 +168,13 @@ export function ShareMenu({
           conversationId: where.conversationId,
           text,
           sharedFrom: m.id,
-          anchor: place !== 'more' && place.key.startsWith('line:') && about ? about : null,
+          anchor: place !== 'more' && place.onLine ? about : null,
         },
       }),
     );
     if (!posted) return;
     onShared({
-      label:
-        place === 'more'
-          ? where.label
-          : place.key.startsWith('line:')
-            ? `a comment on ${place.label.replace(/^Comment on /, '')}`
-            : place.label.startsWith('#') || place.key.startsWith('chat:')
-              ? `#${place.label.replace(/^#/, '')}`
-              : place.label,
+      label: place === 'more' ? where.label : place.sharedAs,
       messageId: posted.id,
       conversationId: where.conversationId,
       text,
@@ -190,6 +196,7 @@ export function ShareMenu({
       aria-label="Share with the team"
       tabIndex={-1}
       ref={box}
+      onBlur={() => (setUi({ preview: null }), onClose())}
       onMouseDown={(e) => e.preventDefault()}
       onKeyDown={(e) => {
         if (e.key === 'Escape') return (e.preventDefault(), setUi({ preview: null }), onClose());

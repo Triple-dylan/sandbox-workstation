@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
+import { useSpot } from '../app/spot.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, Md, deckSlides, sheetRows } from '../app/util.tsx';
 import { DRAG } from '../app/scope.ts';
@@ -277,6 +278,19 @@ export function CanvasPage({ page, active }: { page: Resource; active: boolean }
   const byId = new Map(pieces.map((p) => [p.id, p]));
   const selection = active ? ui.selection.filter((id) => byId.has(id)) : [];
   const select = (ids: Id[]) => setUi({ selection: ids });
+  // A piece someone pointed at from a conversation: centred and selected.
+  useSpot(page.id, (spot) => {
+    const piece = spot.pieceId ? byId.get(spot.pieceId) : undefined;
+    const el = scroller.current;
+    if (!piece?.placement || !el) return;
+    const { x, y, width, height } = piece.placement;
+    el.scrollTo({
+      left: Math.max(0, (x + width / 2) * zoom - el.clientWidth / 2),
+      top: Math.max(0, (y + height / 2) * zoom - el.clientHeight / 2),
+      behavior: 'smooth',
+    });
+    select([piece.id]);
+  });
   const comments = feed
     ? s.messages.filter(
         (m) => m.conversationId === feed.id && m.anchor && !m.replyTo && !m.resolved,

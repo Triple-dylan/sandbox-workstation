@@ -176,6 +176,24 @@ export function DocPage({ page }: { page: Resource }) {
   const [draftAgent, setDraftAgent] = useState<Id>('mine');
   const [active, setActive] = useState<Id | null>(null);
   const [opened, setOpened] = useState<Id | null>(null);
+  // An open comment closes on Escape or a click anywhere else.
+  useEffect(() => {
+    if (!opened) return;
+    const away = (e: Event) => {
+      if (
+        e instanceof KeyboardEvent
+          ? e.key === 'Escape'
+          : !(e.target as Element).closest?.('.cface-wrap')
+      )
+        setOpened(null);
+    };
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', away);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', away);
+    };
+  }, [opened]);
   const [showResolved, setShowResolved] = useState(false);
   const [tops, setTops] = useState<Record<Id, number>>({});
   const [stack, setStack] = useState(false);

@@ -269,7 +269,8 @@ export class AgentEngine {
       .slice(-30)
       .map((m) => ({
         author: this.store.user(m.authorId)?.name ?? 'Someone',
-        text: m.text,
+        // Marked decided by someone in a channel: agents treat it as settled.
+        text: m.resolved && !m.anchor ? `[decided] ${m.text}` : m.text,
         at: m.createdAt,
         where: shared.find((c) => c.id === m.conversationId)?.title || 'private',
       }));
@@ -392,7 +393,8 @@ export class AgentEngine {
     try {
       // The same request about unchanged pages was answered a moment ago: reuse it.
       const cacheable = kind === 'ask' || kind === 'instruction';
-      const { recent: _recent, ...settled } = task.context;
+      // Something marked decided since makes it a new question; ordinary chatter does not.
+      const { recent, ...settled } = task.context;
       const key = AnswerCache.key([
         this.runtime.id,
         agent.id,
@@ -400,6 +402,7 @@ export class AgentEngine {
         task.request,
         task.anchor,
         settled,
+        recent.filter((m) => m.text.startsWith('[decided]')).map((m) => m.at),
       ]);
       const remembered = cacheable ? this.answers.get(key) : undefined;
       try {
@@ -429,6 +432,8 @@ export class AgentEngine {
         );
       return;
     }
+    // Someone stopped it while it was thinking: say nothing, change nothing.
+    if (this.store.job(job.id)?.status === 'failed') return;
     if (result.orientation) this.store.agentWriteOrientation(agent.id, spaceId, result.orientation);
     if (result.skip || (!result.reply && !result.proposal)) {
       this.store.setJob(job.id, 'done');

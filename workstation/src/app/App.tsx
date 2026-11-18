@@ -16,7 +16,7 @@ import { markSeen, markVisit } from './saved.ts';
 import { AgentBuilder, Invite, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
-import { PAGE_KINDS } from '../../shared/types.ts';
+import { PAGE_KINDS, isPage } from '../../shared/types.ts';
 import {
   WorkspaceContext,
   initialUi,
@@ -219,10 +219,21 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   );
   const jump = useCallback<Workspace['jump']>(
     (spot, note) => {
-      const page = s.resources.find((r) => r.id === spot.resourceId);
+      const found = s.resources.find((r) => r.id === spot.resourceId);
+      // A piece of a board opens the board, centred on that piece.
+      const board =
+        found && !isPage(found.kind) ? s.resources.find((r) => r.id === found.parentId) : undefined;
+      const page = board ?? found;
       if (!page) return notify('That page is no longer available to you.');
       open({ type: 'page', id: page.id }, true);
-      setUi({ focus: { ...spot, note: note ?? spot.note, at: Date.now() } });
+      setUi({
+        focus: {
+          ...spot,
+          ...(board ? { resourceId: board.id, pieceId: found!.id } : {}),
+          note: note ?? spot.note,
+          at: Date.now(),
+        },
+      });
     },
     [s, open, setUi, notify],
   );

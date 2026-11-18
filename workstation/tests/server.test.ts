@@ -1211,3 +1211,53 @@ test('sharing from your agent: it says whose agent said it, keeps only sources o
   store.deleteMessage(dylan.id, shared.id);
   assert.ok(!snap(maya.id).messages.some((m) => m.id === shared.id));
 });
+
+test('stopping your agent mid-answer: nothing is said or changed, and only people who can see it may stop it', async () => {
+  let release: () => void = () => {};
+  const runtime: AgentRuntime = {
+    id: 'slow',
+    label: 'Slow',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      await new Promise<void>((done) => (release = done));
+      return { reply: 'too late' };
+    },
+  };
+  const { store, engine, dylan, maya, snap } = setup(runtime);
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'take your time' });
+  await new Promise((r) => setTimeout(r, 20));
+  const job = snap(dylan.id).jobs.find(
+    (j) => j.conversationId === mine.id && j.status === 'running',
+  )!;
+  assert.ok(job);
+  assert.throws(() => store.stopJob(maya.id, job.id), 'not Maya’s to stop');
+  store.stopJob(dylan.id, job.id);
+  release();
+  await engine.idle();
+  assert.ok(!snap(dylan.id).messages.some((m) => m.text === 'too late'));
+  assert.match(store.job(job.id)!.error ?? '', /^Stopped by Dylan/);
+});
+
+test('a message marked decided reaches the agent as settled', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      seen.push(task);
+      return { reply: 'noted' };
+    },
+  };
+  const { store, engine, dylan, general, agent } = setup(runtime);
+  const price = store.postMessage(dylan.id, { conversationId: general.id, text: 'Team is $32.' });
+  store.resolveMessage(dylan.id, price.id, true);
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'what did we decide?',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  assert.ok(seen.at(-1).context.recent.some((m: any) => m.text === '[decided] Team is $32.'));
+});
