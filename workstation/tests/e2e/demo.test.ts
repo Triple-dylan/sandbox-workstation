@@ -194,7 +194,9 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.who-chip.agent:has(.chip-lock)').click();
   await dylan.getByRole('button', { name: /^Talk to / }).click();
   await dylan.locator('.rail .rail-top').waitFor();
-  assert.equal(await dylan.locator('.pane-head', { hasText: 'Private to you' }).count(), 0);
+  // The profile stays in the middle; no pane holds a conversation.
+  await dylan.locator('.pane-who').waitFor();
+  assert.equal(await dylan.locator('.pane-chat').count(), 0);
 
   // A canvas arranged together: Dylan places a sticky, Maya moves it, Dylan sees it move.
   await newPage(dylan, 'Canvas', 'Board');
