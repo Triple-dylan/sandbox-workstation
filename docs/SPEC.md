@@ -10,13 +10,15 @@ Agents automatically gather, organize, update and hand over useful context as wo
 
 ## Shell
 
-- One harness with two primary surfaces: **Canvas** and **Graph**. Both have the left rail and a floating composer. There are no overview or hero pages, no workspace title, logo or marketing copy, and no top-menu clutter.
+- One harness with two primary surfaces: **Canvas** and **Graph**. Both have the left rail and a floating composer. View switching sits at the edge of the main work surface. The surface runs to the shell edges. Navigation can be resized or hidden. There are no overview or hero pages, no workspace title, logo or marketing copy, and no top-menu clutter.
 - A project opens straight into work. A fresh canvas is **blank but usable**: no preloaded demo content or fake dashboard.
+- Use **Arial** for now. Check sharpness at native display scale.
+- The far-left strip and adjacent menu have distinct responsibilities. Workspace headings expand/collapse in place, independently from active work. Avoid duplicate private/workspace navigation.
 - Controls, rail, graph and utility chrome are **monochrome**, in light and dark glass that follows the OS. Readable neutral contrast. Content and participant identity may carry color.
 - Modules and popups must **never overlap**. There is no workspace zoom.
-- Right-side utilities (sources/context, agent, goals) are independent, can show together, size to their content and **never scroll**. Long content links to a complete view.
+- Right-side utilities (sources/context, agent, goals) are independent, can show together, size to their content and **never scroll**. Each floats over the work surface at a fixed position and minimizes in place. They take no layout column. Long content links to a complete view.
 - Conversations do not belong in the right utility region.
-- There are no fake identities, demo fluff, or simulated "working" states presented as real.
+- There are no fake identities, mock conversations, demo fluff, or simulated "working" states presented as real. Only a populated Graph folder structure may be mock data. Deterministic test fixtures are not live-use evidence.
 
 ## Canvas
 
@@ -29,18 +31,22 @@ Agents automatically gather, organize, update and hand over useful context as wo
 ## Graph
 
 - Full-surface, with always-on physics and magnetism (no toggle). The central node is anchored, moves only slightly when dragged and returns to its place.
-- It shows folders, resources, relationships and permitted activity. Folder nesting manages density. Node types are meaningful, not identical boxes. There is no decorative center glyph.
-- Selecting a folder or document opens the explorer or reader **while staying on the graph**. Reading documents on Graph is required.
+- It shows folders, resources, relationships and permitted activity. Folder nesting manages density. Focusing a folder or document centers that subject and preserves a way back to the full graph. Node types are meaningful, not identical boxes. There is no decorative center glyph.
+- Selecting a folder or document opens the explorer or reader **while staying on the graph**. Reading documents on Graph is required. The reader must not become a full-height side column or shrink Graph into a rail layout. The current implementation uses a bounded sheet within Graph; it remains subject to visual acceptance.
+- The standalone “Full graph” button is rejected. Preserve parent/root navigation without assuming another added button; the current implementation uses existing parent/root graph nodes.
 - Agents appear as **avatars at the resources they are actively using**. Document edits do not reshape the graph.
 
 ## Conversations
 
+- The persistent rail groups personal chats, project channels, work conversations and assignments by space. People and agents share the project member list. Opening a conversation gives it the main area and keeps its composer bound to that conversation. The workspace composer starts work with the main project agent.
 - Five first-message situations must all work:
   1. a workspace instruction
   2. a private ask to an agent
   3. a message to a person (one-to-one, no project required)
   4. discussion of selected work
   5. delegation of ongoing work
+- Channel and group messages are visible to that conversation’s members. Mentioning an agent gets its attention in the same conversation. Private questions to an agent during collaborative work must be simple and private, without adding a dedicated button. The current implementation opens private conversation from an existing participant identity. There is no composer destination menu.
+- No separate “delegate to agent” composer mode and no one-option recipient dropdown. Delegation remains a supported task.
 - The audience is always explicit. Opening a document never silently changes the recipient. Drafts are kept per conversation and thread.
 - Private and collaborative conversations, channels and nested threads. Profile pictures and colored names for people.
 - Shared agents may reply **unsolicited** as well as on request, inside authorized existing conversations or threads.
@@ -49,9 +55,10 @@ Agents automatically gather, organize, update and hand over useful context as wo
 
 - Every collaborative project gets at least one dedicated agent by default, until the project completes or the agent is retired.
 - Agents are shown as **Orb** characters (`thinking-orbs` particle canvas; state via motion). Selecting an agent shows its **work and conversation first**, with profile and settings secondary.
-- Additional agents can be created conversationally or with a deliberate Create agent action.
+- Additional agents can be created conversationally or with a deliberate Create agent action. Their profile holds name, instructions, skills and the workspace tools available to them.
 - Project context is where an agent starts, not an absolute boundary. Wider access follows configured permissions.
 - Routine context maintenance is automatic. **Consequential shared changes need approval.** Private agents have configurable autonomy, which never overrides shared access rules.
+- Collaborative agents are participants in the organization; their scope, actual status and work must be understandable. The rejected standalone project-agent view and configuration popup are not approved interpretations of this model.
 - A saved definition is not a running agent. Never fake execution.
 
 ## Privacy, sharing and provenance

@@ -3,16 +3,13 @@ import { FileText, GripVertical, Lock, MessageSquareText, Trash2, Users } from '
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { Placement, Resource } from '../../../shared/types.ts';
-import { GRID, fits, placeNote, snap } from './layout.ts';
+import { GRID, fits, freeSpot, placeNote, snap } from './layout.ts';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
 
 type Draft = { placement: Placement; resourceId: string | null; text: string };
 
-/** Last measured canvas size, so other surfaces can place items into a free spot. */
-export const canvasBounds = { width: 960, height: 720 };
-
 export function Canvas() {
-  const { s, space, ui, setUi, run } = useWorkspace();
+  const { s, space, ui, setUi, run, notify } = useWorkspace();
   const stage = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState({ width: 0, height: 0 });
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -30,7 +27,7 @@ export function Canvas() {
         width: Math.floor(entry.contentRect.width),
         height: Math.floor(entry.contentRect.height),
       };
-      setVisible(next);
+      if (next.width && next.height) setVisible(next);
     });
     observer.observe(stage.current);
     return () => observer.disconnect();
@@ -43,9 +40,45 @@ export function Canvas() {
     }),
     visible,
   );
+  const placing = useRef<string | null>(null);
   useEffect(() => {
-    Object.assign(canvasBounds, visible);
-  }, [visible]);
+    const id = ui.pendingPlacementId;
+    if (!id || !visible.width || !visible.height || placing.current === id || !stage.current)
+      return;
+    const item = s.resources.find((r) => r.id === id && r.spaceId === space.id);
+    if (!item || item.placement) {
+      setUi({ pendingPlacementId: null });
+      return;
+    }
+    const rect = stage.current.getBoundingClientRect();
+    const overlays = [
+      ...(stage.current
+        .closest('.surface')
+        ?.querySelectorAll('.utilities > *, .composer, .surface-toolbar') ?? []),
+    ].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left - rect.left, y: r.top - rect.top, width: r.width, height: r.height };
+    });
+    const spot = freeSpot(
+      { width: Math.min(288, visible.width - GRID * 2), height: 120 },
+      visible,
+      [...items.map((r) => r.placement!), ...overlays],
+    );
+    if (!spot) {
+      notify(
+        'No clear space is available on Canvas. Minimize a tool or move an item and try again.',
+      );
+      setUi({ pendingPlacementId: null });
+      return;
+    }
+    placing.current = id;
+    void run(() => api(`/resources/${id}`, { method: 'PATCH', body: { placement: spot } })).then(
+      () => {
+        placing.current = null;
+        setUi({ pendingPlacementId: null, selectedId: id });
+      },
+    );
+  }, [ui.pendingPlacementId, visible.width, visible.height, space.id, s.resources]);
   useEffect(() => {
     setDraft(null);
     setEditingId(null);

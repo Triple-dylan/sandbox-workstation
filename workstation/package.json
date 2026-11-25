@@ -15,8 +15,8 @@
     "format:check": "prettier --check src server shared tests scripts vite.config.ts"
   },
   "dependencies": {
-    "@fontsource-variable/dm-sans": "5.3.0",
     "d3-force": "3.0.0",
+    "google-auth-library": "^11.3.3",
     "lucide-react": "1.63.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",

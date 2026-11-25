@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { agentTools, type AgentSettings } from '../shared/types.ts';
 import type { Db } from './db.ts';
 import type {
   Anchor,
@@ -129,6 +130,14 @@ export class Store {
   readonly db: Db;
   constructor(db: Db) {
     this.db = db;
+    for (const row of this.all('select id, kind, name, owner_id from spaces')) {
+      this.ensureWorkspaceStructure({
+        id: row.id,
+        kind: row.kind,
+        name: row.name,
+        ownerId: row.owner_id,
+      });
+    }
   }
 
   onChange(listener: (event: ChangeEvent) => void) {
@@ -161,10 +170,13 @@ export class Store {
     const row = this.get('select * from users where id = ?', userId);
     return row ? toUser(row) : null;
   }
-  createHuman(rawName: string) {
+  createHuman(rawName: string, verifiedIdentity = false) {
     const name = rawName.trim().slice(0, 40);
     if (!name) throw new InputError('A name is required.');
-    if (this.get(`select 1 from users where kind = 'human' and lower(name) = lower(?)`, name))
+    if (
+      !verifiedIdentity &&
+      this.get(`select 1 from users where kind = 'human' and lower(name) = lower(?)`, name)
+    )
       throw new InputError('That name is already on this server. Continue as that person instead.');
     const count = Number(this.get(`select count(*) n from users where kind = 'human'`)!.n);
     const userId = id();
@@ -194,6 +206,7 @@ export class Store {
       agentId,
     ]);
     void conversationId;
+    this.ensureWorkspaceStructure(this.space(spaceId)!);
     this.changed();
     return this.user(userId)!;
   }
@@ -218,16 +231,99 @@ export class Store {
     );
     return agentId;
   }
+  settingsFor(agentId: Id): AgentSettings {
+    return (
+      parse<AgentSettings>(
+        this.get('select settings from agent_settings where agent_id = ?', agentId)?.settings,
+      ) ?? { instructions: '', skills: '', tools: [...agentTools] }
+    );
+  }
+  deployAgent(actorId: Id, spaceId: Id, rawName: string) {
+    const space = this.requireMember(actorId, spaceId);
+    if (space.kind !== 'project' || space.ownerId !== actorId)
+      throw new AccessError('Only the project owner can deploy agents.');
+    const name = rawName.trim().slice(0, 60);
+    if (!name) throw new InputError('An agent name is required.');
+    if (
+      this.get(
+        "select 1 from users where space_id = ? and kind = 'agent' and lower(name) = lower(?)",
+        spaceId,
+        name,
+      )
+    )
+      throw new InputError('An agent already uses that name.');
+    const agentId = this.createAgent(name, { spaceId, role: 'project' });
+    this.run('insert into members values (?, ?, ?)', spaceId, agentId, 'agent');
+    this.run(
+      'insert into agent_settings values (?, ?)',
+      agentId,
+      json({
+        instructions: '',
+        skills: '',
+        tools: ['Project context', 'Document proposals'],
+      }),
+    );
+    this.changed();
+    return this.user(agentId)!;
+  }
+  updateAgentSettings(actorId: Id, agentId: Id, rawName: string, settings: AgentSettings) {
+    const agent = this.user(agentId);
+    if (agent?.kind !== 'agent' || !agent.spaceId || this.space(agent.spaceId)?.ownerId !== actorId)
+      throw new AccessError('Only the project owner can edit this agent.');
+    const name = rawName.trim().slice(0, 60);
+    if (!name) throw new InputError('An agent name is required.');
+    if (
+      this.get(
+        "select 1 from users where space_id = ? and kind = 'agent' and id <> ? and lower(name) = lower(?)",
+        agent.spaceId,
+        agentId,
+        name,
+      )
+    )
+      throw new InputError('An agent already uses that name.');
+    this.run('update users set name = ? where id = ?', name, agentId);
+    this.run('insert or replace into agent_settings values (?, ?)', agentId, json(settings));
+    this.changed();
+  }
+  googleUser(subject: string, name: string) {
+    const existing = this.get('select user_id from identities where subject = ?', subject);
+    if (existing) return this.user(existing.user_id)!;
+    this.db.exec('begin immediate');
+    try {
+      const user = this.createHuman(name, true);
+      this.run('insert into identities values (?, ?)', subject, user.id);
+      this.db.exec('commit');
+      return user;
+    } catch (error) {
+      this.db.exec('rollback');
+      throw error;
+    }
+  }
+  revokeSession(token: string | undefined) {
+    if (!token) return;
+    this.run('delete from sessions where token = ?', token);
+    this.run('delete from session_expiry where token = ?', token);
+  }
   createSession(userId: Id) {
     if (!this.user(userId) || this.user(userId)!.kind !== 'human')
       throw new InputError('Unknown person.');
     const token = randomBytes(24).toString('base64url');
     this.run('insert into sessions values (?, ?)', token, userId);
+    this.run('insert into session_expiry values (?, ?)', token, Date.now() + 7 * 86400000);
     return token;
   }
-  userForToken(token: string | undefined) {
+  userForToken(token: string | undefined, requireIdentity = false) {
     if (!token) return null;
+    const expiry = this.get('select expires_at from session_expiry where token = ?', token);
+    if ((expiry && Number(expiry.expires_at) <= Date.now()) || (requireIdentity && !expiry))
+      return null;
     const row = this.get('select user_id from sessions where token = ?', token);
+    if (
+      requireIdentity &&
+      row &&
+      !this.get('select 1 from identities where user_id = ?', row.user_id)
+    )
+      return null;
     return row ? this.user(row.user_id) : null;
   }
 
@@ -257,10 +353,22 @@ export class Store {
   }
   canReadConversation(userId: Id, conversation: Conversation) {
     const who = this.principal(userId);
-    if (conversation.kind === 'channel') return this.isMember(userId, conversation.spaceId);
+    if (conversation.kind === 'channel' || conversation.kind === 'agent-work')
+      return this.isMember(userId, conversation.spaceId);
     if (conversation.kind === 'discussion') {
       const resource = conversation.resourceId && this.resource(conversation.resourceId);
       return !!resource && this.canReadResource(userId, resource);
+    }
+    if (conversation.kind === 'dm') {
+      const agent = conversation.participantIds
+        .map((id) => this.user(id))
+        .find((user) => user?.kind === 'agent');
+      if (agent)
+        return (
+          conversation.participantIds.includes(userId) &&
+          !!agent.spaceId &&
+          this.isMember(userId, agent.spaceId)
+        );
     }
     return (
       conversation.participantIds.includes(userId) || conversation.participantIds.includes(who)
@@ -295,25 +403,67 @@ export class Store {
     this.run('insert into members values (?, ?, ?)', spaceId, actorId, 'owner');
     const agentId = this.createAgent(`${name} agent`, { spaceId, role: 'project' });
     this.run('insert into members values (?, ?, ?)', spaceId, agentId, 'agent');
-    this.insertResource(agentId, {
-      spaceId,
-      kind: 'folder',
-      title: 'Resources & context',
-      body: '',
-      visibility: 'space',
-      role: 'resources',
-    });
-    this.insertResource(agentId, {
-      spaceId,
-      kind: 'doc',
-      title: 'Orientation',
-      body: `# ${name}\n\nThe project agent keeps this orientation up to date as work happens.`,
-      visibility: 'space',
-      role: 'orientation',
-    });
-    this.createConversation('channel', spaceId, 'general', null, []);
+    this.ensureWorkspaceStructure(this.space(spaceId)!);
     this.changed();
     return this.space(spaceId)!;
+  }
+  private ensureWorkspaceStructure(space: Space) {
+    const project = space.kind === 'project';
+    const owner = this.projectAgent(space.id)?.id ?? space.ownerId;
+    const items = this.resourcesIn(space.id);
+    const visibility = project ? 'space' : 'private';
+    const folder = (title: string, parentId: Id | null = null, role?: 'resources') =>
+      items.find(
+        (item) => item.kind === 'folder' && item.title === title && item.parentId === parentId,
+      ) ??
+      this.insertResource(owner, {
+        spaceId: space.id,
+        kind: 'folder',
+        title,
+        body: '',
+        parentId,
+        role,
+        visibility,
+      });
+    const resources = folder('Resources & context', null, 'resources');
+    folder('Reference', resources.id);
+    folder('Research', resources.id);
+    folder('Working materials', resources.id);
+    folder('Plans');
+    folder('Archive');
+    if (!items.some((item) => item.role === 'orientation')) {
+      this.insertResource(owner, {
+        spaceId: space.id,
+        kind: 'doc',
+        title: project ? 'Orientation' : 'Workspace guide',
+        body: project
+          ? `# ${space.name}\n\nUse #planning to coordinate work, #resources to discuss project materials, and #updates for progress. Shared work appears on Graph and is available from project conversations.`
+          : '# Personal workspace\n\nThis space is private. Select a folder on Graph to explore its contents, or click an empty spot on Canvas to start writing.',
+        visibility,
+        role: 'orientation',
+      });
+    }
+    if (project) {
+      const agent = this.projectAgent(space.id);
+      if (
+        agent &&
+        !this.get(
+          "select 1 from conversations where space_id = ? and kind = 'agent-work'",
+          space.id,
+        )
+      )
+        this.createConversation('agent-work', space.id, 'Project agent', null, [agent.id]);
+      for (const title of ['general', 'planning', 'resources', 'updates']) {
+        if (
+          !this.get(
+            "select 1 from conversations where space_id = ? and kind = 'channel' and title = ?",
+            space.id,
+            title,
+          )
+        )
+          this.createConversation('channel', space.id, title, null, []);
+      }
+    }
   }
   addMember(actorId: Id, spaceId: Id, userId: Id) {
     const space = this.requireMember(actorId, spaceId);
@@ -325,7 +475,7 @@ export class Store {
   }
   projectAgent(spaceId: Id) {
     const row = this.get(
-      `select * from users where kind = 'agent' and role = 'project' and space_id = ?`,
+      `select * from users where kind = 'agent' and role = 'project' and space_id = ? order by created_at, rowid limit 1`,
       spaceId,
     );
     return row ? toUser(row) : null;
@@ -592,10 +742,43 @@ export class Store {
     this.changed();
     return this.conversation(conversationId)!;
   }
+  openAgentWork(actorId: Id, spaceId: Id, title: string, agentId: Id) {
+    const space = this.requireMember(actorId, spaceId);
+    const agent = this.user(agentId);
+    if (
+      space.kind !== 'project' ||
+      agent?.kind !== 'agent' ||
+      agent.spaceId !== spaceId ||
+      !this.isMember(agentId, spaceId)
+    )
+      throw new AccessError('Not available.');
+    const conversationId = this.createConversation('agent-work', spaceId, titleFrom(title), null, [
+      agentId,
+    ]);
+    this.changed();
+    return this.conversation(conversationId)!;
+  }
+  startPersonalChat(actorId: Id, title: string) {
+    const agent = this.all(
+      "select * from users where owner_id = ? and role = 'personal' and kind = 'agent'",
+      actorId,
+    ).map(toUser)[0];
+    if (!agent) throw new AccessError('Not available.');
+    const chatId = this.createConversation('agent-private', null, titleFrom(title), null, [
+      actorId,
+      agent.id,
+    ]);
+    this.changed();
+    return this.conversation(chatId)!;
+  }
   openDm(actorId: Id, otherId: Id) {
     const other = this.user(otherId);
-    if (!other || other.kind !== 'human' || otherId === actorId)
-      throw new InputError('Choose another person.');
+    if (!other || otherId === actorId) throw new InputError('Choose another member.');
+    if (
+      other.kind === 'agent' &&
+      (other.role !== 'project' || !other.spaceId || !this.isMember(actorId, other.spaceId))
+    )
+      throw new AccessError('Not available.');
     const existing = this.get(
       `select c.id from conversations c where c.kind = 'dm'
        and (select count(*) from participants p where p.conversation_id = c.id) = 2
@@ -631,17 +814,24 @@ export class Store {
   /** Agents that may be addressed in this conversation. */
   addressableAgents(userId: Id, conversation: Conversation) {
     const agents: User[] = [];
-    if (conversation.kind === 'agent-private')
+    if (conversation.kind === 'agent-private' || conversation.kind === 'dm')
       for (const p of conversation.participantIds) {
         const u = this.user(p);
         if (u?.kind === 'agent') agents.push(u);
       }
     if (
-      (conversation.kind === 'channel' || conversation.kind === 'discussion') &&
+      (conversation.kind === 'channel' ||
+        conversation.kind === 'discussion' ||
+        conversation.kind === 'agent-work') &&
       conversation.spaceId
     ) {
-      const agent = this.projectAgent(conversation.spaceId);
-      if (agent && this.isMember(userId, conversation.spaceId)) agents.push(agent);
+      if (this.isMember(userId, conversation.spaceId))
+        agents.push(
+          ...this.all(
+            "select * from users where space_id = ? and kind = 'agent'",
+            conversation.spaceId,
+          ).map(toUser),
+        );
     }
     return agents;
   }
@@ -662,19 +852,42 @@ export class Store {
       if (!this.addressableAgents(actorId, conversation).some((a) => a.id === request.addressedTo))
         throw new InputError('That agent is not part of this conversation.');
     }
+    const mentioned =
+      actor.kind === 'human' &&
+      (conversation.kind === 'channel' || conversation.kind === 'agent-work') &&
+      !request.addressedTo
+        ? this.addressableAgents(actorId, conversation).find((agent) => {
+            const name = ('@' + agent.name).toLowerCase();
+            const message = text.toLowerCase();
+            const index = message.indexOf(name);
+            return (
+              index >= 0 &&
+              (index === 0 || /\s/.test(message[index - 1])) &&
+              !/[\p{L}\p{N}_]/u.test(message[index + name.length] ?? '')
+            );
+          })
+        : undefined;
     const delegated = !!request.delegate && actor.kind === 'human';
-    if (delegated && !request.addressedTo && conversation.kind !== 'agent-private')
+    if (delegated && conversation.kind === 'dm')
+      throw new InputError('Create ongoing assignments in a project conversation.');
+    if (
+      delegated &&
+      !request.addressedTo &&
+      conversation.kind !== 'agent-private' &&
+      conversation.kind !== 'agent-work' &&
+      !mentioned
+    )
       throw new InputError('Choose an agent to delegate to.');
     if (request.anchor) {
       const resource = this.resource(request.anchor.resourceId);
       if (!resource || !this.canReadResource(actorId, resource))
         throw new AccessError('Not available.');
-      if (
-        resource.visibility === 'private' &&
-        conversation.kind !== 'agent-private' &&
-        conversation.kind !== 'discussion'
-      )
-        throw new InputError('Share this item before discussing it with others.');
+      const direct = conversation.kind === 'dm' || conversation.kind === 'agent-private';
+      const available = direct
+        ? conversation.participantIds.every((id) => this.canReadResource(id, resource))
+        : resource.spaceId === conversation.spaceId &&
+          (resource.visibility === 'space' || conversation.resourceId === resource.id);
+      if (!available) throw new InputError('Share this item before discussing it with others.');
     }
     if (request.replyTo) {
       const parent = this.get('select conversation_id from messages where id = ?', request.replyTo);
@@ -693,7 +906,7 @@ export class Store {
           ? { resourceId: request.anchor.resourceId, quote: request.anchor.quote.slice(0, 280) }
           : null,
       ),
-      request.addressedTo ?? null,
+      request.addressedTo ?? mentioned?.id ?? null,
       request.replyTo ?? null,
       extra.jobId ?? null,
       extra.approvalId ?? null,
@@ -951,6 +1164,9 @@ export class Store {
       jobs,
       assignments,
       approvals,
+      agentSettings: Object.fromEntries(
+        users.filter((u) => u.role === 'project').map((u) => [u.id, this.settingsFor(u.id)]),
+      ),
       presence: visiblePresence,
       lastRead,
       runtime,

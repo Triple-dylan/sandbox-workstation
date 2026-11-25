@@ -2,6 +2,27 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-07 — expanded MVP scope
+
+Dylan confirmed OpenAI gpt-6-luna exclusively for all agents, with no user ability to change models. Google login and MVP deployment preparation are required, along with reachable/movable Canvas components, native documents/sheets, group goals, deployable agent instructions/routines/skills/resources and redesigned group conversations. See [the phased plan](project/mvp-plan.md). These requirements are not claims of implementation.
+
+## 2026-11-06 — repair implementation after “proceed”
+
+Implementation choices, not new user-confirmed visual decisions: one independently expandable navigation tree; app strip for visibility/new chat/account; participant identity opens private conversation; settings expand within agent conversations; a bounded Graph reader and existing ancestor nodes replace the side column and Full graph button. Details and verification: [experience-repair-plan.md](project/experience-repair-plan.md).
+
+Live execution is now the default in accordance with the user's real-use requirement. Missing keys and budget exhaustion never substitute scripted output. Live model verification was attempted Nov 7 after configuration; it is now blocked by the provider response HTTP 429, no credits remaining. External plugin integrations and the older prototype's richer Canvas remain explicitly unimplemented.
+
+## 2026-11-06 — corrections to the implemented UI
+
+- [Consolidated corrections and review gates](project/product-corrections.md) govern the next UI changes. Older plans and implemented components do not override these corrections.
+- Arial for now; open Canvas/Graph, fixed floating minimizable tools, no tool column or hidden tools rail, and no full-height Graph reader column.
+- Keep both left navigation areas with distinct jobs. Workspace headings collapse/expand in place instead of switching the active view. Current private/workspace switching and Members placement need revision.
+- Collaborative agents are participants; real work/conversation/status comes first. The standalone project-agent view and agent popup are rejected.
+- A group sees its messages with or without a mention. Personal agent chats are private. Private questions during collaboration must be simple; no new dedicated button. The current recipient mechanism is not approved merely because it was implemented.
+- Remove delegation mode and pointless single-option dropdowns. The standalone Full graph button is rejected and reported to stick; preserve Graph navigation and investigate the state issue.
+- Real use is required. Only populated Graph folder structure may be mock data. The earlier default scripted demo is not acceptance evidence for live use.
+- Additional far-left destinations and the exact reader, agent-module and private-question interactions remain open. Do not invent approval for a replacement layout.
+
 ## 2026-11-05 — agent character: dynamic Orb (thinking-orbs)
 
 - Dylan confirmed **dynamic particle orbs** via npm `thinking-orbs@0.2.0` (same as DropDeployment), not the SVG ring.
@@ -59,7 +80,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## Open
 
-- First-send default per situation and reply presentation (the demo uses an explicit audience chip; review it).
+- Precise private-question interaction and workspace reply presentation. Group visibility and personal-chat privacy are settled; do not re-ask who can read those messages.
 - Whether agents should carry more color than Orb's faint tint.
 - Production stack and LLM budget beyond the demo.
 - Whether retiring an agent drains its running jobs or stops them.

@@ -20,16 +20,23 @@ export function loadEnv(path = new URL('../../.env', import.meta.url)) {
   }
 }
 
-export const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 export const DEFAULT_DAILY_TOKENS = 200_000;
 
 export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntime {
   const key = env.OPENAI_API_KEY?.trim();
-  if (!key || env.AGENT_RUNTIME === 'scripted') return scriptedRuntime;
+  if (env.AGENT_RUNTIME === 'scripted') return scriptedRuntime;
+  if (!key) {
+    return {
+      id: 'unavailable',
+      label: 'Model unavailable',
+      async run() {
+        throw new Error('An OpenAI API key is required to run this agent.');
+      },
+    };
+  }
   const limit = Number(env.OPENAI_DAILY_TOKEN_LIMIT);
   return createOpenAIRuntime({
     apiKey: key,
-    model: env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL,
     dailyTokenLimit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_DAILY_TOKENS,
     usageToday: () => store.usageToday(),
     addUsage: (tokens) => store.addUsage(tokens),

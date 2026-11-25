@@ -6,6 +6,12 @@ import { scriptedRuntime } from './scripted.ts';
 const PROACTIVE_COOLDOWN_MS = 120_000;
 const MAINTENANCE_DELAY_MS = 2_500;
 
+type EngineOptions = {
+  maintenanceDelayMs?: number;
+  workDelayMs?: number;
+  allowScriptedFallback?: boolean;
+};
+
 /**
  * Turns conversation and workspace events into agent jobs and applies their results
  * through the same access-checked store operations people use.
@@ -16,12 +22,8 @@ export class AgentEngine {
   private lastProactive = new Map<Id, number>();
   private store: Store;
   readonly runtime: AgentRuntime;
-  private options: { maintenanceDelayMs?: number; workDelayMs?: number };
-  constructor(
-    store: Store,
-    runtime: AgentRuntime,
-    options: { maintenanceDelayMs?: number; workDelayMs?: number } = {},
-  ) {
+  private options: EngineOptions;
+  constructor(store: Store, runtime: AgentRuntime, options: EngineOptions = {}) {
     this.store = store;
     this.runtime = runtime;
     this.options = options;
@@ -64,17 +66,39 @@ export class AgentEngine {
   private async handleMessage(message: Message) {
     const conversation = this.store.conversation(message.conversationId)!;
     const agentInPrivate =
-      conversation.kind === 'agent-private'
-        ? conversation.participantIds
-            .map((id) => this.store.user(id))
-            .find((u) => u?.kind === 'agent')
+      conversation.kind === 'agent-private' || conversation.kind === 'dm'
+        ? this.store.addressableAgents(message.authorId, conversation)[0]
         : undefined;
-    const addressed = message.addressedTo ? this.store.user(message.addressedTo) : agentInPrivate;
+    const assignedAgent =
+      conversation.kind === 'agent-work'
+        ? this.store.user(conversation.participantIds[0])
+        : undefined;
+    const addressed = message.addressedTo
+      ? this.store.user(message.addressedTo)
+      : (agentInPrivate ?? assignedAgent);
     const delegate = message.delegated;
     const request = message.text;
     if (addressed?.kind === 'agent') {
       const spaceId = this.spaceFor(addressed);
       if (!spaceId) return;
+      const deployment =
+        conversation.kind === 'agent-work' &&
+        /^create (?:an? )?agent (?:called|named) ["“]?([^"”\n]+?)["”]?$/i.exec(request.trim());
+      if (deployment) {
+        let text: string;
+        try {
+          const agent = this.store.deployAgent(message.authorId, spaceId, deployment[1]);
+          text = `${agent.name} joined the project. Open their conversation, then expand About to set instructions, skills and tools.`;
+        } catch (error) {
+          text = (error as Error).message;
+        }
+        this.store.postMessage(addressed.id, {
+          conversationId: conversation.id,
+          text,
+          replyTo: message.id,
+        });
+        return;
+      }
       if (delegate) {
         const assignment = this.store.createAssignment({
           agentId: addressed.id,
@@ -133,15 +157,16 @@ export class AgentEngine {
   private async maintain(spaceId: Id) {
     const agent = this.store.projectAgent(spaceId);
     if (!agent) return;
-    await this.runJob(
-      agent,
-      null,
-      'maintenance',
-      'Keep the project orientation current',
-      null,
-      null,
-      spaceId,
-    );
+    if (this.store.settingsFor(agent.id).tools.includes('Orientation maintenance'))
+      await this.runJob(
+        agent,
+        null,
+        'maintenance',
+        'Keep the project orientation current',
+        null,
+        null,
+        spaceId,
+      );
     for (const assignment of this.store.activeAssignments(spaceId)) {
       if (/orientation|context|up to date/i.test(assignment.instruction)) continue;
       const conversation = this.store.conversation(assignment.conversationId);
@@ -169,7 +194,9 @@ export class AgentEngine {
   ): AgentTask {
     const space = this.store.space(spaceId)!;
     const spaces = agent.role === 'personal' ? this.store.memberSpaces(agent.id) : [spaceId];
-    const resources = spaces
+    const settings = this.store.settingsFor(agent.id);
+    const readContext = settings.tools.includes('Project context');
+    const resources = (readContext ? spaces : [])
       .flatMap((id) => this.store.readableResources(agent.id, id))
       .filter((r) => r.kind !== 'folder' && r.role !== 'orientation');
     const orientation = this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation');
@@ -178,7 +205,9 @@ export class AgentEngine {
         ? this.store
             .snapshot(agent.id, [], { id: '', label: '' })
             .conversations.filter(
-              (c) => c.spaceId === spaceId && (c.kind === 'channel' || c.kind === 'discussion'),
+              (c) =>
+                c.spaceId === spaceId &&
+                (c.kind === 'channel' || c.kind === 'discussion' || c.kind === 'agent-work'),
             )
         : conversation
           ? [conversation]
@@ -197,6 +226,7 @@ export class AgentEngine {
     return {
       kind,
       agent: { name: agent.name, role: agent.role ?? 'project' },
+      settings,
       spaceName: space.name,
       requester: trigger ? (this.store.user(trigger.authorId)?.name ?? null) : null,
       request,
@@ -207,7 +237,7 @@ export class AgentEngine {
           : null,
       context: {
         orientation:
-          orientation && this.store.canReadResource(agent.id, orientation)
+          readContext && orientation && this.store.canReadResource(agent.id, orientation)
             ? orientation.body
             : null,
         resources: resources.map((r) => ({
@@ -257,7 +287,12 @@ export class AgentEngine {
       try {
         result = await this.runtime.run(task);
       } catch (error) {
-        if (!(error instanceof BudgetExceeded) || this.runtime === scriptedRuntime) throw error;
+        if (
+          !(error instanceof BudgetExceeded) ||
+          this.runtime === scriptedRuntime ||
+          this.options.allowScriptedFallback === false
+        )
+          throw error;
         runtime = scriptedRuntime;
         note = `\n\n_${error.message} Answered by the scripted runtime instead._`;
         result = await scriptedRuntime.run(task);
@@ -276,19 +311,34 @@ export class AgentEngine {
         );
       return;
     }
-    if (result.orientation) this.store.agentWriteOrientation(agent.id, spaceId, result.orientation);
-    if (result.skip || (!result.reply && !result.proposal)) {
+    const tools = task.settings?.tools ?? [];
+    if (
+      result.orientation &&
+      conversation?.kind !== 'dm' &&
+      tools.includes('Orientation maintenance')
+    )
+      this.store.agentWriteOrientation(agent.id, spaceId, result.orientation);
+    // A private chat with a project agent cannot create a project-visible approval.
+    const proposal =
+      conversation?.kind !== 'dm' && tools.includes('Document proposals')
+        ? result.proposal
+        : undefined;
+    const reply =
+      !proposal && result.proposal
+        ? [result.reply, result.proposal.title, result.proposal.body].filter(Boolean).join('\n\n')
+        : result.reply;
+    if (result.skip || (!reply && !proposal)) {
       this.store.setJob(job.id, 'done');
       return;
     }
     let approvalId: Id | undefined;
-    if (result.proposal) approvalId = this.store.createApproval(job, result.proposal).id;
-    if (conversation && (result.reply || result.proposal))
+    if (proposal) approvalId = this.store.createApproval(job, proposal).id;
+    if (conversation && (reply || proposal))
       this.reply(
         agent,
         conversation,
         trigger,
-        (result.reply || 'I drafted a proposal for review.') + note,
+        (reply || 'I drafted a proposal for review.') + note,
         job,
         runtime.id,
         approvalId,
@@ -311,7 +361,9 @@ export class AgentEngine {
         conversationId: conversation.id,
         text,
         replyTo:
-          trigger && conversation.kind !== 'agent-private' ? (trigger.replyTo ?? trigger.id) : null,
+          trigger && conversation.kind !== 'agent-private' && conversation.kind !== 'dm'
+            ? (trigger.replyTo ?? trigger.id)
+            : null,
       },
       { jobId: job.id, approvalId, runtime },
     );

@@ -1,3 +1,5 @@
+import { OAuth2Client } from 'google-auth-library';
+import { agentTools } from '../shared/types.ts';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
@@ -31,11 +33,22 @@ export type AppOptions = {
 };
 
 export function createApp(options: AppOptions) {
+  const env = options.env ?? process.env;
+  const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
+  const googleOnly = !!googleClientId || env.NODE_ENV === 'production';
+  if (env.NODE_ENV === 'production' && (!googleClientId || !env.APP_ORIGIN?.startsWith('https://')))
+    throw new Error('Production requires GOOGLE_CLIENT_ID and an HTTPS APP_ORIGIN.');
+  const google = new OAuth2Client();
   const store = new Store(openDb(options.dbPath));
-  const runtime = options.runtime ?? selectRuntime(options.env ?? process.env, store);
+  const runtime = options.runtime ?? selectRuntime(env, store);
+  if (env.NODE_ENV === 'production' && runtime.id === 'scripted') {
+    store.db.close();
+    throw new Error('Scripted runtime is not allowed in production.');
+  }
   const engine = new AgentEngine(store, runtime, {
     maintenanceDelayMs: options.maintenanceDelayMs,
-    workDelayMs: options.workDelayMs,
+    workDelayMs: runtime.id === 'scripted' ? options.workDelayMs : 0,
+    allowScriptedFallback: false,
   });
   const staticDir =
     options.staticDir === undefined
@@ -114,6 +127,40 @@ export function createApp(options: AppOptions) {
     const method = req.method ?? 'GET';
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
+    if (path === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
+    if (path === '/api/auth/config' && method === 'GET')
+      return send(res, 200, { googleClientId: googleClientId ?? null, local: !googleOnly });
+    if (path === '/api/auth/google' && method === 'POST') {
+      if (!googleClientId) return send(res, 503, { error: 'Google sign-in is not configured.' });
+      if (env.APP_ORIGIN && req.headers.origin !== env.APP_ORIGIN)
+        return send(res, 403, { error: 'Invalid origin.' });
+      const input = await body(req);
+      let payload;
+      try {
+        const ticket = await google.verifyIdToken({
+          idToken: String(input.credential ?? ''),
+          audience: googleClientId,
+        });
+        payload = ticket.getPayload();
+      } catch {
+        return send(res, 401, { error: 'Google sign-in could not be verified.' });
+      }
+      if (!payload?.sub || !payload.email_verified)
+        return send(res, 401, { error: 'A verified Google account is required.' });
+      const user = store.googleUser(payload.sub, payload.name || 'Google user');
+      store.revokeSession(cookie(req));
+      const token = store.createSession(user.id);
+      return send(
+        res,
+        200,
+        { ok: true },
+        {
+          'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800${env.APP_ORIGIN?.startsWith('https://') ? '; Secure' : ''}`,
+        },
+      );
+    }
+    if (googleOnly && (path === '/api/profiles' || path === '/api/join'))
+      return send(res, 403, { error: 'Use Google sign-in.' });
     if (path === '/api/profiles' && method === 'GET')
       return send(
         res,
@@ -134,10 +181,18 @@ export function createApp(options: AppOptions) {
         { 'set-cookie': `${COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/` },
       );
     }
-    const me: User | null = store.userForToken(cookie(req));
+    const me: User | null = store.userForToken(cookie(req), googleOnly);
     if (!me) return send(res, 401, { error: 'Sign in first.' });
-    if (path === '/api/logout' && method === 'POST')
-      return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
+    if (path === '/api/logout' && method === 'POST') {
+      store.revokeSession(cookie(req));
+      for (const [stream, userId] of streams) if (userId === me.id) stream.end();
+      return send(
+        res,
+        200,
+        { ok: true },
+        { 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/` },
+      );
+    }
     if (path === '/api/snapshot' && method === 'GET')
       return send(res, 200, store.snapshot(me.id, [...presence.values()], runtimeInfo));
     if (path === '/api/events' && method === 'GET') {
@@ -172,6 +227,25 @@ export function createApp(options: AppOptions) {
       return send(res, 200, store.createProject(me.id, str('name')));
     if (segments[0] === 'projects' && segments[2] === 'members' && method === 'POST') {
       store.addMember(me.id, segments[1], str('userId'));
+      return send(res, 200, { ok: true });
+    }
+    if (path === '/api/personal-chats' && method === 'POST')
+      return send(res, 200, store.startPersonalChat(me.id, str('title')));
+    if (path === '/api/agent-work' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.openAgentWork(me.id, str('spaceId'), str('title'), str('agentId')),
+      );
+    if (path === '/api/agents' && method === 'POST')
+      return send(res, 200, store.deployAgent(me.id, str('spaceId'), str('name')));
+    if (segments[0] === 'agents' && segments.length === 2 && method === 'PATCH') {
+      const tools: unknown[] = Array.isArray(input.tools) ? input.tools : [];
+      store.updateAgentSettings(me.id, segments[1], str('name'), {
+        instructions: str('instructions').slice(0, 8000),
+        skills: str('skills').slice(0, 2000),
+        tools: agentTools.filter((tool) => tools.includes(tool)),
+      });
       return send(res, 200, { ok: true });
     }
     if (path === '/api/channels' && method === 'POST')

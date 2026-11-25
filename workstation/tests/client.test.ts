@@ -12,7 +12,7 @@ import {
 import { fits, freeSpot, placeNote, snap } from '../src/features/canvas/layout.ts';
 import { NOTES_GROUP, graphOf } from '../src/features/graph/tree.ts';
 import { agentState, orbStateForAgent } from '../src/features/agents/agent-state.ts';
-import { presetForDisplay } from '../src/features/agents/thinking-orb.ts';
+import { mountThinkingOrb, presetForDisplay } from '../src/features/agents/thinking-orb.ts';
 
 function world() {
   const store = new Store(openDb(':memory:'));
@@ -25,19 +25,19 @@ function world() {
   return { store, dylan, maya, project, snapshot };
 }
 
-test('composer defaults: project goes to the first channel, personal space to your agent', () => {
+test('composer defaults: project opens its own agent work conversation, personal space to your agent', () => {
   const { dylan, project, snapshot } = world();
   const s = snapshot(dylan.id);
   const projectDefault = defaultAudience(s, project.id)!;
-  assert.equal(projectDefault.kind, 'conversation');
-  assert.equal(describeAudience(s, projectDefault).label, '#general');
+  assert.equal(projectDefault.kind, 'project-work');
+  assert.equal(describeAudience(s, projectDefault).detail, 'New project conversation · shared');
   const personal = s.spaces.find((x) => x.kind === 'personal')!;
   const personalDefault = defaultAudience(s, personal.id)!;
-  assert.equal(personalDefault.kind, 'private-agent');
+  assert.equal(personalDefault.kind, 'personal-work');
   assert.equal(describeAudience(s, personalDefault).detail, 'Private to you');
 });
 
-test('composer offers all five situations; Discuss only with a selected item', () => {
+test('composer offers destinations and only offers Discuss with selected work', () => {
   const { store, dylan, project, snapshot } = world();
   const note = store.createResource(dylan.id, {
     spaceId: project.id,
@@ -48,9 +48,10 @@ test('composer offers all five situations; Discuss only with a selected item', (
   const kinds = (selected: typeof note | null) =>
     new Set<string>(audienceOptions(s, project.id, selected).map((o) => o.audience.kind));
   const withSelection = kinds(note);
-  for (const kind of ['conversation', 'instruct', 'delegate', 'private-agent', 'person', 'discuss'])
+  for (const kind of ['conversation', 'project-work', 'private-agent', 'person', 'discuss'])
     assert.ok(withSelection.has(kind), `missing ${kind}`);
   assert.ok(!kinds(null).has('discuss'));
+  assert.ok(!withSelection.has('delegate'));
   const keys = audienceOptions(s, project.id, note).map((o) => audienceKey(o.audience));
   assert.equal(new Set(keys).size, keys.length, 'each audience keeps its own draft');
 });
@@ -138,4 +139,61 @@ test('Orb maps agent job state to thinking-orbs verbs and size presets', () => {
     agentState('a1', [{ ...base, id: 'j1', agentId: 'a1', status: 'awaiting_approval' }]),
     'waiting',
   );
+});
+
+test('Orb state changes between animation frames cannot pass negative time to its renderer', () => {
+  const names = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame'] as const;
+  const saved = names.map(
+    (name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const,
+  );
+  let frame: FrameRequestCallback | undefined;
+  const context = new Proxy({}, { get: () => () => {} });
+  const canvas = {
+    className: '',
+    style: {},
+    width: 0,
+    height: 0,
+    setAttribute() {},
+    getContext: () => context,
+  };
+  const host = {
+    replaceChildren() {},
+    appendChild() {},
+    closest: () => null,
+  } as unknown as HTMLElement;
+  Object.defineProperties(globalThis, {
+    window: {
+      configurable: true,
+      value: { devicePixelRatio: 2, matchMedia: () => ({ matches: false }) },
+    },
+    document: {
+      configurable: true,
+      value: {
+        hidden: false,
+        createElement: () => canvas,
+        addEventListener() {},
+        removeEventListener() {},
+      },
+    },
+    requestAnimationFrame: {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        frame = callback;
+        return 1;
+      },
+    },
+    cancelAnimationFrame: { configurable: true, value: () => {} },
+  });
+  try {
+    const orb = mountThinkingOrb(host, { displaySize: 28 });
+    orb.setState('shaping');
+    // A queued RAF timestamp may precede the state reset's performance.now().
+    assert.doesNotThrow(() => frame!(0));
+    orb.destroy();
+  } finally {
+    for (const [name, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    }
+  }
 });

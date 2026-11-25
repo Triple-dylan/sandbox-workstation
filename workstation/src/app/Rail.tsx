@@ -1,81 +1,74 @@
-import { useState } from 'react';
-import {
-  Hash,
-  LayoutGrid,
-  LogOut,
-  MessageSquareText,
-  Moon,
-  Network,
-  Plus,
-  Sun,
-  Monitor,
-  Lock,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, Hash, LayoutGrid, Lock, MessageSquareText, Plus } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
-import { Avatar, Character, agentState } from '../features/agents/Character.tsx';
-import { privateAgentConversation, projectAgentOf } from '../features/conversations/audience.ts';
-import type { Conversation, Space } from '../../shared/types.ts';
+import { Actor } from '../features/agents/Character.tsx';
+import {
+  conversationLabel,
+  defaultAudience,
+  privateAgentConversation,
+} from '../features/conversations/audience.ts';
+import type { Conversation, Space, User } from '../../shared/types.ts';
 
-export function Rail() {
-  const { s, ui, setUi, space, run, openConversation } = useWorkspace();
-  const [creating, setCreating] = useState<'project' | 'channel' | null>(null);
+export function Rail({
+  creatingProject,
+  onProjectFormClose,
+}: {
+  creatingProject: boolean;
+  onProjectFormClose: () => void;
+}) {
+  const { s, ui, setUi, space, run, openConversation, openDirect } = useWorkspace();
+  const [creating, setCreating] = useState<{
+    kind: 'project' | 'channel' | 'agent';
+    spaceId: string;
+  } | null>(null);
   const [name, setName] = useState('');
-  const unread = (c: Conversation) => {
-    const last = s.lastRead[c.id] ?? '';
-    return s.messages.filter(
-      (m) => m.conversationId === c.id && m.authorId !== s.me.id && m.createdAt > last,
-    ).length;
-  };
-  const online = (userId: string) => s.presence.some((p) => p.userId === userId && p.online);
-  const channels = s.conversations.filter((c) => c.kind === 'channel' && c.spaceId === space.id);
-  const discussions = s.conversations.filter(
-    (c) =>
-      c.kind === 'discussion' &&
-      c.spaceId === space.id &&
-      s.messages.some((m) => m.conversationId === c.id),
-  );
-  const people = s.users.filter((u) => u.kind === 'human' && u.id !== s.me.id);
-  const mine = privateAgentConversation(s);
-  const projectAgent = space.kind === 'project' ? projectAgentOf(s, space.id) : undefined;
-  const submit = async () => {
-    const value = name.trim();
-    if (!value) return setCreating(null);
-    if (creating === 'project') {
-      const created = await run(() => api<Space>('/projects', { body: { name: value } }));
-      if (created)
-        setUi({ spaceId: created.id, conversationId: null, readerId: null, selectedId: null });
-    } else if (creating === 'channel') {
-      const created = await run(() =>
-        api<Conversation>('/channels', { body: { spaceId: space.id, title: value } }),
-      );
-      if (created) openConversation(created.id);
-    }
-    setName('');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (creatingProject) setCreating({ kind: 'project', spaceId: space.id });
+  }, [creatingProject]);
+  const cancel = () => {
     setCreating(null);
+    setName('');
+    onProjectFormClose();
   };
-  const openDm = async (userId: string) => {
-    const dm = await run(() => api<Conversation>('/dms', { body: { userId } }));
-    if (dm) openConversation(dm.id);
+  const start = (kind: 'project' | 'channel' | 'agent', spaceId: string) => {
+    setName('');
+    setCreating({ kind, spaceId });
   };
-  const Row = ({ c, label, icon }: { c: Conversation; label: string; icon: React.ReactNode }) => {
-    const count = unread(c);
-    return (
-      <button
-        className={`rail-row ${ui.conversationId === c.id ? 'active' : ''}`}
-        onClick={() => openConversation(c.id)}
-      >
-        {icon}
-        <span className="rail-label">{label}</span>
-        {count > 0 && (
-          <span className="unread" aria-label={`${count} unread`}>
-            {count}
-          </span>
-        )}
-      </button>
-    );
+  const submit = async () => {
+    if (!creating || !name.trim() || saving) return;
+    setSaving(true);
+    const created = await run(async () => {
+      if (creating.kind === 'project') {
+        const project = await api<Space>('/projects', { body: { name: name.trim() } });
+        setUi((old) => ({
+          spaceId: project.id,
+          conversationId: null,
+          memberId: null,
+          readerId: null,
+          collapsedSpaces: { ...old.collapsedSpaces, [project.id]: false },
+        }));
+      } else if (creating.kind === 'channel') {
+        const chat = await api<Conversation>('/channels', {
+          body: { spaceId: creating.spaceId, title: name.trim() },
+        });
+        setUi({ spaceId: creating.spaceId });
+        openConversation(chat.id);
+      } else {
+        const agent = await api<User>('/agents', {
+          body: { spaceId: creating.spaceId, name: name.trim() },
+        });
+        const chat = await api<Conversation>('/dms', { body: { userId: agent.id } });
+        setUi({ spaceId: creating.spaceId });
+        openConversation(chat.id);
+      }
+      return true;
+    });
+    setSaving(false);
+    if (created) cancel();
   };
-  const nameForm = creating && (
+  const form = creating && (
     <form
       className="rail-form"
       onSubmit={(e) => {
@@ -85,176 +78,205 @@ export function Rail() {
     >
       <input
         autoFocus
+        required
+        disabled={saving}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onBlur={() => void submit()}
-        onKeyDown={(e) => e.key === 'Escape' && setCreating(null)}
-        placeholder={creating === 'project' ? 'Project name' : 'channel-name'}
-        aria-label={creating === 'project' ? 'New project name' : 'New channel name'}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') cancel();
+        }}
+        placeholder={
+          creating.kind === 'project'
+            ? 'Project name'
+            : creating.kind === 'agent'
+              ? 'Agent name'
+              : 'channel-name'
+        }
+        aria-label={
+          creating.kind === 'project'
+            ? 'New project name'
+            : creating.kind === 'agent'
+              ? 'New agent name'
+              : 'New channel name'
+        }
       />
+      <small>Enter to create · Esc to cancel</small>
     </form>
   );
-  return (
-    <nav className="rail" aria-label="Navigation">
-      <div className="rail-surfaces" role="group" aria-label="Surface">
-        <button
-          aria-pressed={ui.surface === 'canvas'}
-          onClick={() => setUi({ surface: 'canvas' })}
-          title="Canvas"
-        >
-          <LayoutGrid size={16} /> Canvas
-        </button>
-        <button
-          aria-pressed={ui.surface === 'graph'}
-          onClick={() => setUi({ surface: 'graph' })}
-          title="Graph"
-        >
-          <Network size={16} /> Graph
-        </button>
-      </div>
-      <div className="rail-scroll">
-        <section aria-label="Spaces">
-          <h2>
-            Spaces
-            <button
-              className="rail-add"
-              aria-label="New project"
-              onClick={() => setCreating('project')}
-            >
-              <Plus size={14} />
-            </button>
-          </h2>
-          {s.spaces.map((x) => (
-            <button
-              key={x.id}
-              className={`rail-row space-row ${x.id === space.id ? 'active' : ''}`}
-              onClick={() => setUi({ spaceId: x.id, readerId: null, selectedId: null })}
-            >
-              {x.kind === 'personal' ? <Lock size={14} /> : <span className="space-dot" />}
-              <span className="rail-label">{x.name}</span>
-            </button>
-          ))}
-          {creating === 'project' && nameForm}
-        </section>
-        {space.kind === 'project' && (
-          <section aria-label="Channels">
-            <h2>
-              Channels
-              <button
-                className="rail-add"
-                aria-label="New channel"
-                onClick={() => setCreating('channel')}
-              >
-                <Plus size={14} />
-              </button>
-            </h2>
-            {channels.map((c) => (
-              <Row key={c.id} c={c} label={c.title} icon={<Hash size={14} />} />
-            ))}
-            {creating === 'channel' && nameForm}
-            {discussions.map((c) => (
-              <Row
-                key={c.id}
-                c={c}
-                label={s.resources.find((r) => r.id === c.resourceId)?.title ?? c.title}
-                icon={<MessageSquareText size={14} />}
-              />
-            ))}
-          </section>
+  const row = (chat: Conversation) => {
+    const count = s.messages.filter(
+      (m) =>
+        m.conversationId === chat.id &&
+        m.authorId !== s.me.id &&
+        m.createdAt > (s.lastRead[chat.id] ?? ''),
+    ).length;
+    return (
+      <button
+        key={chat.id}
+        className={`rail-row ${ui.conversationId === chat.id && !ui.memberId ? 'active' : ''}`}
+        onClick={() => openConversation(chat.id)}
+      >
+        {chat.kind === 'channel' ? <Hash size={15} /> : <MessageSquareText size={15} />}
+        <span className="rail-label">
+          {chat.kind === 'channel' ? chat.title : conversationLabel(s, chat).label}
+        </span>
+        {!!count && (
+          <span className="unread" aria-label={`${count} unread`}>
+            {count}
+          </span>
         )}
-        <section aria-label="Agents">
-          <h2>Agents</h2>
-          {projectAgent && (
-            <button
-              className="rail-row"
-              onClick={() => setUi({ readerId: null })}
-              title="Shows its work and approvals"
-            >
-              <Character
-                agent={projectAgent}
-                size={18}
-                state={agentState(projectAgent.id, s.jobs)}
-              />
-              <span className="rail-label">{projectAgent.name}</span>
-            </button>
-          )}
-          {mine && (
-            <Row
-              c={mine.conversation}
-              label="Your agent"
-              icon={
-                <Character agent={mine.agent} size={18} state={agentState(mine.agent.id, s.jobs)} />
-              }
-            />
-          )}
-        </section>
-        <section aria-label="People">
-          <h2>People</h2>
-          {people.length === 0 && (
-            <p className="rail-empty">Others join from this server's address.</p>
-          )}
-          {people.map((p) => {
-            const dm = s.conversations.find(
-              (c) =>
-                c.kind === 'dm' &&
-                c.participantIds.includes(p.id) &&
-                c.participantIds.includes(s.me.id),
+      </button>
+    );
+  };
+  return (
+    <nav id="workstation-navigation" className="rail" aria-label="Navigation">
+      <div className="rail-scroll">
+        <div className="navigation-heading">
+          <span>Your workspace</span>
+          <button
+            className="rail-add"
+            aria-label="New project"
+            title="New project"
+            onClick={() => start('project', space.id)}
+          >
+            <Plus size={17} />
+          </button>
+        </div>
+        {creating?.kind === 'project' && form}
+        {[...s.spaces]
+          .sort((a, b) => Number(b.kind === 'personal') - Number(a.kind === 'personal'))
+          .map((item) => {
+            const expanded = !ui.collapsedSpaces[item.id];
+            const channels = s.conversations.filter(
+              (c) => c.spaceId === item.id && c.kind === 'channel',
             );
-            const count = dm ? unread(dm) : 0;
+            const work = s.conversations.filter(
+              (c) =>
+                (c.spaceId === item.id && (c.kind === 'agent-work' || c.kind === 'discussion')) ||
+                (item.kind === 'personal' &&
+                  c.kind === 'agent-private' &&
+                  s.messages.some((m) => m.conversationId === c.id)),
+            );
+            const members = s.users.filter(
+              (u) =>
+                u.id !== s.me.id &&
+                (item.kind === 'personal'
+                  ? u.kind === 'human' || u.id === privateAgentConversation(s)?.agent.id
+                  : s.members.some((m) => m.spaceId === item.id && m.userId === u.id)),
+            );
             return (
-              <button
-                key={p.id}
-                className={`rail-row ${dm && ui.conversationId === dm.id ? 'active' : ''}`}
-                onClick={() => void openDm(p.id)}
-              >
-                <span className="presence-wrap">
-                  <Avatar user={p} size={18} />
-                  <i
-                    className={`presence-dot ${online(p.id) ? 'on' : ''}`}
-                    aria-label={online(p.id) ? 'online' : 'offline'}
-                  />
-                </span>
-                <span className="rail-label" style={{ color: p.color }}>
-                  {p.name}
-                </span>
-                {count > 0 && (
-                  <span className="unread" aria-label={`${count} unread`}>
-                    {count}
-                  </span>
+              <section key={item.id} aria-label={`${item.name} navigation`}>
+                <button
+                  className="rail-row space-row"
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setUi((old) => ({
+                      collapsedSpaces: { ...old.collapsedSpaces, [item.id]: expanded },
+                    }))
+                  }
+                >
+                  <ChevronDown size={14} className={expanded ? '' : 'collapsed'} />
+                  <span className="rail-label">{item.name}</span>
+                  {item.kind === 'personal' && <Lock size={12} />}
+                </button>
+                {expanded && (
+                  <div className="rail-nested">
+                    <button
+                      className={`rail-row ${space.id === item.id && !ui.conversationId && !ui.memberId ? 'active' : ''}`}
+                      aria-label={`Open ${item.name} workspace`}
+                      onClick={() =>
+                        setUi((old) => ({
+                          spaceId: item.id,
+                          conversationId: null,
+                          memberId: null,
+                          readerId: null,
+                          selectedId: null,
+                          audience: { ...old.audience, [item.id]: defaultAudience(s, item.id)! },
+                        }))
+                      }
+                    >
+                      <LayoutGrid size={15} />
+                      <span className="rail-label">Workspace</span>
+                    </button>
+                    {item.kind === 'project' && (
+                      <>
+                        <h2>
+                          Channels
+                          <button
+                            className="rail-add"
+                            aria-label={`New channel in ${item.name}`}
+                            onClick={() => start('channel', item.id)}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </h2>
+                        {channels.map(row)}
+                        {creating?.kind === 'channel' && creating.spaceId === item.id && form}
+                      </>
+                    )}
+                    {!!work.length && (
+                      <>
+                        <h2>Conversations</h2>
+                        {work.map(row)}
+                      </>
+                    )}
+                    {!!members.length && (
+                      <h2>
+                        Direct messages
+                        {item.kind === 'project' && item.ownerId === s.me.id && (
+                          <button
+                            className="rail-add"
+                            aria-label={`Deploy agent in ${item.name}`}
+                            title="Deploy agent"
+                            onClick={() => start('agent', item.id)}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        )}
+                      </h2>
+                    )}
+                    {creating?.kind === 'agent' && creating.spaceId === item.id && form}
+                    {members.map((member) => {
+                      const chat = s.conversations.find(
+                        (c) =>
+                          (c.kind === 'dm' || c.kind === 'agent-private') &&
+                          c.participantIds.includes(member.id),
+                      );
+                      const label = member.role === 'personal' ? 'Your agent' : member.name;
+                      const count = chat
+                        ? s.messages.filter(
+                            (m) =>
+                              m.conversationId === chat.id &&
+                              m.authorId !== s.me.id &&
+                              m.createdAt > (s.lastRead[chat.id] ?? ''),
+                          ).length
+                        : 0;
+                      return (
+                        <button
+                          key={member.id}
+                          className={`rail-row ${chat && chat.id === ui.conversationId && !ui.memberId ? 'active' : ''}`}
+                          title={`Private conversation with ${label}`}
+                          onClick={() => {
+                            setUi({ spaceId: item.id });
+                            void openDirect(member.id);
+                          }}
+                        >
+                          <Actor user={member} jobs={s.jobs} size={18} />
+                          <span className="rail-label">{label}</span>
+                          {!!count && (
+                            <span className="unread" aria-label={`${count} unread`}>
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              </button>
+              </section>
             );
           })}
-        </section>
       </div>
-      <footer className="rail-account">
-        <Avatar user={s.me} size={22} />
-        <span className="rail-label">{s.me.name}</span>
-        <button
-          aria-label={`Theme: ${ui.theme}`}
-          title={`Theme: ${ui.theme}`}
-          onClick={() =>
-            setUi({
-              theme: ui.theme === 'system' ? 'light' : ui.theme === 'light' ? 'dark' : 'system',
-            })
-          }
-        >
-          {ui.theme === 'dark' ? (
-            <Moon size={14} />
-          ) : ui.theme === 'light' ? (
-            <Sun size={14} />
-          ) : (
-            <Monitor size={14} />
-          )}
-        </button>
-        <button
-          aria-label="Sign out"
-          title="Sign out"
-          onClick={() => void api('/logout', { body: {} }).then(() => location.reload())}
-        >
-          <LogOut size={14} />
-        </button>
-      </footer>
     </nav>
   );
 }

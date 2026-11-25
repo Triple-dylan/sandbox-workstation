@@ -6,9 +6,17 @@ import type { Audience } from '../features/conversations/audience.ts';
 export type Ui = {
   spaceId: Id | null;
   surface: 'canvas' | 'graph';
+  graphFocus: Record<Id, Id>;
+  collapsedSpaces: Record<Id, boolean>;
+  minimizedTools: Record<string, boolean>;
+  readerDrafts: Record<Id, { title: string; body: string }>;
+  railWidth: number;
+  railHidden: boolean;
   conversationId: Id | null;
   selectedId: Id | null;
+  pendingPlacementId: Id | null;
   readerId: Id | null;
+  memberId: Id | null;
   audience: Record<Id, Audience>;
   drafts: Record<string, string>;
   theme: 'system' | 'light' | 'dark';
@@ -17,9 +25,17 @@ export type Ui = {
 export const initialUi: Ui = {
   spaceId: null,
   surface: 'canvas',
+  graphFocus: {},
+  collapsedSpaces: {},
+  minimizedTools: {},
+  readerDrafts: {},
+  railWidth: 240,
+  railHidden: false,
   conversationId: null,
   selectedId: null,
+  pendingPlacementId: null,
   readerId: null,
+  memberId: null,
   audience: {},
   drafts: {},
   theme: 'system',
@@ -36,7 +52,9 @@ export type Workspace = {
   run: <T>(work: () => Promise<T>) => Promise<T | undefined>;
   openConversation: (id: Id) => void;
   openResource: (id: Id) => void;
-  discuss: (resourceId: Id) => void;
+  openDirect: (userId: Id) => Promise<void>;
+  openAgentWork: (agentId: Id) => Promise<void>;
+  discuss: (resourceId: Id, quote?: string) => void;
 };
 
 export const WorkspaceContext = createContext<Workspace>(null!);

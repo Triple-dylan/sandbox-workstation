@@ -7,6 +7,9 @@ create table if not exists users (
   id text primary key, name text not null, color text not null, kind text not null,
   character text, owner_id text, space_id text, role text, created_at text not null
 );
+create table if not exists agent_settings (agent_id text primary key, settings text not null);
+create table if not exists identities (subject text primary key, user_id text not null);
+create table if not exists session_expiry (token text primary key, expires_at integer not null);
 create table if not exists sessions (token text primary key, user_id text not null);
 create table if not exists spaces (
   id text primary key, kind text not null, name text not null, owner_id text not null, created_at text not null

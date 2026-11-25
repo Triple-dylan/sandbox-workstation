@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, ChevronDown, X } from 'lucide-react';
+import { ArrowUp, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import type { Conversation, Message } from '../../../shared/types.ts';
 import {
   audienceKey,
-  audienceOptions,
   defaultAudience,
   describeAudience,
   stillValid,
@@ -14,17 +13,27 @@ import {
 
 export function Composer() {
   const { s, ui, setUi, space, resource, run, openConversation } = useWorkspace();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null);
-  const chosen = ui.audience[space.id];
-  const audience = chosen && stillValid(s, chosen) ? chosen : defaultAudience(s, space.id);
+  const saved = ui.audience[space.id];
+  const chosen = saved?.kind === 'discuss' ? saved : null;
+  const active = s.conversations.find((c) => c.id === ui.conversationId);
+  const audience: Audience | null = active
+    ? { kind: 'conversation', conversationId: active.id }
+    : chosen && stillValid(s, chosen)
+      ? chosen
+      : defaultAudience(s, space.id);
   const key = audience ? audienceKey(audience) : '';
   const text = ui.drafts[key] ?? '';
   const described = audience ? describeAudience(s, audience) : null;
-  const options = audienceOptions(s, space.id, resource(ui.selectedId) ?? null);
-  const groups = [...new Set(options.map((o) => o.group))];
+  const mounted = useRef(false);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     if (chosen?.kind === 'discuss') input.current?.focus();
   }, [chosen]);
@@ -35,11 +44,6 @@ export function Composer() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
-  const choose = (a: Audience) => {
-    setUi((old) => ({ audience: { ...old.audience, [space.id]: a } }));
-    setMenuOpen(false);
-    input.current?.focus();
-  };
   const setText = (value: string) => setUi((old) => ({ drafts: { ...old.drafts, [key]: value } }));
 
   const send = async () => {
@@ -48,7 +52,15 @@ export function Composer() {
     const sent = await run(async () => {
       let conversationId: string;
       let anchor: { resourceId: string; quote: string } | null = null;
-      if (audience.kind === 'person') {
+      if (audience.kind === 'personal-work') {
+        conversationId = (await api<Conversation>('/personal-chats', { body: { title: text } })).id;
+      } else if (audience.kind === 'project-work') {
+        conversationId = (
+          await api<Conversation>('/agent-work', {
+            body: { spaceId: audience.spaceId, agentId: audience.agentId, title: text },
+          })
+        ).id;
+      } else if (audience.kind === 'person') {
         conversationId = (await api<Conversation>('/dms', { body: { userId: audience.userId } }))
           .id;
       } else if (audience.kind === 'discuss') {
@@ -56,25 +68,27 @@ export function Composer() {
           await api<Conversation>('/discussions', { body: { resourceId: audience.resourceId } })
         ).id;
         const r = resource(audience.resourceId);
-        const selection = window.getSelection()?.toString().trim();
         anchor = {
           resourceId: audience.resourceId,
-          quote: (selection || r?.body || r?.title || '').slice(0, 200),
+          quote: (audience.quote || r?.body || r?.title || '').slice(0, 200),
         };
       } else {
         conversationId = audience.conversationId;
       }
-      const addressedTo =
-        audience.kind === 'instruct' || audience.kind === 'delegate' ? audience.agentId : null;
       await api<Message>('/messages', {
-        body: { conversationId, text, addressedTo, delegate: audience.kind === 'delegate', anchor },
+        body: {
+          conversationId,
+          text: text.replace(/^\/assign\s+/i, ''),
+          delegate: /^\/assign\s+/i.test(text),
+          anchor,
+        },
       });
       return conversationId;
     });
     setSending(false);
     if (!sent) return;
-    setText('');
-    openConversation(sent);
+    setUi((old) => (old.drafts[key] === text ? { drafts: { ...old.drafts, [key]: '' } } : {}));
+    if (mounted.current) openConversation(sent);
   };
 
   if (!audience || !described) return null;
@@ -87,18 +101,10 @@ export function Composer() {
       }}
     >
       <div className="composer-audience">
-        <button
-          type="button"
-          className="audience-chip"
-          aria-haspopup="listbox"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-          title={described.detail}
-        >
+        <span className="audience-label">
           <span>To: {described.label}</span>
           <small>{described.detail}</small>
-          <ChevronDown size={13} />
-        </button>
+        </span>
         {audience.kind === 'discuss' && (
           <button
             type="button"
@@ -112,29 +118,6 @@ export function Composer() {
           >
             <X size={13} />
           </button>
-        )}
-        {menuOpen && (
-          <div className="audience-menu" role="listbox" aria-label="Send to">
-            {groups.map((group) => (
-              <div key={group} role="group" aria-label={group}>
-                <h3>{group}</h3>
-                {options
-                  .filter((o) => o.group === group)
-                  .map((o) => (
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={audienceKey(o.audience) === key}
-                      key={audienceKey(o.audience)}
-                      onClick={() => choose(o.audience)}
-                    >
-                      <strong>{o.label}</strong>
-                      <small>{o.detail}</small>
-                    </button>
-                  ))}
-              </div>
-            ))}
-          </div>
         )}
       </div>
       <div className="composer-row">
@@ -150,7 +133,6 @@ export function Composer() {
               e.preventDefault();
               void send();
             }
-            if (e.key === 'Escape') setMenuOpen(false);
           }}
         />
         <button className="send" type="submit" aria-label="Send" disabled={!text.trim() || sending}>

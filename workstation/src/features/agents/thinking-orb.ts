@@ -77,7 +77,7 @@ export function mountThinkingOrb(
     if (!ctx) return;
     const preset = resolvePreset(state, presetSize);
     const dark = resolveDark(theme, host);
-    const t = reduced ? 0 : ((now - start) / 1000) * preset.speed * (opts.speed ?? 1);
+    const t = reduced ? 0 : (Math.max(0, now - start) / 1000) * preset.speed * (opts.speed ?? 1);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, display, display);
     MODE_DRAWS[preset.mode](ctx, display, t, dark, preset.opts);

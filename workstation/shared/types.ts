@@ -14,6 +14,14 @@ export type User = {
   role?: 'personal' | 'project';
 };
 
+export const agentTools = [
+  'Project context',
+  'Document proposals',
+  'Orientation maintenance',
+] as const;
+export type AgentTool = (typeof agentTools)[number];
+export type AgentSettings = { instructions: string; skills: string; tools: AgentTool[] };
+
 export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
@@ -35,7 +43,7 @@ export type Resource = {
   updatedBy: Id;
 };
 
-export type ConversationKind = 'channel' | 'dm' | 'agent-private' | 'discussion';
+export type ConversationKind = 'agent-work' | 'channel' | 'dm' | 'agent-private' | 'discussion';
 export type Conversation = {
   id: Id;
   kind: ConversationKind;
@@ -127,6 +135,7 @@ export type Snapshot = {
   jobs: Job[];
   assignments: Assignment[];
   approvals: Approval[];
+  agentSettings: Record<Id, AgentSettings>;
   presence: Presence[];
   lastRead: Record<Id, string>;
   runtime: { id: string; label: string; model?: string };

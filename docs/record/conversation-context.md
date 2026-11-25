@@ -444,3 +444,44 @@ Dylan reviewed four character directions (Pebble, Orb, Bit, Badge) on the compar
 ## November 5: Orb motion is thinking-orbs
 
 Dylan confirmed he wants **dynamic orbs**. The reference he already wired is DropDeployment’s npm `thinking-orbs@0.2.0` (upstream https://github.com/Jakubantalik/thinking-orbs), not a further SVG/CSS keyframe pass. Sandbox should host the canvas particle orb with state verbs and keep only a faint per-agent tint as a host concern.
+
+## 2026-11-06 — shell, Graph and real preview
+
+> where the toggle sits. and for some reason the entire graphs dynamics got totally redesigned and left in the past. this is a critical issue that needs resolving, and warrants a deeper search for other critical aspects that got removed with no reason.
+>
+> the only 'mock' data should be a populated folder structure for the graph.
+>
+> yes - real use does in fact mean real use.
+
+> you need to do some polishing on the ui here. canvas and graph buttons dont look great, let the canvas visually bleed past the borders - not closing it in - left rail isnt extendable or hideable (most basic left menu feature that is literally unanimous across all tools worldwide - absurd you didnt just do this) , I also already told you that the project tools need to live as floating modules over the canvas. Always fixed, never a hidden rail. you should be able to minimize these project tool modules, but stop adding popout menus - that is clutter.
+
+## 2026-11-06 — group conversation view and tool placement
+
+> exactly. so when a groupchat is open we need to rethink what the view for the user is and how this changes.
+>
+> on the tools part I don tget what you mean, they should never take the column anyhow.
+>
+> go implement all of this. build a plan, do not trust yourself, review my language the screenshots and the references provided.
+
+
+## 2026-11-06 — navigation, agent and Graph corrections; required self-review
+
+> agent module is still pointless, the popup you added is absolutely tewrrible. remember when I said you consistnetly default ot popups and new buttons when exploring features? yeah, stop doing that.
+>
+> clicking on workspace snaps the menu to a new view. instead of simply existing there and just collapsing. the project agent view is nothing we ever discussed and this goes against many of the pricncipals we discussed. the members menu item also doesnt seem to make sense to me here.
+>
+> lets also think about what else could and should live on the far left menu. right now slelecting between private and workspace chats is not great - creates conflictions with the left rail - you didnt think about that at all seemingly.
+
+> looking at the doc viewer on the graph it appears you created another popout rail - strictly against what I have mentioned as well. add it to the list.
+
+> full graph button sticks for some reason. and again why a button? why does that even need to exist. persistent issues on your end here.
+>
+> pull all the corrections together and think deeply about where your critical failures are, and then create some rules for yourself to force checks against these issues. your behavior consistently goes against plain design and product preferences I have expressed, you cant seem to remember, and every task seems to be executed at the lowest possible level.
+
+Screenshot reference: Screenshot 2026-11-06 at 10.39.37 AM.png (attached to the request). Consolidation and required checks are in `docs/project/product-corrections.md`; recording them does not repair or verify the app.
+
+## 2026-11-06 — experience repair authorized
+
+> proceed with a plan to fix, implement, and inporve the whole experiance. needs to be so smooth, easily traversed, and simple
+
+Implementation choices and verification are tracked in `docs/project/experience-repair-plan.md`; they are not retroactive user approval of specific layouts.

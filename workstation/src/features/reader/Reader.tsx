@@ -4,17 +4,15 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
-import { canvasBounds } from '../canvas/Canvas.tsx';
-import { freeSpot } from '../canvas/layout.ts';
 
 type Revision = { id: string; authorId: string; body: string; createdAt: string };
 
 export function Reader({ resourceId }: { resourceId: string }) {
-  const { s, space, setUi, resource, user, run, discuss } = useWorkspace();
+  const { s, ui, space, setUi, resource, user, run, discuss, openResource } = useWorkspace();
   const item = resource(resourceId);
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState(item?.title ?? '');
-  const [body, setBody] = useState(item?.body ?? '');
+  const [editing, setEditing] = useState(!!ui.readerDrafts[resourceId]);
+  const [title, setTitle] = useState(ui.readerDrafts[resourceId]?.title ?? item?.title ?? '');
+  const [body, setBody] = useState(ui.readerDrafts[resourceId]?.body ?? item?.body ?? '');
   const [revisions, setRevisions] = useState<Revision[] | null>(null);
   useEffect(() => {
     if (!editing && item) {
@@ -22,20 +20,67 @@ export function Reader({ resourceId }: { resourceId: string }) {
       setBody(item.body);
     }
   }, [item, editing]);
+  useEffect(() => {
+    if (editing)
+      setUi((old) => ({ readerDrafts: { ...old.readerDrafts, [resourceId]: { title, body } } }));
+  }, [editing, title, body, resourceId, setUi]);
+  const clearDraft = () =>
+    setUi((old) => {
+      const drafts = { ...old.readerDrafts };
+      delete drafts[resourceId];
+      return { readerDrafts: drafts };
+    });
   if (!item) return null;
+  const itemSpace = s.spaces.find((candidate) => candidate.id === item.spaceId);
   const close = () => setUi({ readerId: null });
+  if (item.kind === 'folder') {
+    const children = s.resources.filter((r) => r.parentId === item.id);
+    return (
+      <article className="reader" aria-label={item.title}>
+        <header>
+          <h2>{item.title}</h2>
+          <button aria-label="Close reader" onClick={close}>
+            <X size={15} />
+          </button>
+        </header>
+        <div className="reader-tools">
+          {children.length === 0 && <p>This folder is empty.</p>}
+          {children.map((child) => (
+            <button
+              key={child.id}
+              onClick={() => {
+                if (child.spaceId === space.id)
+                  setUi((old) => ({
+                    graphFocus: { ...old.graphFocus, [space.id]: child.id },
+                  }));
+                openResource(child.id);
+              }}
+            >
+              {child.title}
+            </button>
+          ))}
+        </div>
+      </article>
+    );
+  }
   const save = async () => {
-    await run(() => api(`/resources/${item.id}`, { method: 'PATCH', body: { title, body } }));
-    setEditing(false);
+    const saved = await run(() =>
+      api(`/resources/${item.id}`, { method: 'PATCH', body: { title, body } }),
+    );
+    if (saved) {
+      setEditing(false);
+      clearDraft();
+    }
   };
   const place = () => {
-    const others = s.resources
-      .filter((r) => r.spaceId === item.spaceId && r.placement && r.id !== item.id)
-      .map((r) => r.placement!);
-    const spot = freeSpot({ width: 288, height: 120 }, canvasBounds, others);
-    if (!spot) return;
-    void run(() => api(`/resources/${item.id}`, { method: 'PATCH', body: { placement: spot } }));
-    setUi({ surface: 'canvas' });
+    setUi({
+      surface: 'canvas',
+      conversationId: null,
+      spaceId: item.spaceId,
+      readerId: null,
+      selectedId: item.id,
+      pendingPlacementId: item.id,
+    });
   };
   const editor = user(item.updatedBy);
   return (
@@ -56,8 +101,12 @@ export function Reader({ resourceId }: { resourceId: string }) {
         </button>
       </header>
       <p className="reader-meta">
-        {item.role === 'orientation' ? 'Maintained by the project agent · ' : ''}
-        {item.visibility === 'private' ? 'Private' : `Shared with ${space.name}`}
+        {item.role === 'orientation' && itemSpace?.kind === 'project'
+          ? 'Maintained by the project agent · '
+          : ''}
+        {item.visibility === 'private'
+          ? 'Private'
+          : `Shared with ${itemSpace?.name ?? 'the project'}`}
         {editor ? ` · edited by ${editor.name}` : ''}
       </p>
       <div className="reader-tools" role="toolbar" aria-label="Document actions">
@@ -66,22 +115,44 @@ export function Reader({ resourceId }: { resourceId: string }) {
             <button className="primary" onClick={() => void save()}>
               Save
             </button>
-            <button onClick={() => setEditing(false)}>Cancel</button>
+            <button
+              onClick={() => {
+                setEditing(false);
+                clearDraft();
+              }}
+            >
+              Cancel
+            </button>
           </>
         ) : (
           <button onClick={() => setEditing(true)}>
             <Pencil size={13} /> Edit
           </button>
         )}
-        <button onClick={() => discuss(item.id)}>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            const body = e.currentTarget.closest('.reader')?.querySelector('.reader-body');
+            const selection = window.getSelection();
+            const quote =
+              body &&
+              selection?.anchorNode &&
+              selection.focusNode &&
+              body.contains(selection.anchorNode) &&
+              body.contains(selection.focusNode)
+                ? selection.toString().trim().slice(0, 200)
+                : undefined;
+            discuss(item.id, quote);
+          }}
+        >
           <MessageSquareText size={13} /> Discuss
         </button>
-        {!item.placement && item.kind !== 'folder' && (
-          <button onClick={place}>
+        {!item.placement && (
+          <button onClick={() => void place()}>
             <LayoutGrid size={13} /> Place on canvas
           </button>
         )}
-        {space.kind === 'project' && item.ownerId === s.me.id && !item.role && (
+        {itemSpace?.kind === 'project' && item.ownerId === s.me.id && !item.role && (
           <button
             onClick={() =>
               void run(() =>

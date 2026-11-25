@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../server/app.ts';
+import { selectRuntime } from '../server/env.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
 import type { AgentRuntime } from '../server/agents/runtime.ts';
@@ -80,6 +81,142 @@ test('privacy: private notes, project membership and DMs are only visible to the
     () => store.postMessage(sam.id, { conversationId: dm.id, text: 'hi' }),
     /Not available/,
   );
+  await app.close();
+});
+
+test('a project discussion cannot expose an unrelated private resource quote', async () => {
+  const { app, store, dylan, maya, project, snap } = setup();
+  const shared = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'note',
+    body: 'Shared',
+  });
+  const draft = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'note',
+    body: 'Private quote',
+    visibility: 'private',
+  });
+  const discussion = store.openDiscussion(dylan.id, shared.id);
+  assert.throws(
+    () =>
+      store.postMessage(dylan.id, {
+        conversationId: discussion.id,
+        text: 'Review',
+        anchor: { resourceId: draft.id, quote: draft.body },
+      }),
+    /Share this item/,
+  );
+  assert.ok(!snap(maya.id).messages.some((message) => message.anchor?.resourceId === draft.id));
+  const privateDiscussion = store.openDiscussion(dylan.id, draft.id);
+  assert.ok(
+    store.postMessage(dylan.id, {
+      conversationId: privateDiscussion.id,
+      text: 'Review',
+      anchor: { resourceId: draft.id, quote: draft.body },
+    }),
+  );
+  await app.close();
+});
+
+test('channel mentions stay shared and project-agent DMs stay private', async () => {
+  const runtime: AgentRuntime = {
+    id: 'test',
+    label: 'Test',
+    async run(task) {
+      if (task.kind === 'maintenance') return { skip: true };
+      if (task.conversation.kind === 'dm')
+        return {
+          reply: 'Private reply',
+          orientation: 'Private orientation',
+          proposal: { kind: 'create-doc', title: 'Private proposal', body: 'Private content' },
+        };
+      return { reply: 'Channel reply' };
+    },
+  };
+  const { app, store, engine, dylan, maya, sam, agent, general, snap } = setup(runtime);
+  const group = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'Plain group message',
+  });
+  const mention = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: `Please check this @${agent.name}.`,
+  });
+  const dm = store.openDm(dylan.id, agent.id);
+  assert.equal(store.openDm(dylan.id, agent.id).id, dm.id);
+  assert.throws(() => store.openDm(sam.id, agent.id), /Not available/);
+  assert.throws(
+    () => store.postMessage(maya.id, { conversationId: dm.id, text: 'intrusion' }),
+    /Not available/,
+  );
+  store.postMessage(dylan.id, { conversationId: dm.id, text: 'Private question' });
+  await engine.idle();
+  const myView = snap(dylan.id);
+  const teamView = snap(maya.id);
+  assert.ok(
+    myView.messages.some((m) => m.conversationId === dm.id && m.text.includes('Private proposal')),
+  );
+  assert.ok(!teamView.messages.some((m) => m.conversationId === dm.id));
+  assert.ok(!teamView.jobs.some((j) => j.conversationId === dm.id));
+  assert.ok(!teamView.approvals.some((a) => a.proposal.title === 'Private proposal'));
+  assert.ok(!teamView.resources.some((r) => r.body === 'Private orientation'));
+  assert.equal(group.addressedTo, null);
+  assert.equal(mention.addressedTo, agent.id);
+  assert.ok(teamView.messages.some((m) => m.id === group.id));
+  assert.ok(teamView.messages.some((m) => m.replyTo === mention.id && m.text === 'Channel reply'));
+  const personalAgent = myView.users.find((u) => u.role === 'personal')!;
+  assert.equal(store.canReadConversation(personalAgent.id, dm), false);
+  await app.close();
+});
+
+test('a deployed specialist uses saved settings and project work stays separate from channels', async () => {
+  const tasks: Parameters<AgentRuntime['run']>[0][] = [];
+  const runtime: AgentRuntime = {
+    id: 'test',
+    label: 'Test',
+    async run(task) {
+      tasks.push(task);
+      return task.kind === 'maintenance'
+        ? { skip: true }
+        : { reply: 'Reviewed', proposal: { kind: 'create-doc', title: 'Draft', body: 'Text' } };
+    },
+  };
+  const { app, store, engine, dylan, maya, sam, general, agent, project, snap } = setup(runtime);
+  assert.throws(() => store.deployAgent(maya.id, project.id, 'Reviewer'), /Only the project owner/);
+  const specialist = store.deployAgent(dylan.id, project.id, 'Reviewer');
+  assert.equal(store.projectAgent(project.id)?.id, agent.id);
+  assert.throws(
+    () =>
+      store.updateAgentSettings(maya.id, specialist.id, 'Reviewer', {
+        instructions: '',
+        skills: '',
+        tools: [],
+      }),
+    /Only the project owner/,
+  );
+  store.updateAgentSettings(dylan.id, specialist.id, 'Reviewer', {
+    instructions: 'Check assumptions',
+    skills: 'Research',
+    tools: [],
+  });
+  const work = store.openAgentWork(maya.id, project.id, 'Review plan', specialist.id);
+  assert.notEqual(work.id, general.id);
+  store.postMessage(maya.id, { conversationId: work.id, text: 'Review this' });
+  await engine.idle();
+  assert.equal(
+    tasks.find((task) => task.agent.name === 'Reviewer')?.settings?.instructions,
+    'Check assumptions',
+  );
+  assert.deepEqual(tasks.find((task) => task.agent.name === 'Reviewer')?.context.resources, []);
+  assert.ok(!snap(maya.id).approvals.some((approval) => approval.agentId === specialist.id));
+  assert.ok(
+    snap(dylan.id).messages.some(
+      (message) => message.conversationId === work.id && message.authorId === specialist.id,
+    ),
+  );
+  assert.ok(!snap(sam.id).conversations.some((conversation) => conversation.id === work.id));
+  assert.equal(store.messages(general.id).length, 0);
   await app.close();
 });
 
@@ -211,7 +348,7 @@ test('unsolicited replies: the project agent may chip in on a relevant question,
   await app.close();
 });
 
-test('openai runtime: parses replies, records usage and falls back to scripted past the daily budget', async () => {
+test('openai runtime: parses replies, records usage and reports budget exhaustion without fake fallback', async () => {
   const calls: any[] = [];
   const headers: string[] = [];
   let usage = 0;
@@ -228,7 +365,6 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
   }) as unknown as typeof fetch;
   const runtime = createOpenAIRuntime({
     apiKey: PLACEHOLDER_KEY,
-    model: 'test-model',
     dailyTokenLimit: 150,
     usageToday: () => usage,
     addUsage: (t) => (usage += t),
@@ -243,7 +379,7 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
     .at(-1)!;
   assert.equal(last.text, 'Real model answer');
   assert.equal(last.runtime, 'openai');
-  assert.equal(calls[0].model, 'test-model');
+  assert.equal(calls[0].model, 'gpt-6-luna');
   assert.equal(headers[0], `Bearer ${PLACEHOLDER_KEY}`);
   assert.ok(
     !JSON.stringify(calls[0]).includes(PLACEHOLDER_KEY),
@@ -255,7 +391,9 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
   last = snap(dylan.id)
     .messages.filter((m) => m.conversationId === mine.id)
     .at(-1)!;
-  assert.equal(last.runtime, 'scripted');
+  assert.equal(last.runtime, 'openai');
+  assert.ok(!snap(dylan.id).messages.some((m) => m.runtime === 'scripted'));
+  assert.ok(snap(dylan.id).jobs.some((job) => job.status === 'failed'));
   assert.match(last.text, /Daily token budget of 150 reached/);
   assert.equal(calls.length, 1);
   await app.close();
@@ -291,4 +429,109 @@ test('http: sessions, CSRF header, auth and static path traversal', async () => 
   const traversal = await fetch(`${base}/..%2f..%2fpackage.json`);
   assert.ok(!(await traversal.text()).includes('devDependencies'));
   await app.close();
+});
+
+test('new personal chats are distinct, persist independently and remain private', async () => {
+  const { app, store, engine, dylan, maya, snap } = setup();
+  const first = store.startPersonalChat(dylan.id, 'First private task');
+  const second = store.startPersonalChat(dylan.id, 'Second private task');
+  assert.notEqual(first.id, second.id);
+  store.postMessage(dylan.id, { conversationId: first.id, text: 'First private message' });
+  store.postMessage(dylan.id, { conversationId: second.id, text: 'Second private message' });
+  await engine.idle();
+  const mine = snap(dylan.id);
+  assert.ok(mine.conversations.some((c) => c.id === first.id && c.title === 'First private task'));
+  assert.ok(
+    mine.messages.some(
+      (m) => m.conversationId === second.id && m.text === 'Second private message',
+    ),
+  );
+  assert.ok(
+    !mine.messages.some(
+      (m) => m.conversationId === first.id && m.text === 'Second private message',
+    ),
+  );
+  assert.ok(!snap(maya.id).conversations.some((c) => c.id === first.id || c.id === second.id));
+  assert.throws(
+    () => store.postMessage(maya.id, { conversationId: first.id, text: 'Not mine' }),
+    /Not available/,
+  );
+  await app.close();
+});
+
+test('normal startup without a key never substitutes scripted agent replies', async () => {
+  const { app, store } = setup();
+  assert.equal(selectRuntime({}, store).id, 'unavailable');
+  assert.equal(
+    selectRuntime({ OPENAI_API_KEY: PLACEHOLDER_KEY, OPENAI_MODEL: 'unauthorized-model' }, store)
+      .model,
+    'gpt-6-luna',
+    'environment overrides cannot change the application model',
+  );
+  assert.equal(selectRuntime({ AGENT_RUNTIME: 'scripted' }, store).id, 'scripted');
+  await app.close();
+});
+
+test('Google identities never claim demo names and sessions expire and revoke', () => {
+  const { store } = setup();
+  const first = store.googleUser('google-sub-1', 'Dylan');
+  const second = store.googleUser('google-sub-2', 'Dylan');
+  assert.notEqual(first.id, second.id);
+  assert.equal(store.googleUser('google-sub-1', 'Different name').id, first.id);
+  const token = store.createSession(first.id);
+  assert.equal(store.userForToken(token, true)?.id, first.id);
+  store.db.prepare('update session_expiry set expires_at = 0 where token = ?').run(token);
+  assert.equal(store.userForToken(token, true), null);
+  const next = store.createSession(first.id);
+  store.revokeSession(next);
+  assert.equal(store.userForToken(next), null);
+});
+
+test('production fails closed without Google and HTTPS configuration', () => {
+  assert.throws(
+    () => createApp({ dbPath: ':memory:', env: { NODE_ENV: 'production' } }),
+    /Production requires/,
+  );
+});
+
+test('Google mode blocks demo impersonation and rejects invalid credentials', async () => {
+  const app = createApp({
+    dbPath: ':memory:',
+    runtime: scriptedRuntime,
+    env: { GOOGLE_CLIENT_ID: 'test-client', APP_ORIGIN: 'https://workspace.example' },
+  });
+  opened.push(app);
+  await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+  assert.equal((await fetch(`${base}/api/profiles`)).status, 403);
+  assert.equal(
+    (
+      await fetch(`${base}/api/join`, {
+        method: 'POST',
+        headers: { 'x-workstation': '1' },
+        body: '{}',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fetch(`${base}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'x-workstation': '1', origin: 'https://evil.example' },
+        body: '{}',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await fetch(`${base}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'x-workstation': '1', origin: 'https://workspace.example' },
+        body: '{"credential":"invalid"}',
+      })
+    ).status,
+    401,
+  );
 });

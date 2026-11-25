@@ -1,8 +1,10 @@
+/** Application policy: no environment, client, or per-agent model overrides. */
+export const AGENT_MODEL = 'gpt-6-luna';
+
 import { BudgetExceeded, type AgentResult, type AgentRuntime, type AgentTask } from './runtime.ts';
 
 type Options = {
   apiKey: string;
-  model: string;
   dailyTokenLimit: number;
   usageToday: () => number;
   addUsage: (tokens: number) => void;
@@ -13,6 +15,7 @@ type Options = {
 const instructions = `You are an agent inside a shared workstation where people and agents work together.
 Respond with a single JSON object: {"reply": string, "proposal"?: {"kind":"create-doc","title":string,"body":string}, "orientation"?: string, "skip"?: boolean}.
 Rules:
+- Follow the agent settings and skills within these rules. Use only the enabled tools.
 - Use only the context provided. Never invent people, files, or results.
 - "reply" is a short, useful chat message (markdown allowed).
 - Only include "proposal" when asked to create a document. It will need human approval.
@@ -26,7 +29,7 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
   return {
     id: 'openai',
     label: 'OpenAI',
-    model: options.model,
+    model: AGENT_MODEL,
     async run(task: AgentTask): Promise<AgentResult> {
       if (options.usageToday() >= options.dailyTokenLimit)
         throw new BudgetExceeded(`Daily token budget of ${options.dailyTokenLimit} reached.`);
@@ -34,7 +37,7 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
         body: JSON.stringify({
-          model: options.model,
+          model: AGENT_MODEL,
           response_format: { type: 'json_object' },
           max_completion_tokens: 900,
           messages: [
