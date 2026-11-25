@@ -62,7 +62,7 @@ const newPage = async (page: Page, kind: string, title: string, mine = false) =>
   await page.getByRole('menuitem', { name: 'Page', exact: true }).click();
   await page.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await page.getByLabel('Title').last().fill(title);
-  if (mine) await page.getByRole('radio', { name: 'Only you' }).click();
+  if (mine) await page.getByLabel('Who can open it').selectOption('mine');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.locator('.pane-title input').waitFor();
 };
