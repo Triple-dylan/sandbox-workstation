@@ -292,9 +292,9 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await maya.locator('.feed .msg.from-agent', { hasText: 'Launch' }).first().waitFor();
 
   // The graph shows Dylan's private page to Dylan only.
-  await dylan.getByRole('button', { name: 'See as a map' }).click();
+  await dylan.getByRole('button', { name: 'Graph', exact: true }).click();
   await dylan.locator('.graph-node.is-private', { hasText: 'Only for Dylan' }).waitFor();
-  await maya.getByRole('button', { name: 'See as a map' }).click();
+  await maya.getByRole('button', { name: 'Graph', exact: true }).click();
   await maya.locator('.graph-node', { hasText: 'Brief' }).waitFor();
   assert.equal(await maya.locator('.graph-node', { hasText: 'Only for Dylan' }).count(), 0);
 });

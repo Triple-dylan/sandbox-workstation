@@ -6024,3 +6024,27 @@ select:focus-visible {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
+
+.list-tools {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.list-tools .list-find {
+  flex: 1;
+  margin-top: 0;
+}
+.list-graph {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-s);
+  color: var(--ink-3);
+}
+.list-graph:hover,
+.list-graph[aria-pressed='true'] {
+  background: var(--wash);
+  color: var(--ink);
+}

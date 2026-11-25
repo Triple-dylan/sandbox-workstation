@@ -409,7 +409,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           ? [{ label: 'New channel', run: () => setUi({ making: 'channel' as const }) }]
           : []),
         { label: 'New agent', run: () => setUi({ making: 'agent' }) },
-        { label: 'See as a map', hint: 'Alt G', run: () => open({ type: 'graph' }) },
+        { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
         { label: 'Ask your agent', hint: '⌘J', run: () => setUi({ railOpen: true }) },
         { label: 'Settings', hint: '⌘,', run: () => setUi({ dialog: 'settings' }) },
         { label: 'Shortcuts', hint: '⌘/', run: () => setUi({ dialog: 'shortcuts' }) },

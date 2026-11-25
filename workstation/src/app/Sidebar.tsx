@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Lock, Map as MapIcon, Pin, Plus, Search, Users } from 'lucide-react';
+import { ChevronDown, Lock, Pin, Plus, Search, Share2, Users } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character, agentState } from '../features/agents/Character.tsx';
 import { isPage } from '../../shared/types.ts';
@@ -247,12 +247,23 @@ export function Sidebar() {
         {peopleOpen && shared && <PeoplePanel onClose={() => setPeopleOpen(false)} />}
         {joining === 'space' && <NewWorkspace onClose={() => setJoining(null)} />}
         {joining === 'join' && <JoinWorkspace onClose={() => setJoining(null)} />}
-        <button
-          className="list-find"
-          onClick={() => pick({ title: 'Find', chats: true, onPick: (t) => open(t) })}
-        >
-          <Search size={14} /> <span>Find anything</span> <kbd>⌘K</kbd>
-        </button>
+        <div className="list-tools">
+          <button
+            className="list-find"
+            onClick={() => pick({ title: 'Find', chats: true, onPick: (t) => open(t) })}
+          >
+            <Search size={14} /> <span>Find anything</span> <kbd>⌘K</kbd>
+          </button>
+          <button
+            className="list-graph"
+            aria-label="Graph"
+            title="Graph: everything in this space (Alt G)"
+            aria-pressed={isOpen({ type: 'graph' })}
+            onClick={(e) => open({ type: 'graph' }, beside(e))}
+          >
+            <Share2 size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="list-scroll">
@@ -276,15 +287,6 @@ export function Sidebar() {
         {recent.length > RECENT && (
           <button className="list-row quiet" onClick={() => setAll((v) => !v)}>
             {all ? 'Show recent only' : `Show all ${pages.length}`}
-          </button>
-        )}
-        {pages.length > 0 && (
-          <button
-            className="list-row quiet"
-            aria-current={isOpen({ type: 'graph' }) ? 'page' : undefined}
-            onClick={(e) => open({ type: 'graph' }, beside(e))}
-          >
-            <MapIcon size={14} /> See as a map
           </button>
         )}
 
