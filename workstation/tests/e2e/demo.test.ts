@@ -58,7 +58,8 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
 const row = (page: Page, name: string) =>
   page.locator('.sidebar .list-row', { hasText: name }).first();
 const newPage = async (page: Page, kind: string, title: string, mine = false) => {
-  await page.getByRole('button', { name: 'New page' }).last().click();
+  await page.getByRole('button', { name: 'Add a page' }).click();
+  await page.getByRole('menuitem', { name: 'New page' }).click();
   await page.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await page.getByLabel('Title').last().fill(title);
   if (mine) await page.getByRole('radio', { name: 'Only you' }).click();

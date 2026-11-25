@@ -52,6 +52,11 @@ create table if not exists assignments (
   id text primary key, agent_id text not null, space_id text not null, conversation_id text not null,
   instruction text not null, created_by text not null, active integer not null, last_run_at text, created_at text not null
 );
+create table if not exists routines (
+  id text primary key, agent_id text not null, space_id text not null, conversation_id text not null,
+  instruction text not null, cadence text not null, weekday integer, time text not null,
+  tz_offset integer not null, created_by text not null, last_run_at text, created_at text not null
+);
 create table if not exists approvals (
   id text primary key, job_id text not null, space_id text not null, agent_id text not null, proposal text not null,
   status text not null, decided_by text, result_resource_id text, created_at text not null

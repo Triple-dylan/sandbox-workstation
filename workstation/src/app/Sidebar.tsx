@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Share2,
-  Upload,
   Settings as Cog,
   Users,
 } from 'lucide-react';
@@ -27,6 +26,7 @@ export function Sidebar() {
   const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, chooseFiles } =
     useWorkspace();
   const [switching, setSwitching] = useState(false);
+  const [dropping, setDropping] = useState<string | null>(null);
   const [adding, setAdding] = useState<
     'space' | 'join' | 'channel' | 'agent' | 'person' | 'folder' | null
   >(null);
@@ -306,9 +306,6 @@ export function Sidebar() {
           >
             <Share2 size={15} />
           </button>
-          <button aria-label="New page" title="New page" onClick={() => setUi({ creating: true })}>
-            <Plus size={16} />
-          </button>
         </div>
       </div>
 
@@ -318,14 +315,17 @@ export function Sidebar() {
           Pages
           <span>
             <button
-              aria-label="Bring in files"
-              title="Bring in files: transcripts, documents, decks, sheets, pictures"
-              onClick={chooseFiles}
+              aria-label="Add a page"
+              title="Add a page"
+              onClick={(e) =>
+                menu(e, [
+                  { label: 'New page', run: () => setUi({ creating: true }) },
+                  { label: 'From a file on your computer', run: chooseFiles },
+                  { label: 'New folder', run: () => setAdding('folder') },
+                ])
+              }
             >
-              <Upload size={13} />
-            </button>
-            <button aria-label="New folder" title="New folder" onClick={() => setAdding('folder')}>
-              <KindIcon kind="folder" size={13} />
+              <Plus size={14} />
             </button>
           </span>
         </h2>
@@ -344,19 +344,42 @@ export function Sidebar() {
               waitingOn(s, p) > 0 ||
               atWork(s, { resourceId: p.id }).length > 0,
           );
-          const shut = closed[f.id] ?? !wanted;
+          // An empty folder starts open, so its hint shows where pages go.
+          const shut = closed[f.id] ?? !(wanted || inside.length === 0);
           return (
             <div key={f.id} className="list-folder">
               <button
-                className="list-row folder"
+                className={`list-row folder ${dropping === f.id ? 'dropping' : ''}`}
                 aria-expanded={!shut}
+                title="Drag pages here"
                 onClick={() => setClosed((c) => ({ ...c, [f.id]: !shut }))}
+                onDragOver={(e) => {
+                  if (!e.dataTransfer.types.includes(DRAG)) return;
+                  e.preventDefault();
+                  setDropping(f.id);
+                }}
+                onDragLeave={() => setDropping(null)}
+                onDrop={(e) => {
+                  setDropping(null);
+                  try {
+                    const t = JSON.parse(e.dataTransfer.getData(DRAG));
+                    if (t.type !== 'page') return;
+                    e.preventDefault();
+                    void run(() =>
+                      api(`/resources/${t.id}`, { method: 'PATCH', body: { parentId: f.id } }),
+                    );
+                    setClosed((c) => ({ ...c, [f.id]: false }));
+                  } catch {
+                    // Not a page from the list.
+                  }
+                }}
               >
                 {shut ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
                 <span className="truncate">{f.title}</span>
                 <small>{inside.length}</small>
               </button>
               {!shut && inside.map(pageRow)}
+              {!shut && inside.length === 0 && <p className="list-hint">Drag pages here</p>}
             </div>
           );
         })}

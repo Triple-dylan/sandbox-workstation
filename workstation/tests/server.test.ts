@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createApp, type GoogleAccount } from '../server/app.ts';
+import { lastOccurrence } from '../server/store.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
 import type { AgentResult, AgentRuntime, AgentTask } from '../server/agents/runtime.ts';
@@ -1474,6 +1475,118 @@ test('openai runtime asks for the strict answer schema, and falls back to plain 
   const r = await prose.run(task);
   assert.equal(r.malformed, true);
   assert.equal(r.reply, 'Just text.');
+});
+
+test('routines: the schedule maths across timezones and day types', () => {
+  // Chicago in winter: getTimezoneOffset() is 360. 9:00 there is 15:00 UTC.
+  const at = (iso: string) => new Date(iso);
+  const daily = { cadence: 'daily' as const, weekday: null, time: '09:00', tzOffset: 360 };
+  assert.equal(
+    lastOccurrence(daily, at('2026-11-24T15:00:00Z'))!.toISOString(),
+    '2026-11-24T15:00:00.000Z',
+  );
+  assert.equal(
+    lastOccurrence(daily, at('2026-11-24T14:59:00Z'))!.toISOString(),
+    '2026-11-23T15:00:00.000Z',
+  );
+  // Weekdays skip the weekend: on Monday morning before 9, the last one was Friday.
+  const weekdays = { ...daily, cadence: 'weekdays' as const };
+  assert.equal(
+    lastOccurrence(weekdays, at('2026-11-23T14:00:00Z'))!.toISOString(),
+    '2026-11-20T15:00:00.000Z',
+  );
+  // Weekly on Wednesday (3).
+  const weekly = { ...daily, cadence: 'weekly' as const, weekday: 3 };
+  assert.equal(
+    lastOccurrence(weekly, at('2026-11-24T20:00:00Z'))!.toISOString(),
+    '2026-11-18T15:00:00.000Z',
+  );
+  // East of UTC: Berlin, offset -60. 08:30 there is 07:30 UTC.
+  const berlin = { cadence: 'daily' as const, weekday: null, time: '08:30', tzOffset: -60 };
+  assert.equal(
+    lastOccurrence(berlin, at('2026-11-24T07:30:00Z'))!.toISOString(),
+    '2026-11-24T07:30:00.000Z',
+  );
+});
+
+test('routines: who can set them up, where they answer, and each runs once when due', async () => {
+  const asked: AgentTask[] = [];
+  const model: AgentRuntime = {
+    id: 'fake-model',
+    label: 'Fake model',
+    run: async (task) => {
+      if (task.kind !== 'maintenance') asked.push(task);
+      return { reply: `Done: ${task.request}`, tokens: 1 };
+    },
+  };
+  const { store, engine, dylan, maya, sam, project, general, agent, snap } = setup(model);
+  const mine = snap(dylan.id).users.find((u) => u.role === 'personal' && u.ownerId === dylan.id)!;
+  const myChat = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  const base = { cadence: 'daily', time: '09:00', tzOffset: 0 };
+  // Your own agent: only you, and it answers in your conversation with it.
+  assert.throws(
+    () => store.createRoutine(maya.id, { ...base, agentId: mine.id, instruction: 'x' }),
+    /Not available/,
+  );
+  const personal = store.createRoutine(dylan.id, {
+    ...base,
+    agentId: mine.id,
+    instruction: 'Summarise my week',
+  });
+  assert.equal(personal.conversationId, myChat.id);
+  // A workspace agent: members only, posting in a channel of that workspace (#general by default).
+  assert.throws(
+    () => store.createRoutine(sam.id, { ...base, agentId: agent.id, instruction: 'x' }),
+    /Not available/,
+  );
+  const shared = store.createRoutine(maya.id, {
+    ...base,
+    agentId: agent.id,
+    instruction: 'Post what changed',
+  });
+  assert.equal(shared.conversationId, general.id);
+  assert.throws(
+    () =>
+      store.createRoutine(dylan.id, {
+        ...base,
+        agentId: agent.id,
+        instruction: 'x',
+        time: '25:00',
+      }),
+    /time/,
+  );
+  // Others see only the routines in conversations they can read.
+  assert.equal(snap(maya.id).routines.length, 1);
+  assert.equal(snap(dylan.id).routines.length, 2);
+  // Set up after today's 9:00, so nothing runs until tomorrow's.
+  const created = Date.parse(shared.createdAt);
+  const tomorrow9 = new Date(
+    Date.UTC(
+      new Date(created).getUTCFullYear(),
+      new Date(created).getUTCMonth(),
+      new Date(created).getUTCDate() + 1,
+      9,
+      0,
+    ),
+  );
+  // Set up just now: tomorrow at 9:00 is due for both, once.
+  asked.length = 0;
+  engine.runDueRoutines(tomorrow9);
+  await engine.idle();
+  assert.deepEqual(asked.map((t) => t.request).sort(), ['Post what changed', 'Summarise my week']);
+  assert.ok(
+    snap(maya.id).messages.some(
+      (m) => m.conversationId === general.id && m.text === 'Done: Post what changed',
+    ),
+  );
+  // Not again until the next day.
+  engine.runDueRoutines(new Date(tomorrow9.getTime() + 60_000));
+  await engine.idle();
+  assert.equal(asked.length, 2);
+  // Deleting stops it.
+  store.deleteRoutine(maya.id, shared.id);
+  assert.equal(snap(dylan.id).routines.length, 1);
+  void project;
 });
 
 test('google sign-in: anyone with a verified Google account can sign up, the same account comes back as the same person, and starting workspaces can be limited', async () => {

@@ -6,10 +6,9 @@ import {
   Copy,
   CornerDownRight,
   FilePlus2,
-  History,
   LayoutDashboard,
   MessageSquareReply,
-  Plus,
+  Paperclip,
   Settings2,
   Share,
   Sparkles,
@@ -23,6 +22,7 @@ import { ShareMenu, type Shared } from '../features/share/Share.tsx';
 import { Md, chatTitle, scopeOf } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
 import { DRAG } from './scope.ts';
+import { bringIn } from '../features/import/bringIn.ts';
 import { addressed, useMentions } from '../features/feed/mentions.tsx';
 import type { Id, Message, Resource } from '../../shared/types.ts';
 
@@ -139,10 +139,10 @@ export function Rail({ docked }: { docked: boolean }) {
     notify,
     commands,
     resource,
-    pick,
     jump,
   } = ws;
   const [text, setText] = useState('');
+  const [earlier, setEarlier] = useState(false);
   const [menu, setMenu] = useState<'sees' | null>(null);
   const [sharing, setSharing] = useState<{ id: Id; text: string } | null>(null);
   const [picked, setPicked] = useState<{ id: Id; text: string; top: number; left: number } | null>(
@@ -247,6 +247,9 @@ export function Rail({ docked }: { docked: boolean }) {
     );
 
   const scope = scopeOf(ui, s, columns);
+  const onScreen = scopeOf({ ...ui, barSees: 'screen' }, s, columns).label;
+  const wholeSpace = scopeOf({ ...ui, barSees: 'space' }, s, columns).label;
+  const attach = useRef<HTMLInputElement>(null);
   const shown = columns === 1 ? [ui.panes[ui.active]] : ui.panes;
   const lookingAt = shown.find((x) => x && (x.type === 'page' || x.type === 'chat'));
   const page = lookingAt?.type === 'page' ? resource(lookingAt.id) : undefined;
@@ -262,7 +265,7 @@ export function Rail({ docked }: { docked: boolean }) {
       ? 'Looking at your selection'
       : ui.selection.length
         ? `Looking at ${ui.selection.length} selected`
-        : `Reading ${scope.label.toLowerCase()}`;
+        : 'Only you see this';
 
   const suggestions =
     ASKS[
@@ -388,7 +391,7 @@ export function Rail({ docked }: { docked: boolean }) {
     lastJob?.status === 'failed' &&
     lastJob.error?.startsWith('Stopped') &&
     thread.at(-1)?.authorId === s.me.id;
-  const latest = thread.slice(Math.max(0, lastAsk - 1)).slice(-6);
+  const latest = earlier ? thread : thread.slice(Math.max(0, lastAsk - 1)).slice(-6);
 
   const answer = (m: Message) => {
     const about = aboutOf(m);
@@ -512,13 +515,6 @@ export function Rail({ docked }: { docked: boolean }) {
           </small>
         </span>
         <button
-          aria-label="The whole conversation"
-          title="The whole conversation"
-          onClick={() => open({ type: 'chat', id: myChat.id }, true)}
-        >
-          <History size={14} />
-        </button>
-        <button
           aria-label="Your agent's skills and instructions"
           title="Skills and instructions"
           onClick={() => open({ type: 'who', id: myAgent.id }, true)}
@@ -572,18 +568,11 @@ export function Rail({ docked }: { docked: boolean }) {
 
       <div className="rail-body" ref={body} onScroll={() => picked && setPicked(null)}>
         {thread.length === 0 && (
-          <p className="rail-empty">
-            Ask about what is on screen or the whole space. Only you see this. Type @ to bring in{' '}
-            {roster.map((a) => a.name).join(' or ') || 'another agent'}; share anything here with
-            the team when you choose.
-          </p>
+          <p className="rail-empty">Select text on any page to ask about just that part.</p>
         )}
         {thread.length > latest.length && (
-          <button
-            className="link rail-earlier"
-            onClick={() => open({ type: 'chat', id: myChat.id }, true)}
-          >
-            Earlier · open the whole conversation
+          <button className="link rail-earlier" onClick={() => setEarlier(true)}>
+            Show earlier
           </button>
         )}
         {latest.map((m) =>
@@ -685,38 +674,31 @@ export function Rail({ docked }: { docked: boolean }) {
       {mentions.menu && <div className="rail-menu">{mentions.menu}</div>}
       {menu === 'sees' && (
         <div className="rail-menu" role="menu" aria-label="What it reads">
-          <p>What your agent reads to answer. This never decides who sees the answer.</p>
           {(
             [
-              [
-                'screen',
-                'What is on screen',
-                scopeOf({ ...ui, barSees: 'screen' }, s, columns).label,
-              ],
-              [
-                'space',
-                'The whole space',
-                `Everything you can open in ${space.kind === 'personal' ? 'your space' : space.name}`,
-              ],
-              ['none', 'Nothing', 'Just your words'],
+              ['screen', onScreen, 'What you have open'],
+              ['space', wholeSpace, 'Every page you can open here'],
             ] as const
-          ).map(([id, name, detail]) => (
-            <button
-              key={id}
-              role="menuitemradio"
-              aria-checked={ui.barSees === id}
-              onClick={() => {
-                setUi({ barSees: id });
-                setMenu(null);
-                box.current?.focus();
-              }}
-            >
-              <span>
-                <strong>{name}</strong>
-                <small>{detail}</small>
-              </span>
-            </button>
-          ))}
+          )
+            // On a screen that shows no particular page, "on screen" already means the whole space.
+            .filter(([id]) => id === 'space' || onScreen !== wholeSpace)
+            .map(([id, name, detail]) => (
+              <button
+                key={id}
+                role="menuitemradio"
+                aria-checked={ui.barSees === id}
+                onClick={() => {
+                  setUi({ barSees: id });
+                  setMenu(null);
+                  box.current?.focus();
+                }}
+              >
+                <span>
+                  <strong>{name}</strong>
+                  <small>{detail}</small>
+                </span>
+              </button>
+            ))}
         </div>
       )}
 
@@ -744,9 +726,7 @@ export function Rail({ docked }: { docked: boolean }) {
           ref={box}
           rows={1}
           value={text}
-          placeholder={
-            asking ? 'Ask about the selected text' : 'Ask your agent · only you see this'
-          }
+          placeholder={asking ? 'Ask about the selected text' : 'Ask your agent'}
           aria-label="Ask your agent"
           onChange={(e) => {
             setText(e.target.value);
@@ -775,18 +755,27 @@ export function Rail({ docked }: { docked: boolean }) {
           <button
             type="button"
             className="chip"
-            title="Give it another page to read"
-            onClick={() =>
-              pick({
-                title: 'Give your agent a page to read',
-                filter: (r) => r.spaceId === space.id && !ui.barExtras.includes(r.id),
-                onPick: (t) =>
-                  t.type === 'page' && setUi({ barExtras: [...ui.barExtras, t.id].slice(0, 6) }),
-              })
-            }
+            title="Attach a file from your computer. It's kept as a private page you can find later."
+            onClick={() => attach.current?.click()}
           >
-            <Plus size={11} /> Add
+            <Paperclip size={11} /> Attach
           </button>
+          <input
+            ref={attach}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              e.target.value = '';
+              if (!files.length) return;
+              void bringIn(files, { spaceId: space.id, visibility: 'private' }).then((r) => {
+                if (r.made.length)
+                  setUi({ barExtras: [...ui.barExtras, ...r.made.map((m) => m.id)].slice(-6) });
+                if (r.skipped.length) notify(`Could not read ${r.skipped.join(', ')}.`);
+              });
+            }}
+          />
           {ui.barExtras.map((id) => (
             <span key={id} className="chip added">
               {resource(id)?.title ?? 'Page'}

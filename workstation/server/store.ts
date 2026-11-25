@@ -13,6 +13,7 @@ import type {
   Anchor,
   Approval,
   Assignment,
+  Routine,
   Character,
   Conversation,
   Goal,
@@ -146,6 +147,46 @@ const toAssignment = (r: Row): Assignment => ({
   lastRunAt: r.last_run_at,
   createdAt: r.created_at,
 });
+const toRoutine = (r: Row): Routine => ({
+  id: r.id,
+  agentId: r.agent_id,
+  spaceId: r.space_id,
+  conversationId: r.conversation_id,
+  instruction: r.instruction,
+  cadence: r.cadence,
+  weekday: r.weekday ?? null,
+  time: r.time,
+  tzOffset: Number(r.tz_offset),
+  createdBy: r.created_by,
+  lastRunAt: r.last_run_at,
+  createdAt: r.created_at,
+});
+
+/**
+ * When a routine last should have run, at or before `at`: today's time if it has passed and today
+ * fits the cadence, else the most recent earlier day that fits.
+ */
+export function lastOccurrence(
+  r: Pick<Routine, 'cadence' | 'weekday' | 'time' | 'tzOffset'>,
+  at: Date,
+) {
+  const [hh, mm] = r.time.split(':').map(Number);
+  const local = new Date(at.getTime() - r.tzOffset * 60_000);
+  for (let back = 0; back < 8; back++) {
+    const day = new Date(
+      Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - back, hh, mm),
+    );
+    const weekday = day.getUTCDay();
+    const fits =
+      r.cadence === 'daily' ||
+      (r.cadence === 'weekdays' && weekday >= 1 && weekday <= 5) ||
+      (r.cadence === 'weekly' && weekday === r.weekday);
+    const real = new Date(day.getTime() + r.tzOffset * 60_000);
+    if (fits && real <= at) return real;
+  }
+  return null;
+}
+
 const toApproval = (r: Row): Approval => ({
   id: r.id,
   jobId: r.job_id,
@@ -1499,6 +1540,98 @@ export class Store {
     this.run('update assignments set active = 0 where id = ?', assignmentId);
     this.changed();
   }
+  /**
+   * A job an agent does on a schedule. Your own agent answers in your conversation with it; a
+   * workspace agent posts in the channel chosen, which the person setting it up must be able to read.
+   */
+  createRoutine(
+    actorId: Id,
+    input: {
+      agentId: Id;
+      instruction: string;
+      cadence: string;
+      weekday?: number | null;
+      time: string;
+      tzOffset: number;
+      conversationId?: Id | null;
+    },
+  ) {
+    const agent = this.user(input.agentId);
+    if (!agent || agent.kind !== 'agent' || agent.retired) throw new AccessError('Not available.');
+    const instruction = input.instruction.trim().slice(0, 1000);
+    if (!instruction) throw new InputError('Say what it should do.');
+    if (!['daily', 'weekdays', 'weekly'].includes(input.cadence))
+      throw new InputError('Choose how often.');
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time)) throw new InputError('Choose a time.');
+    const weekday = input.cadence === 'weekly' ? Number(input.weekday) : null;
+    if (weekday !== null && !(Number.isInteger(weekday) && weekday >= 0 && weekday <= 6))
+      throw new InputError('Choose a day.');
+    const tz = Math.round(Number(input.tzOffset));
+    if (!Number.isFinite(tz) || Math.abs(tz) > 840) throw new InputError('Unknown timezone.');
+    let conversation: Conversation | null;
+    if (agent.role === 'personal') {
+      if (this.principal(agent.id) !== actorId) throw new AccessError('Not available.');
+      conversation =
+        this.all(`select * from conversations where kind = 'agent-private'`)
+          .map((r) => this.conversation(r.id)!)
+          .find((c) => c.participantIds.includes(agent.id)) ?? null;
+    } else {
+      if (!agent.spaceId || !this.isMember(actorId, agent.spaceId))
+        throw new AccessError('Not available.');
+      conversation = input.conversationId
+        ? this.conversation(input.conversationId)
+        : (this.all(
+            `select id from conversations where kind = 'channel' and space_id = ? order by created_at`,
+            agent.spaceId,
+          ).map((r) => this.conversation(r.id)!)[0] ?? null);
+      if (
+        conversation &&
+        (conversation.spaceId !== agent.spaceId || conversation.kind !== 'channel')
+      )
+        throw new InputError('Choose a channel in this workspace.');
+    }
+    if (!conversation || !this.canReadConversation(actorId, conversation))
+      throw new AccessError('Not available.');
+    const routineId = id();
+    this.run(
+      'insert into routines values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, null, ?)',
+      routineId,
+      agent.id,
+      conversation.spaceId,
+      conversation.id,
+      instruction,
+      input.cadence,
+      weekday,
+      input.time,
+      tz,
+      actorId,
+      now(),
+    );
+    this.changed();
+    return toRoutine(this.get('select * from routines where id = ?', routineId)!);
+  }
+  deleteRoutine(actorId: Id, routineId: Id) {
+    const row = this.get('select * from routines where id = ?', routineId);
+    const conversation = row && this.conversation(row.conversation_id);
+    if (!row || !conversation || !this.canReadConversation(actorId, conversation))
+      throw new AccessError('Not available.');
+    this.run('delete from routines where id = ?', routineId);
+    this.changed();
+  }
+  /** Routines whose time has come since they last ran (or since they were set up). */
+  dueRoutines(at: Date) {
+    return this.all('select * from routines')
+      .map(toRoutine)
+      .filter((r) => {
+        const due = lastOccurrence(r, at);
+        if (!due) return false;
+        const since = Date.parse(r.lastRunAt ?? r.createdAt);
+        return due.getTime() > since && !this.user(r.agentId)?.retired;
+      });
+  }
+  touchRoutine(routineId: Id, at: Date) {
+    this.run('update routines set last_run_at = ? where id = ?', at.toISOString(), routineId);
+  }
   createApproval(job: Job, proposal: Proposal) {
     const approvalId = id();
     this.run(
@@ -1986,6 +2119,9 @@ export class Store {
     const assignments = this.all('select * from assignments')
       .map(toAssignment)
       .filter((a) => conversationIds.has(a.conversationId));
+    const routines = this.all('select * from routines order by created_at')
+      .map(toRoutine)
+      .filter((r) => conversationIds.has(r.conversationId));
     const approvals = this.all(
       'select * from approvals order by created_at desc, rowid desc limit 200',
     )
@@ -2023,6 +2159,7 @@ export class Store {
       messages,
       jobs,
       assignments,
+      routines,
       approvals,
       goals: spaces.flatMap((s) => this.goals(s.id)),
       skills: spaces.flatMap((s) => this.skillsIn(s.id)),

@@ -268,7 +268,7 @@ export function Pane({
             ? 'Direct messages · only the two of you'
             : 'Page feed'
       : target.type === 'graph'
-        ? 'Your own view of what you can see'
+        ? space.name
         : who?.kind === 'agent'
           ? who.role === 'personal'
             ? 'Your agent · private to you'
