@@ -15,9 +15,9 @@ import { Actor, Character, agentState, nameStyle } from '../agents/Character.tsx
 import { proposalText } from '../agents/proposal.ts';
 import { addressed, markMentions, useMentions } from './mentions.tsx';
 import { DRAG, pagesNamed } from '../../app/scope.ts';
-import { evaluate } from '../sheet/formula.ts';
+import { cellEdits, colName, evaluate } from '../../../shared/formula.ts';
 import { REACTIONS } from '../../../shared/types.ts';
-import type { Conversation, Id, Message, User } from '../../../shared/types.ts';
+import type { Conversation, Id, Message, Proposal, Resource, User } from '../../../shared/types.ts';
 
 /** Which agents can be spoken to in a conversation. Mirrors the server's rule. */
 export function agentsIn(conversation: Conversation, users: User[]) {
@@ -47,7 +47,9 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
   return (
     <div className={`approval is-${a.status}`}>
       <strong>{words.title}</strong>
-      {a.proposal.kind === 'edit-doc' ? (
+      {a.proposal.kind === 'edit-cells' ? (
+        <CellChanges proposal={a.proposal} page={page} done={a.status !== 'pending'} />
+      ) : a.proposal.kind === 'edit-doc' ? (
         <p className="diff">
           <del>{a.proposal.title}</del>
           <ins>{a.proposal.body}</ins>
@@ -83,6 +85,42 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
         </small>
       )}
     </div>
+  );
+}
+
+/** A proposed sheet change, cell by cell: what is there now and what it would become. */
+function CellChanges({
+  proposal,
+  page,
+  done,
+}: {
+  proposal: Proposal;
+  page?: Resource;
+  /** Once decided, the sheet already shows the new values: only what was set is listed. */
+  done: boolean;
+}) {
+  const edits = cellEdits(proposal.body) ?? [];
+  const rows = page?.kind === 'sheet' ? sheetRows(page.body) : [];
+  return (
+    <table className="cell-changes">
+      <tbody>
+        {edits.map((e) => {
+          const now = evaluate(rows, e.row, e.col);
+          return (
+            <tr key={`${e.row}:${e.col}`}>
+              <th>
+                {colName(e.col)}
+                {e.row + 1}
+              </th>
+              {!done && <td>{now ? <del>{now}</del> : <span className="empty">empty</span>}</td>}
+              <td>
+                <ins>{e.value || 'empty'}</ins>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

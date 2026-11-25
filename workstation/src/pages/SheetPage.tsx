@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Send, Trash2 } from 'lucide-react';
+import { Plus, Send, Sparkles, Trash2 } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useFading, useSpot } from '../app/spot.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { sheetRows } from '../app/util.tsx';
-import { colName, evaluate, toNumber } from '../features/sheet/formula.ts';
+import { colName, evaluate, toNumber } from '../../shared/formula.ts';
 import type { Resource } from '../../shared/types.ts';
 import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 
 /** A sheet: rows and columns, with sums. Each cell is saved on its own, so two people can work at once. */
 export function SheetPage({ page }: { page: Resource }) {
-  const { s, run, pick, notify, user } = useWorkspace();
+  const { s, run, pick, notify, user, setUi } = useWorkspace();
   // Rows someone pointed at from a conversation: brought into view and lit for a moment.
   const [lit, setLit] = useFading<[number, number]>(6000);
   useSpot(page.id, (spot) => {
@@ -38,6 +38,48 @@ export function SheetPage({ page }: { page: Resource }) {
       });
   const [value, setValue] = useState('');
   const [picked, setPicked] = useState<{ from: number; to: number } | null>(null);
+  // A block of cells chosen by dragging or Shift: what you ask about, like a selection in a document.
+  const [range, setRange] = useState<{ r1: number; c1: number; r2: number; c2: number } | null>(
+    null,
+  );
+  const anchor = useRef<{ r: number; c: number } | null>(null);
+  const dragging = useRef(false);
+  useEffect(() => {
+    const up = () => (dragging.current = false);
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, []);
+  const box = range && {
+    top: Math.min(range.r1, range.r2),
+    bottom: Math.max(range.r1, range.r2),
+    left: Math.min(range.c1, range.c2),
+    right: Math.max(range.c1, range.c2),
+  };
+  const many = !!box && (box.top !== box.bottom || box.left !== box.right);
+  const inRange = (r: number, c: number) =>
+    many && r >= box!.top && r <= box!.bottom && c >= box!.left && c <= box!.right;
+  const rangeName = box
+    ? `${colName(box.left)}${box.top + 1}:${colName(box.right)}${box.bottom + 1}`
+    : '';
+  const extendTo = (r: number, c: number) => {
+    const from = anchor.current ?? { r, c };
+    setRange({ r1: from.r, c1: from.c, r2: r, c2: c });
+  };
+  // Ask your agent about the chosen cells: the rail opens with them as what it reads.
+  const askAbout = () => {
+    if (!box) return;
+    const cells: string[] = [];
+    for (let r = box.top; r <= box.bottom; r++)
+      cells.push(
+        Array.from({ length: box.right - box.left + 1 }, (_, i) =>
+          evaluate(rows, r, box.left + i),
+        ).join(' · '),
+      );
+    setUi({
+      asking: { resourceId: page.id, quote: `${rangeName}: ${cells.join(' / ')}` },
+      railOpen: true,
+    });
+  };
   const grid = useRef<HTMLTableElement>(null);
   const key = focus ? `${focus.r}:${focus.c}` : '';
   // The cell being edited follows a teammate's change unless you have typed something different.
@@ -102,6 +144,11 @@ export function SheetPage({ page }: { page: Resource }) {
         <span className="cell-formula truncate">
           {focus ? value || ' ' : 'Click a cell to edit. Start with = for a sum, like =SUM(B2:B5).'}
         </span>
+        {many && (
+          <button onClick={askAbout}>
+            <Sparkles size={13} /> Ask about {rangeName}
+          </button>
+        )}
         {picked && (
           <>
             <button onClick={share}>
@@ -159,13 +206,41 @@ export function SheetPage({ page }: { page: Resource }) {
                   return (
                     <td
                       key={c}
-                      className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${onCell.has(`${r}:${c}`) ? 'teammate' : ''}`}
+                      className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${onCell.has(`${r}:${c}`) ? 'teammate' : ''} ${inRange(r, c) ? 'in-range' : ''}`}
+                      onMouseDown={(e) => {
+                        if (e.shiftKey && anchor.current) {
+                          e.preventDefault();
+                          extendTo(r, c);
+                          return;
+                        }
+                        anchor.current = { r, c };
+                        dragging.current = true;
+                        setRange({ r1: r, c1: c, r2: r, c2: c });
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!dragging.current || !(e.buttons & 1)) return;
+                        if (anchor.current && (anchor.current.r !== r || anchor.current.c !== c)) {
+                          (document.activeElement as HTMLElement | null)?.blur();
+                          window.getSelection()?.removeAllRanges();
+                        }
+                        extendTo(r, c);
+                      }}
                       style={
                         onCell.has(`${r}:${c}`)
                           ? ({ '--who': onCell.get(`${r}:${c}`)!.color } as React.CSSProperties)
                           : undefined
                       }
                     >
+                      {many && r === box!.bottom && c === box!.right && (
+                        <button
+                          className="range-ask"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={askAbout}
+                          title={`Ask your agent about ${rangeName}`}
+                        >
+                          <Sparkles size={12} /> Ask
+                        </button>
+                      )}
                       {onCell.has(`${r}:${c}`) && (
                         <span className="cell-who">{onCell.get(`${r}:${c}`)!.name}</span>
                       )}
@@ -185,6 +260,30 @@ export function SheetPage({ page }: { page: Resource }) {
                           setFocus((f) => (f?.r === r && f?.c === c ? null : f));
                         }}
                         onKeyDown={(e) => {
+                          if (e.shiftKey && e.key.startsWith('Arrow')) {
+                            e.preventDefault();
+                            const at = box ? { r: range!.r2, c: range!.c2 } : { r, c };
+                            if (!anchor.current) anchor.current = { r, c };
+                            const next = {
+                              r: Math.max(
+                                0,
+                                Math.min(
+                                  rows.length - 1,
+                                  at.r + (e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0),
+                                ),
+                              ),
+                              c: Math.max(
+                                0,
+                                Math.min(
+                                  width - 1,
+                                  at.c +
+                                    (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0),
+                                ),
+                              ),
+                            };
+                            extendTo(next.r, next.c);
+                            return;
+                          }
                           if (e.key === 'Enter')
                             (e.preventDefault(), go(Math.min(rows.length - 1, r + 1), c));
                           if (e.key === 'ArrowDown')

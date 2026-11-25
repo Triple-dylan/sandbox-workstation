@@ -229,10 +229,11 @@ export type Routine = {
 /** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. add-step: title is a new step for the plan. */
 export type Proposal = {
   /** edit-doc: title is the exact text to replace in the page, body is what replaces it. */
-  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc' | 'create-skill';
+  /** edit-cells: title is the sheet's exact title, body is one change per line, like "B3 = 2800". */
+  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc' | 'edit-cells' | 'create-skill';
   title: string;
   body: string;
-  /** edit-doc: the page to change. create-doc: the canvas to put the new page on, if any. */
+  /** edit-doc and edit-cells: the page to change. create-doc: the canvas to put the new page on, if any. */
   resourceId?: Id;
 };
 export type Approval = {

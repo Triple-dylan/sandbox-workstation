@@ -1,3 +1,4 @@
+import { cellEdits } from '../shared/formula.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
@@ -1694,6 +1695,15 @@ export class Store {
         body: page.body.replace(approval.proposal.title, approval.proposal.body),
       });
       resultResourceId = page.id;
+    }
+    if (decision === 'approved' && approval.proposal.kind === 'edit-cells') {
+      const sheet = this.resource(approval.proposal.resourceId ?? '');
+      if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
+        throw new AccessError('Not available.');
+      const edits = cellEdits(approval.proposal.body);
+      if (!edits) throw new InputError('This change could not be read. Ask again.');
+      for (const e of edits) this.setCell(actorId, sheet.id, e.row, e.col, e.value);
+      resultResourceId = sheet.id;
     }
     if (decision === 'approved' && approval.proposal.kind === 'add-step')
       this.createGoal(actorId, { spaceId: space.id, title: approval.proposal.title });

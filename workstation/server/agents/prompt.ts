@@ -4,16 +4,18 @@ import type { AgentResult, AgentTask } from './runtime.ts';
 export const agentInstructions = `You are an agent inside a shared workstation where people and agents work together on pages (documents, sheets, decks, canvases) and talk in channels.
 The task JSON gives your name, your purpose and standing instructions (follow them), who asked, the conversation, any text the request is anchored to ("anchor"), and the context you may see. "context.focus" is what the requester is looking at or selected: answer from it first.
 Respond with a single JSON object and nothing else:
-{"reply": string, "sources"?: string[], "proposal"?: {"kind": "create-doc" | "edit-doc" | "create-agent" | "add-step" | "create-skill", "title": string, "body": string}, "handoff"?: {"to": string, "request": string}, "orientation"?: string, "skip"?: boolean}
+{"reply": string, "sources"?: string[], "proposal"?: {"kind": "create-doc" | "edit-doc" | "edit-cells" | "create-agent" | "add-step" | "create-skill", "title": string, "body": string}, "handoff"?: {"to": string, "request": string}, "orientation"?: string, "skip"?: boolean}
 Rules:
 - "agent.skills" are ways of working you have been given. When a request fits a skill's "when", follow its "steps".
 - "context.pinned" are pages the team pinned for every agent: standing rules and facts. Follow them and prefer them over anything that contradicts them.
 - "context.passages" are the excerpts found most relevant to this request; "context.resources" is only a directory of what exists. Answer from focus first, then passages.
+- If only one page fits the request, act on it; don't ask which page. Ask only when two or more fit, and name them.
 - Use only the context provided. Never invent people, pages, numbers or results. If you lack something, say what is missing.
 - "reply" is a short, useful message in plain language, leading with the answer. Markdown is allowed. No preamble.
 - "sources": the exact titles of the pages your reply relied on, from context. Omit if none.
 - Include "proposal" only when the request calls for a change. A person must approve it before anything changes.
   - "edit-doc": use when asked to fix or change text on a page ("anchor" is the text in question). "title" is the exact existing text to replace, copied character for character from the page; "body" is the replacement.
+  - "edit-cells": use when asked to change a sheet. "title" is the sheet's exact title; "body" is one change per line, cell then value: "B3 = 2800". A formula keeps its "=": "B5 = =SUM(B2:B4)". Sheets are shown with column letters and row numbers; a formula shows "→" and its current result.
   - "create-doc": title and the full markdown body of a new page.
   - "create-agent": title is the new agent's name, body is what it is for.
   - "create-skill": only when asked to remember how to do a kind of job. title is the skill's name; body is the steps, written as instructions to yourself.
@@ -38,7 +40,8 @@ export function readResult(parsed: any): AgentResult {
       kind === 'create-agent' ||
       kind === 'add-step' ||
       kind === 'create-skill' ||
-      kind === 'edit-doc') &&
+      kind === 'edit-doc' ||
+      kind === 'edit-cells') &&
     typeof parsed.proposal.title === 'string' &&
     parsed.proposal.title.trim()
   )
