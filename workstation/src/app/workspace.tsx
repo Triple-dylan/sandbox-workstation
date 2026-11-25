@@ -47,15 +47,17 @@ export type Ui = {
   drafts: Record<string, string>;
   /** The left list as a drawer, on narrow windows. */
   nav: boolean;
-  /** The new-page popup is open; a kind preselects that kind. */
+  /** The new-page form is open in the list; a kind preselects that kind. */
   creating: boolean | PageKind;
+  /** A channel or an agent being made, in its section of the list. */
+  making: 'channel' | 'agent' | null;
   graphScope: 'space' | 'everything';
   /** What your agent reads: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';
   /** Pages added to what it looks at by dropping them on your agent's rail. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
-  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'people';
+  dialog: null | 'settings' | 'shortcuts' | 'paste';
   /** How things look for this person. */
   prefs: {
     size: 's' | 'm' | 'l';
@@ -84,6 +86,7 @@ export const initialUi: Ui = {
   drafts: {},
   nav: false,
   creating: false,
+  making: null,
   graphScope: 'space',
   split: 0.5,
   dialog: null,

@@ -1382,28 +1382,6 @@ body.resizing .pane {
   font-size: 12.5px;
   padding: 2px 10px;
 }
-.list-form {
-  padding: 2px 6px 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.list-form input {
-  width: 100%;
-  background: var(--paper);
-}
-.list-form.people button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
-  border-radius: var(--r-s);
-  color: var(--ink-2);
-  font-size: 13px;
-}
-.list-form.people button:hover {
-  background: var(--wash);
-}
 .dot-wrap {
   position: relative;
   display: inline-flex;
@@ -3718,14 +3696,6 @@ body,
   color: var(--ink);
   font-size: 12px;
 }
-.builder-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.builder-row label {
-  flex: 1;
-}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -4241,23 +4211,6 @@ body,
 .res time {
   margin-right: 8px;
   font-size: 11.5px;
-}
-.chat-context .people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.chat-context .people span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.7;
-}
-.chat-context .people span.here {
-  opacity: 1;
-  color: var(--ink);
 }
 .pins {
   display: none;
@@ -5811,39 +5764,6 @@ button.space-people:hover {
   background: var(--wash);
   color: var(--ink);
 }
-.people {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.people li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 4px;
-}
-.people li > span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.people small {
-  color: var(--ink-3);
-  font-size: 12px;
-}
-.people li button {
-  padding: 4px 10px;
-  border-radius: var(--r-s);
-  border: 1px solid var(--line);
-  font-size: 12.5px;
-}
-.people li button:hover {
-  background: var(--wash);
-}
 
 /* ---------- popups: one frame ---------- */
 input:focus-visible,
@@ -5857,48 +5777,6 @@ select:focus-visible {
   font-size: 15px;
   font-weight: 600;
 }
-.dialog-form,
-.new-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.dialog .new-title {
-  border: 0;
-  box-shadow: none;
-  padding: 2px 0;
-  font-size: 18px;
-  font-weight: 600;
-  background: transparent;
-}
-.dialog .new-title:focus-visible {
-  box-shadow: none;
-}
-.kind-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.kind-row button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  color: var(--ink-2);
-  font-size: 13px;
-}
-.kind-row button:hover {
-  color: var(--ink);
-  background: var(--wash);
-}
-.kind-row button[aria-checked='true'] {
-  border-color: var(--ink-3);
-  background: var(--wash-2);
-  color: var(--ink);
-}
 .dialog-foot {
   display: flex;
   align-items: center;
@@ -5906,57 +5784,10 @@ select:focus-visible {
   gap: 8px;
   margin-top: 4px;
 }
-.dialog-foot select {
-  height: 30px;
-  padding: 0 8px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.dialog-foot small {
-  color: var(--ink-3);
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-.dialog-foot .primary kbd {
-  margin-left: 6px;
-  background: none;
-  padding: 0;
-  opacity: 0.6;
-  font-size: 12px;
-}
-.dialog .builder-row input {
-  flex: 1;
-}
 
-/* Popups opened from the list open beside it, under "+ New", and leave the work in view. */
-.overlay.anchored {
-  background: transparent;
-  backdrop-filter: none;
-  justify-items: start;
-  align-items: start;
-  padding: 44px 16px 16px 10px;
-}
-.overlay.anchored .dialog {
-  box-shadow: var(--lift);
-  transform-origin: top left;
-  animation: anchored-in 120ms ease-out;
-}
-@keyframes anchored-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .overlay.anchored .dialog {
-    animation: none;
-  }
-}
-
-/* ---------- a new page, made in the list ---------- */
+/* ---------- made in the list: one shape for pages, channels, agents, people ---------- */
 .list-new {
-  margin: 6px 0 2px;
+  margin: 4px 0 6px;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-m);
@@ -5964,35 +5795,38 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  animation: anchored-in 120ms ease-out;
+  flex: none;
+  animation: list-in 120ms ease-out;
 }
-.list-new-top {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+@keyframes list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
 }
-.list-new-top input {
-  flex: 1;
+@media (prefers-reduced-motion: reduce) {
+  .list-new {
+    animation: none;
+  }
+}
+.list-new input {
+  width: 100%;
+  font-size: 13px;
+}
+.list-new .list-new-name {
   border: 0;
-  padding: 2px 2px;
+  padding: 2px;
   font-size: 14px;
   font-weight: 600;
   background: transparent;
 }
-.list-new-top input:focus-visible {
+.list-new .list-new-name:focus-visible {
   box-shadow: none;
 }
-.list-new-top button {
-  width: 22px;
-  height: 22px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 6px;
-  color: var(--ink-3);
-}
-.list-new-top button:hover {
-  background: var(--wash);
-  color: var(--ink);
+.list-new-agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .list-new-kinds {
   display: grid;
@@ -6022,6 +5856,10 @@ select:focus-visible {
   justify-content: space-between;
   gap: 6px;
 }
+.list-new-foot > span {
+  display: inline-flex;
+  gap: 4px;
+}
 .list-new-foot select {
   height: 28px;
   padding: 0 6px;
@@ -6034,8 +5872,64 @@ select:focus-visible {
   display: inline-flex;
   gap: 4px;
   align-items: center;
+  min-width: 0;
 }
 .list-new-foot .primary {
   padding: 4px 12px;
   font-size: 13px;
+}
+.list-new-cancel {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+  border-radius: var(--r-s);
+}
+.list-new-cancel:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.list-people-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.list-people-head button {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.list-people-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.list-people-row .truncate {
+  flex: 1;
+}
+.list-people-row small {
+  color: var(--ink-3);
+}
+.list-people-row button,
+.list-people-add {
+  padding: 2px 8px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.list-people-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.list-people-row button:hover,
+.list-people-add:hover {
+  background: var(--wash);
+  color: var(--ink);
 }

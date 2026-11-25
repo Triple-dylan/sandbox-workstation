@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { inviteFrom } from './invite.ts';
 import { ChevronDown, Link2, Lock, Map as MapIcon, Pin, Plus, Search, Users } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character, agentState } from '../features/agents/Character.tsx';
@@ -9,7 +8,14 @@ import { KindIcon, chatTitle, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type MenuItem, type Target } from './workspace.tsx';
 import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
-import { NewPage } from './NewPage.tsx';
+import {
+  JoinWorkspace,
+  NewAgent,
+  NewChannel,
+  NewPage,
+  NewWorkspace,
+  PeoplePanel,
+} from './ListForms.tsx';
 
 /** How many recent pages the list shows before "Show all". Pinned pages always show. */
 const RECENT = 8;
@@ -22,8 +28,8 @@ export function Sidebar() {
   const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, chooseFiles } =
     useWorkspace();
   const [switching, setSwitching] = useState(false);
-  const [adding, setAdding] = useState<'space' | 'join' | 'channel' | null>(null);
-  const [draft, setDraft] = useState('');
+  const [joining, setJoining] = useState<'space' | 'join' | null>(null);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [all, setAll] = useState(false);
   const isOpen = (t: Target) => ui.panes.some((p) => sameTarget(p, t));
   const shared = space.kind === 'project';
@@ -78,66 +84,13 @@ export function Sidebar() {
     return '';
   };
 
-  const submit = async () => {
-    const name = draft.trim();
-    if (!name || !adding) return;
-    setDraft('');
-    const kind = adding;
-    setAdding(null);
-    if (kind === 'space') {
-      const made = await run(() => api<{ id: string }>('/projects', { body: { name } }));
-      if (made) setUi({ spaceId: made.id, panes: [], active: 0 });
-    } else if (kind === 'join') {
-      const token = inviteFrom(name);
-      if (!token) return notify('That does not look like an invite link.');
-      const joined = await run(() =>
-        api<{ id: string; name: string }>('/invites/accept', { body: { token } }),
-      );
-      if (joined) {
-        setUi({ spaceId: joined.id, panes: [], active: 0 });
-        notify(`You joined ${joined.name}.`);
-      }
-    } else {
-      const made = await run(() =>
-        api<{ id: string }>('/channels', { body: { spaceId: space.id, title: name } }),
-      );
-      if (made) open({ type: 'chat', id: made.id });
-    }
-  };
-  const form = (kind: NonNullable<typeof adding>, placeholder: string) =>
-    adding === kind && (
-      <form
-        className="list-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void submit();
-        }}
-      >
-        <input
-          autoFocus
-          value={draft}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setAdding(null)}
-          onBlur={() => !draft.trim() && setAdding(null)}
-        />
-      </form>
-    );
-
   const newMenu = (e: React.MouseEvent) =>
     menu(e, [
       { label: 'Page', run: () => setUi({ creating: true }) },
       { label: 'File from your computer', run: chooseFiles },
-      { label: 'Pasted text', run: () => setUi({ dialog: 'paste' }) },
       'line',
-      ...(shared
-        ? [
-            { label: 'Channel', run: () => setAdding('channel') },
-            { label: 'Agent', run: () => setUi({ dialog: 'agent' }) },
-            { label: 'Invite people', run: () => setUi({ dialog: 'people' }) },
-          ]
-        : [{ label: 'Agent', run: () => setUi({ dialog: 'agent' }) }]),
+      ...(shared ? [{ label: 'Channel', run: () => setUi({ making: 'channel' }) }] : []),
+      { label: 'Agent', run: () => setUi({ making: 'agent' }) },
     ] satisfies MenuItem[]);
 
   const patchPage = (p: Resource, body: Record<string, unknown>) =>
@@ -269,7 +222,11 @@ export function Sidebar() {
           </button>
         </div>
         {shared ? (
-          <button className="space-people" onClick={() => setUi({ dialog: 'people' })}>
+          <button
+            className="space-people"
+            aria-expanded={peopleOpen}
+            onClick={() => setPeopleOpen((v) => !v)}
+          >
             <Users size={12} /> {people.length} {people.length === 1 ? 'person' : 'people'}
           </button>
         ) : (
@@ -299,7 +256,7 @@ export function Sidebar() {
                 role="menuitem"
                 onClick={() => {
                   setSwitching(false);
-                  setAdding('space');
+                  setJoining('space');
                 }}
               >
                 <Plus size={12} /> New workspace
@@ -309,16 +266,16 @@ export function Sidebar() {
               role="menuitem"
               onClick={() => {
                 setSwitching(false);
-                setAdding('join');
+                setJoining('join');
               }}
             >
               <Link2 size={12} /> Join with an invite link
             </button>
           </div>
         )}
-        {ui.creating && <NewPage />}
-        {form('space', 'Name the workspace')}
-        {form('join', 'Paste an invite link')}
+        {peopleOpen && shared && <PeoplePanel onClose={() => setPeopleOpen(false)} />}
+        {joining === 'space' && <NewWorkspace onClose={() => setJoining(null)} />}
+        {joining === 'join' && <JoinWorkspace onClose={() => setJoining(null)} />}
         <button
           className="list-find"
           onClick={() => pick({ title: 'Find', chats: true, onPick: (t) => open(t) })}
@@ -331,15 +288,16 @@ export function Sidebar() {
         {shared && (
           <>
             <h2>Chats</h2>
-            {form('channel', 'Name the channel')}
+            {ui.making === 'channel' && <NewChannel />}
             {chats.map(chatRow)}
           </>
         )}
 
         <h2>Pages</h2>
+        {ui.creating && <NewPage />}
         {pinned.map(pageRow)}
         {shownRecent.map(pageRow)}
-        {pages.length === 0 && (
+        {pages.length === 0 && !ui.creating && (
           <button className="list-row quiet" onClick={() => setUi({ creating: true })}>
             <Plus size={14} /> Make the first page
           </button>
@@ -360,6 +318,7 @@ export function Sidebar() {
         )}
 
         <h2>Agents</h2>
+        {ui.making === 'agent' && <NewAgent />}
         {agents.map(agentRow)}
       </div>
 

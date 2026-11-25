@@ -12,7 +12,7 @@ import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
-import { AgentBuilder, People, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
 import { PAGE_KINDS, isPage } from '../../shared/types.ts';
@@ -359,6 +359,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         else if (picker) setPicker(null);
         else if (ui.dialog) setUi({ dialog: null });
         else if (ui.creating) setUi({ creating: false });
+        else if (ui.making) setUi({ making: null });
         else if (ui.nav) setUi({ nav: false });
       }
     };
@@ -408,7 +409,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         hint: 'a transcript, an email, notes',
         run: () => setUi({ dialog: 'paste' }),
       },
-      { label: 'New agent', run: () => setUi({ dialog: 'agent' }) },
+      { label: 'New agent', run: () => setUi({ making: 'agent' }) },
       { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
       { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ railOpen: true }) },
       { label: 'Settings', hint: '⌘ ,', run: () => setUi({ dialog: 'settings' }) },
@@ -490,7 +491,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   return (
     <WorkspaceContext.Provider value={value}>
       <div
-        className={`shell ${ui.nav || ui.creating ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
+        className={`shell ${ui.nav || ui.creating || ui.making ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
         onDragOver={(e) => {
           const types = [...e.dataTransfer.types];
           // Something dragged from the list can be dropped on the middle to open it beside.
@@ -595,9 +596,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         {picker && <Find picker={picker} close={() => setPicker(null)} />}
         {ui.dialog === 'settings' && <Settings />}
         {ui.dialog === 'shortcuts' && <Shortcuts />}
-        {ui.dialog === 'agent' && <AgentBuilder />}
         {ui.dialog === 'paste' && <PasteText />}
-        {ui.dialog === 'people' && <People />}
         <input
           ref={fileInput}
           type="file"
