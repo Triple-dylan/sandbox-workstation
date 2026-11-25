@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Store } from './store.ts';
-import type { AgentRuntime } from './agents/runtime.ts';
+import type { AgentLimits, AgentRuntime } from './agents/runtime.ts';
 import { scriptedRuntime } from './agents/scripted.ts';
 import { createOpenAIRuntime } from './agents/openai.ts';
 
@@ -21,6 +21,19 @@ export function loadEnv(path = new URL('../../.env', import.meta.url)) {
 }
 
 export const DEFAULT_DAILY_TOKENS = 200_000;
+
+/** Reads the spend guardrails, falling back to defaults for anything unset or invalid. */
+export function agentLimits(env: NodeJS.ProcessEnv): AgentLimits {
+  const n = (key: string, fallback: number) => {
+    const value = Number(env[key]);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+  };
+  return {
+    spaceTokensPerDay: n('AGENT_SPACE_DAILY_TOKENS', 100_000),
+    personTokensPerDay: n('AGENT_PERSON_DAILY_TOKENS', 50_000),
+    requestsPerMinute: n('AGENT_REQUESTS_PER_MINUTE', 10),
+  };
+}
 
 export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntime {
   const key = env.OPENAI_API_KEY?.trim();

@@ -64,3 +64,12 @@ export interface AgentRuntime {
 }
 
 export class BudgetExceeded extends Error {}
+/** Too many requests from one person in a short time. Not answered at all, not even by the stand-in. */
+export class TooManyRequests extends Error {}
+
+/** Spend guardrails for model-backed agents. Each is per UTC day except the per-minute rate. */
+export type AgentLimits = {
+  spaceTokensPerDay: number;
+  personTokensPerDay: number;
+  requestsPerMinute: number;
+};

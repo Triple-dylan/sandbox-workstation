@@ -7,7 +7,7 @@ import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
-import { selectRuntime } from './env.ts';
+import { agentLimits, selectRuntime } from './env.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
 
@@ -63,6 +63,7 @@ export function createApp(options: AppOptions) {
   const runtime = options.runtime ?? selectRuntime(options.env ?? process.env, store);
   const engine = new AgentEngine(store, runtime, {
     maintenanceDelayMs: options.maintenanceDelayMs,
+    limits: agentLimits(env),
   });
   const staticDir =
     options.staticDir === undefined

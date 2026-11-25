@@ -84,6 +84,10 @@ create table if not exists goals (
   created_at text not null
 );
 create table if not exists usage (day text primary key, tokens integer not null);
+create table if not exists agent_usage (
+  day text not null, scope text not null, key text not null, tokens integer not null,
+  primary key (day, scope, key)
+);
 `;
 
 export type Db = DatabaseSync;
