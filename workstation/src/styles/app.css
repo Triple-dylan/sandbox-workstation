@@ -5953,3 +5953,89 @@ select:focus-visible {
     animation: none;
   }
 }
+
+/* ---------- a new page, made in the list ---------- */
+.list-new {
+  margin: 6px 0 2px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: anchored-in 120ms ease-out;
+}
+.list-new-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.list-new-top input {
+  flex: 1;
+  border: 0;
+  padding: 2px 2px;
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+}
+.list-new-top input:focus-visible {
+  box-shadow: none;
+}
+.list-new-top button {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.list-new-top button:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.list-new-kinds {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.list-new-kinds button {
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--ink-3);
+}
+.list-new-kinds button:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.list-new-kinds button[aria-checked='true'] {
+  color: var(--ink);
+  background: var(--wash-2);
+  border-color: var(--ink-3);
+}
+.list-new-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.list-new-foot select {
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.list-new-foot small {
+  color: var(--ink-3);
+  font-size: 12px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.list-new-foot .primary {
+  padding: 4px 12px;
+  font-size: 13px;
+}

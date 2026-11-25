@@ -9,6 +9,7 @@ import { KindIcon, chatTitle, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type MenuItem, type Target } from './workspace.tsx';
 import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
+import { NewPage } from './NewPage.tsx';
 
 /** How many recent pages the list shows before "Show all". Pinned pages always show. */
 const RECENT = 8;
@@ -315,6 +316,7 @@ export function Sidebar() {
             </button>
           </div>
         )}
+        {ui.creating && <NewPage />}
         {form('space', 'Name the workspace')}
         {form('join', 'Paste an invite link')}
         <button

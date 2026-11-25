@@ -7,7 +7,6 @@ import { Join } from './Join.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { Rail } from './Rail.tsx';
 import { Find } from './Find.tsx';
-import { NewPage } from './NewPage.tsx';
 import { Pane } from '../pages/Pane.tsx';
 import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
@@ -491,7 +490,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   return (
     <WorkspaceContext.Provider value={value}>
       <div
-        className={`shell ${ui.nav ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
+        className={`shell ${ui.nav || ui.creating ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
         onDragOver={(e) => {
           const types = [...e.dataTransfer.types];
           // Something dragged from the list can be dropped on the middle to open it beside.
@@ -651,7 +650,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
             </div>
           </div>
         )}
-        {ui.creating && <NewPage />}
         {notice && (
           <div className="notice" role="status">
             <span>{notice.text}</span>

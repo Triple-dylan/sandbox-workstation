@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { PAGE_KINDS, type PageKind } from '../../shared/types.ts';
 import { KindIcon, kindName } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
-import { Dialog } from './Dialogs.tsx';
 
 /** Kinds you make here. A file from your computer comes in through "New → File" instead. */
 const MADE = PAGE_KINDS.filter((k) => k !== 'asset');
 
-/** A new page: name it, pick its kind, say who can open it, Enter. */
+/**
+ * A new page, made in the list itself: it opens under "+ New", the title first, the kind as four
+ * icons, who can open it, Enter. Nothing covers the page you are on.
+ */
 export function NewPage() {
   const { ui, space, setUi, run, open } = useWorkspace();
   const [kind, setKind] = useState<PageKind>(typeof ui.creating === 'string' ? ui.creating : 'doc');
@@ -35,16 +37,16 @@ export function NewPage() {
     }
   };
   return (
-    <Dialog title="New page" bare anchored onClose={close}>
-      <form
-        className="new-page"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void create();
-        }}
-      >
+    <form
+      className="list-new"
+      aria-label="New page"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void create();
+      }}
+    >
+      <div className="list-new-top">
         <input
-          className="new-title"
           autoFocus
           value={title}
           maxLength={120}
@@ -52,39 +54,44 @@ export function NewPage() {
           aria-label="Title"
           onChange={(e) => setTitle(e.target.value)}
         />
-        <div className="kind-row" role="radiogroup" aria-label="Kind of page">
-          {MADE.map((k) => (
-            <button
-              type="button"
-              key={k}
-              role="radio"
-              aria-checked={kind === k}
-              onClick={() => setKind(k)}
-            >
-              <KindIcon kind={k} size={14} /> {kindName[k]}
-            </button>
-          ))}
-        </div>
-        <div className="dialog-foot">
-          {shared ? (
-            <select
-              aria-label="Who can open it"
-              value={mine ? 'mine' : 'space'}
-              onChange={(e) => setMine(e.target.value === 'mine')}
-            >
-              <option value="space">Everyone in {space.name}</option>
-              <option value="mine">Only you</option>
-            </select>
-          ) : (
-            <small>
-              <Lock size={11} /> Only you
-            </small>
-          )}
-          <button className="primary" type="submit">
-            Create <kbd aria-hidden="true">↵</kbd>
+        <button type="button" aria-label="Cancel" title="Cancel (Esc)" onClick={close}>
+          <X size={14} />
+        </button>
+      </div>
+      <div className="list-new-kinds" role="radiogroup" aria-label="Kind of page">
+        {MADE.map((k) => (
+          <button
+            type="button"
+            key={k}
+            role="radio"
+            aria-checked={kind === k}
+            aria-label={kindName[k]}
+            title={kindName[k]}
+            onClick={() => setKind(k)}
+          >
+            <KindIcon kind={k} size={15} />
           </button>
-        </div>
-      </form>
-    </Dialog>
+        ))}
+      </div>
+      <div className="list-new-foot">
+        {shared ? (
+          <select
+            aria-label="Who can open it"
+            value={mine ? 'mine' : 'space'}
+            onChange={(e) => setMine(e.target.value === 'mine')}
+          >
+            <option value="space">Everyone</option>
+            <option value="mine">Only you</option>
+          </select>
+        ) : (
+          <small>
+            <Lock size={11} /> Only you
+          </small>
+        )}
+        <button className="primary" type="submit">
+          Create
+        </button>
+      </div>
+    </form>
   );
 }
