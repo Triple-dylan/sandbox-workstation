@@ -110,6 +110,8 @@ export type Picker = {
   filter?: (r: Resource) => boolean;
   /** Also offer conversations. */
   chats?: boolean;
+  /** Open here, growing from the field that asked, instead of in the middle of the window. */
+  anchor?: { left: number; top: number };
   onPick: (target: Target) => void;
 };
 

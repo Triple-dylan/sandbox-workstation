@@ -15,7 +15,7 @@ import { markSeen, markVisit } from './saved.ts';
 import { PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
-import { PAGE_KINDS, isPage } from '../../shared/types.ts';
+import { isPage } from '../../shared/types.ts';
 import {
   WorkspaceContext,
   initialUi,
@@ -393,32 +393,29 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     [space.id, space.kind, space.name, notify, refresh, open],
   );
   /** Find, with the things you can do offered alongside what you can open. */
-  const finder = (): Picker => ({
-    title: 'Find',
-    chats: true,
-    onPick: (target) => open(target),
-    actions: [
-      ...PAGE_KINDS.filter((k) => k !== 'asset').map((kind) => ({
-        label: `New ${kind === 'doc' ? 'document' : kind}`,
-        run: () => setUi({ creating: kind }),
-      })),
-      {
-        label: 'Bring in files',
-        hint: 'transcripts, documents, decks, sheets, pictures',
-        run: () => fileInput.current?.click(),
-      },
-      {
-        label: 'Paste text in',
-        hint: 'a transcript, an email, notes',
-        run: () => setUi({ dialog: 'paste' }),
-      },
-      { label: 'New agent', run: () => setUi({ making: 'agent' }) },
-      { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
-      { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ railOpen: true }) },
-      { label: 'Settings', hint: '⌘ ,', run: () => setUi({ dialog: 'settings' }) },
-      { label: 'Shortcuts', hint: '⌘ /', run: () => setUi({ dialog: 'shortcuts' }) },
-    ],
-  });
+  const finder = (): Picker => {
+    // Find opens from the list's own Find field when the list is showing, as if the field grew.
+    const field = document.querySelector('.sidebar .list-find')?.getBoundingClientRect();
+    return {
+      title: 'Find',
+      chats: true,
+      anchor: field && field.width ? { left: field.left, top: field.top } : undefined,
+      onPick: (target) => open(target),
+      actions: [
+        { label: 'New page', hint: 'Alt N', run: () => setUi({ creating: true }) },
+        { label: 'Bring in a file', run: () => fileInput.current?.click() },
+        { label: 'Paste text', run: () => setUi({ dialog: 'paste' }) },
+        ...(space.kind === 'project'
+          ? [{ label: 'New channel', run: () => setUi({ making: 'channel' as const }) }]
+          : []),
+        { label: 'New agent', run: () => setUi({ making: 'agent' }) },
+        { label: 'See as a map', hint: 'Alt G', run: () => open({ type: 'graph' }) },
+        { label: 'Ask your agent', hint: '⌘J', run: () => setUi({ railOpen: true }) },
+        { label: 'Settings', hint: '⌘,', run: () => setUi({ dialog: 'settings' }) },
+        { label: 'Shortcuts', hint: '⌘/', run: () => setUi({ dialog: 'shortcuts' }) },
+      ],
+    };
+  };
 
   const value = useMemo<Workspace>(
     () => ({

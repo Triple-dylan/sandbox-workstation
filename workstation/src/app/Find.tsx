@@ -11,7 +11,8 @@ export function Find({ picker, close }: { picker: Picker; close: () => void }) {
   const [at, setAt] = useState(0);
   const q = query.trim().toLowerCase();
   const pages = s.resources
-    .filter((r) => isPage(r.kind) && (!picker.filter || picker.filter(r)))
+    .filter((r) => isPage(r.kind) && !r.archived && r.role !== 'orientation')
+    .filter((r) => !picker.filter || picker.filter(r))
     .filter((r) => (picker.filter ? r.spaceId === space.id : true))
     .map((r) => ({
       r,
@@ -26,7 +27,8 @@ export function Find({ picker, close }: { picker: Picker; close: () => void }) {
     .slice(0, 8);
   const chats = picker.chats
     ? s.conversations
-        .filter((c) => c.kind !== 'discussion')
+        // Your agent's conversation lives in the rail; Find opens pages, channels and messages.
+        .filter((c) => c.kind !== 'discussion' && c.kind !== 'agent-private')
         .filter((c) => !q || chatTitle(c, s).toLowerCase().includes(q))
         .slice(0, 6)
     : [];
@@ -42,10 +44,15 @@ export function Find({ picker, close }: { picker: Picker; close: () => void }) {
           <span className="truncate">
             <strong>{r.title}</strong>
             <small>
-              {s.spaces.find((x) => x.id === r.spaceId)?.kind === 'personal'
-                ? 'Your space'
-                : s.spaces.find((x) => x.id === r.spaceId)?.name}
-              {r.visibility === 'private' ? ' · only you' : ''} · {excerpt(r, 70)}
+              {[
+                s.spaces.find((x) => x.id === r.spaceId)?.kind === 'personal'
+                  ? 'Your space'
+                  : s.spaces.find((x) => x.id === r.spaceId)?.name,
+                r.visibility === 'private' ? 'only you' : '',
+                excerpt(r, 70),
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             </small>
           </span>
         </>
@@ -72,20 +79,28 @@ export function Find({ picker, close }: { picker: Picker; close: () => void }) {
         <Zap size={14} />
         <span className="truncate">
           <strong>{a.label}</strong>
-          {a.hint && <small>{a.hint}</small>}
         </span>
+        {a.hint && <kbd>{a.hint}</kbd>}
       </>
     ),
   }));
-  const all = q ? [...rows, ...acts].slice(0, 12) : [...rows.slice(0, 6), ...acts];
+  const all = q ? [...rows, ...acts].slice(0, 12) : [...rows.slice(0, 5), ...acts];
   const choose = (row: (typeof all)[number]) => {
     close();
     if (row.run) row.run();
     else if (row.target) picker.onPick(row.target);
   };
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="find" role="dialog" aria-label={picker.title}>
+    <div
+      className={`overlay ${picker.anchor ? 'anchored' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+      <div
+        className="find"
+        role="dialog"
+        aria-label={picker.title}
+        style={picker.anchor ? { left: picker.anchor.left, top: picker.anchor.top } : undefined}
+      >
         <label>
           <Search size={15} />
           <input

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Copy, Lock, Plus, X } from 'lucide-react';
+import { Copy, Lock, Plus, Upload, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character } from '../features/agents/Character.tsx';
 import { ORB_FORMS, PAGE_KINDS, type PageKind, type User } from '../../shared/types.ts';
@@ -100,7 +100,7 @@ function Who({
 const MADE = PAGE_KINDS.filter((k) => k !== 'asset');
 
 export function NewPage() {
-  const { ui, space, setUi, run, open } = useWorkspace();
+  const { ui, space, setUi, run, open, chooseFiles } = useWorkspace();
   const [kind, setKind] = useState<PageKind>(typeof ui.creating === 'string' ? ui.creating : 'doc');
   const [title, setTitle] = useState('');
   const [mine, setMine] = useState(false);
@@ -152,6 +152,17 @@ export function NewPage() {
             <KindIcon kind={k} size={15} />
           </button>
         ))}
+        <button
+          type="button"
+          aria-label="From a file on your computer"
+          title="From a file on your computer"
+          onClick={() => {
+            close();
+            chooseFiles();
+          }}
+        >
+          <Upload size={15} />
+        </button>
       </div>
     </ListForm>
   );

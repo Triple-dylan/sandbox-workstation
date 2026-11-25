@@ -1244,37 +1244,6 @@ body.resizing .pane {
   align-items: center;
   gap: 4px;
 }
-.space-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: 40;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  box-shadow: var(--lift);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-}
-.space-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: var(--r-s);
-  text-align: left;
-  color: var(--ink-2);
-}
-.space-menu button:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-.space-menu button[aria-checked='true'] {
-  color: var(--ink);
-  font-weight: 600;
-}
 .list-scroll {
   flex: 1;
   min-height: 0;
@@ -5674,45 +5643,6 @@ button.chat-pin.add:hover {
   justify-content: flex-end;
   gap: 6px;
 }
-@media (max-width: 900px) {
-  .agent-page {
-    overflow-y: auto;
-  }
-  .agent-cols {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ---------- the list: chats, pages, agents ---------- */
-.space-top {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.space-top .space-name {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-}
-.space-top .space-name strong {
-  flex: 0 1 auto;
-}
-.sidebar .new {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px 0 8px;
-  border-radius: var(--r-s);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 550;
-}
-.sidebar .new:hover {
-  background: var(--wash);
-}
 .space-people {
   display: inline-flex;
   align-items: center;
@@ -5830,7 +5760,7 @@ select:focus-visible {
 }
 .list-new-kinds {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
 }
 .list-new-kinds button {
@@ -6002,4 +5932,95 @@ select:focus-visible {
 .list-new > .list-new-name,
 .list-new-agent {
   padding-right: 24px;
+}
+
+/* Each part of the list: its + shows on hover, or when you are moving through it by keyboard. */
+.sidebar .list-head button {
+  opacity: 0;
+}
+.sidebar .list-head:hover button,
+.sidebar .list-head button:focus-visible,
+.sidebar .list-scroll:focus-within .list-head button:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sidebar .list-head button {
+    opacity: 1;
+  }
+}
+
+/* Find grows from the list's Find field: no dimming, the page stays in view. */
+.overlay.anchored {
+  background: transparent;
+  backdrop-filter: none;
+  display: block;
+  padding: 0;
+}
+.overlay.anchored .find {
+  position: absolute;
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  animation: list-in 120ms ease-out;
+}
+.overlay.anchored .find-rows {
+  overflow-y: auto;
+}
+.find {
+  border-radius: 12px;
+}
+.find label {
+  padding: 8px 12px;
+}
+.find input,
+.find input:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  font-size: 14px;
+}
+.find-rows button {
+  padding: 6px 10px;
+  font-size: 13.5px;
+}
+.find-rows strong {
+  font-weight: 550;
+}
+.find-rows kbd {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* The agent page answers to its pane's width, not the window's: with the chat open beside it,
+   it stacks into one column instead of losing half its settings. It scrolls only if it must. */
+.agent-page {
+  display: block;
+  container-type: inline-size;
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
+}
+.agent-cols {
+  grid-template-columns: 1fr;
+}
+.agent-setup textarea {
+  flex: none;
+  min-height: 110px;
+  height: 22vh;
+  max-height: 40vh;
+  resize: vertical;
+}
+.agent-setup label.grow {
+  flex: none;
+  min-height: 0;
+}
+.agent-side {
+  overflow: visible;
+}
+@container (min-width: 720px) {
+  .agent-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
 }

@@ -1,3 +1,4 @@
+import { useClickAway } from './clickAway.ts';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
@@ -145,6 +146,9 @@ export function Rail({ docked }: { docked: boolean }) {
   const [earlier, setEarlier] = useState(false);
   const attach = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<'sees' | null>(null);
+  const seesMenu = useRef<HTMLDivElement>(null);
+  const seesButton = useRef<HTMLButtonElement>(null);
+  useClickAway(menu === 'sees', () => setMenu(null), seesMenu, seesButton);
   const [sharing, setSharing] = useState<{ id: Id; text: string } | null>(null);
   const [picked, setPicked] = useState<{ id: Id; text: string; top: number; left: number } | null>(
     null,
@@ -673,7 +677,7 @@ export function Rail({ docked }: { docked: boolean }) {
       )}
       {mentions.menu && <div className="rail-menu">{mentions.menu}</div>}
       {menu === 'sees' && (
-        <div className="rail-menu" role="menu" aria-label="What it reads">
+        <div className="rail-menu" role="menu" aria-label="What it reads" ref={seesMenu}>
           {(
             [
               ['screen', onScreen, 'What you have open'],
@@ -748,6 +752,7 @@ export function Rail({ docked }: { docked: boolean }) {
             className="chip"
             aria-label={`It reads: ${asking ? 'your selection' : scope.label}. Change`}
             aria-expanded={menu === 'sees'}
+            ref={seesButton}
             onClick={() => setMenu(menu === 'sees' ? null : 'sees')}
           >
             <small>reads</small> {asking ? 'Selection' : scope.label} <ChevronDown size={11} />

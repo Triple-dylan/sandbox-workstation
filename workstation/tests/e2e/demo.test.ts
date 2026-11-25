@@ -58,8 +58,7 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
 const row = (page: Page, name: string) =>
   page.locator('.sidebar .list-row', { hasText: name }).first();
 const newPage = async (page: Page, kind: string, title: string, mine = false) => {
-  await page.getByRole('button', { name: 'New', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Page', exact: true }).click();
+  await page.getByRole('button', { name: 'New page', exact: true }).click();
   const form = page.getByRole('form', { name: 'New page' });
   await form.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await form.getByLabel('Title').fill(title);
@@ -86,8 +85,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await maya.getByRole('menuitemradio', { name: 'Launch' }).click();
 
   // A channel is made in the list, in Chats, where it then appears for everyone.
-  await dylan.getByRole('button', { name: 'New', exact: true }).click();
-  await dylan.getByRole('menuitem', { name: 'Channel', exact: true }).click();
+  await dylan.getByRole('button', { name: 'New channel', exact: true }).click();
   const channel = dylan.getByRole('form', { name: 'New channel' });
   await channel.getByLabel('Channel name').fill('design');
   await channel.getByRole('button', { name: 'Create', exact: true }).click();

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, Link2, Lock, Map as MapIcon, Pin, Plus, Search, Users } from 'lucide-react';
+import { ChevronDown, Lock, Map as MapIcon, Pin, Plus, Search, Users } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character, agentState } from '../features/agents/Character.tsx';
 import { isPage } from '../../shared/types.ts';
@@ -25,9 +25,7 @@ const RECENT = 8;
  * from the one "New" button at the top; people live behind the workspace's member count.
  */
 export function Sidebar() {
-  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, chooseFiles } =
-    useWorkspace();
-  const [switching, setSwitching] = useState(false);
+  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu } = useWorkspace();
   const [joining, setJoining] = useState<'space' | 'join' | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [all, setAll] = useState(false);
@@ -83,15 +81,6 @@ export function Sidebar() {
     if (agentState(a.id, s.jobs) === 'waiting') return 'needs a yes';
     return '';
   };
-
-  const newMenu = (e: React.MouseEvent) =>
-    menu(e, [
-      { label: 'Page', run: () => setUi({ creating: true }) },
-      { label: 'File from your computer', run: chooseFiles },
-      'line',
-      ...(shared ? [{ label: 'Channel', run: () => setUi({ making: 'channel' }) }] : []),
-      { label: 'Agent', run: () => setUi({ making: 'agent' }) },
-    ] satisfies MenuItem[]);
 
   const patchPage = (p: Resource, body: Record<string, unknown>) =>
     run(() => api(`/resources/${p.id}`, { method: 'PATCH', body }));
@@ -202,25 +191,46 @@ export function Sidebar() {
     );
   };
 
+  // Each part of the list adds its own kind of thing, with a + that shows on hover.
+  const heading = (title: string, add: string, run: () => void) => (
+    <h2 className="list-head">
+      {title}
+      <button aria-label={add} title={add} onClick={run}>
+        <Plus size={14} />
+      </button>
+    </h2>
+  );
+
   return (
     <nav className="sidebar" aria-label="Space">
       <div className="space-head">
-        <div className="space-top">
-          <button
-            className="space-name"
-            aria-expanded={switching}
-            aria-label={`${space.name}. Switch workspace`}
-            onClick={() => setSwitching((v) => !v)}
-          >
-            <strong className="truncate">
-              {space.kind === 'personal' ? 'Your space' : space.name}
-            </strong>
-            <ChevronDown size={14} />
-          </button>
-          <button className="new" aria-label="New" onClick={newMenu}>
-            <Plus size={14} /> New
-          </button>
-        </div>
+        <button
+          className="space-name"
+          aria-label={`${space.name}. Switch workspace`}
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            menu({ clientX: r.left, clientY: r.bottom + 4, preventDefault: () => {} }, [
+              ...s.spaces.map((x) => ({
+                label: x.kind === 'personal' ? 'Your space' : x.name,
+                checked: x.id === space.id,
+                run: () =>
+                  x.id !== space.id &&
+                  setUi({ spaceId: x.id, panes: [], active: 0, selection: [] }),
+              })),
+              'line',
+              ...(s.mayStartWorkspace !== false
+                ? [{ label: 'New workspace', run: () => setJoining('space') }]
+                : []),
+              { label: 'Join with a link', run: () => setJoining('join') },
+            ] satisfies MenuItem[]);
+          }}
+        >
+          <strong className="truncate">
+            {space.kind === 'personal' ? 'Your space' : space.name}
+          </strong>
+          <ChevronDown size={14} />
+        </button>
         {shared ? (
           <button
             className="space-people"
@@ -233,45 +243,6 @@ export function Sidebar() {
           <span className="space-people">
             <Lock size={12} /> Only you
           </span>
-        )}
-        {switching && (
-          <div className="space-menu" role="menu">
-            {s.spaces.map((x) => (
-              <button
-                key={x.id}
-                role="menuitemradio"
-                aria-checked={x.id === space.id}
-                onClick={() => {
-                  setSwitching(false);
-                  if (x.id !== space.id)
-                    setUi({ spaceId: x.id, panes: [], active: 0, selection: [] });
-                }}
-              >
-                {x.kind === 'personal' ? <Lock size={12} /> : <Users size={12} />}
-                <span className="truncate">{x.kind === 'personal' ? 'Your space' : x.name}</span>
-              </button>
-            ))}
-            {s.mayStartWorkspace !== false && (
-              <button
-                role="menuitem"
-                onClick={() => {
-                  setSwitching(false);
-                  setJoining('space');
-                }}
-              >
-                <Plus size={12} /> New workspace
-              </button>
-            )}
-            <button
-              role="menuitem"
-              onClick={() => {
-                setSwitching(false);
-                setJoining('join');
-              }}
-            >
-              <Link2 size={12} /> Join with an invite link
-            </button>
-          </div>
         )}
         {peopleOpen && shared && <PeoplePanel onClose={() => setPeopleOpen(false)} />}
         {joining === 'space' && <NewWorkspace onClose={() => setJoining(null)} />}
@@ -287,13 +258,13 @@ export function Sidebar() {
       <div className="list-scroll">
         {shared && (
           <>
-            <h2>Chats</h2>
+            {heading('Chats', 'New channel', () => setUi({ making: 'channel' }))}
             {ui.making === 'channel' && <NewChannel />}
             {chats.map(chatRow)}
           </>
         )}
 
-        <h2>Pages</h2>
+        {heading('Pages', 'New page', () => setUi({ creating: true }))}
         {ui.creating && <NewPage />}
         {pinned.map(pageRow)}
         {shownRecent.map(pageRow)}
@@ -317,7 +288,7 @@ export function Sidebar() {
           </button>
         )}
 
-        <h2>Agents</h2>
+        {heading('Agents', 'New agent', () => setUi({ making: 'agent' }))}
         {ui.making === 'agent' && <NewAgent />}
         {agents.map(agentRow)}
       </div>

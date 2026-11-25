@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useClickAway } from '../app/clickAway.ts';
+import { useRef, useState } from 'react';
 import {
   Archive,
   Columns2,
@@ -186,6 +187,13 @@ function PageMenu({ page, close }: { page: Resource; close: () => void }) {
 }
 
 /** One pane in the middle: a small header that says what this is and who can see it, then the page. */
+const agentDoing = {
+  idle: 'not working on anything',
+  working: 'working',
+  waiting: 'waiting for a yes',
+  failed: 'the last job failed',
+};
+
 export function Pane({
   target,
   index,
@@ -202,6 +210,8 @@ export function Pane({
 }) {
   const { s, setUi, space, resource, run, open, closePane, pick, user, columns } = useWorkspace();
   const [popover, setPopover] = useState<'share' | 'menu' | null>(null);
+  const head = useRef<HTMLElement>(null);
+  useClickAway(!!popover, () => setPopover(null), head);
   const page = target.type === 'page' ? resource(target.id) : undefined;
   const chat = target.type === 'chat' ? s.conversations.find((c) => c.id === target.id) : undefined;
   const who = target.type === 'who' ? user(target.id) : undefined;
@@ -257,10 +267,14 @@ export function Pane({
       : target.type === 'graph'
         ? space.name
         : who?.kind === 'agent'
-          ? who.role === 'personal'
-            ? 'Your agent · private to you'
-            : `Agent · shared with ${space.name}`
+          ? `${who.role === 'personal' ? 'Your agent · private to you' : `Shared with ${space.name}`} · ${agentDoing[agentState(who.id, s.jobs)]}`
           : 'Person';
+  // An agent is renamed where its name is shown, like a page: its owner, or anyone in its workspace.
+  const renamable =
+    who?.kind === 'agent' &&
+    (who.role === 'personal'
+      ? who.ownerId === s.me.id
+      : s.members.some((m) => m.spaceId === who.spaceId && m.userId === s.me.id));
   return (
     <section
       className={`pane ${active ? 'is-active' : ''} pane-${target.type}`}
@@ -268,7 +282,7 @@ export function Pane({
       style={grow === undefined ? undefined : { flexGrow: grow }}
       onPointerDownCapture={() => !active && setUi({ active: index, selection: [] })}
     >
-      <header className="pane-head">
+      <header className="pane-head" ref={head}>
         <button
           className="menu-button"
           aria-label="Open the list"
@@ -296,6 +310,21 @@ export function Pane({
                 if (next && next !== page.title)
                   void run(() =>
                     api(`/resources/${page.id}`, { method: 'PATCH', body: { title: next } }),
+                  );
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            />
+          ) : renamable && who ? (
+            <input
+              defaultValue={who.name}
+              key={who.name}
+              aria-label="Name"
+              maxLength={40}
+              onBlur={(e) => {
+                const next = e.target.value.trim();
+                if (next && next !== who.name)
+                  void run(() =>
+                    api(`/agents/${who.id}`, { method: 'PATCH', body: { name: next } }),
                   );
               }}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
