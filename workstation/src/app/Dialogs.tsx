@@ -16,6 +16,7 @@ export function Dialog({
   children,
   wide,
   bare,
+  anchored,
   onClose,
 }: {
   title: string;
@@ -23,12 +24,17 @@ export function Dialog({
   wide?: boolean;
   /** No title row: the first field says what this is (a new page's title, say). */
   bare?: boolean;
+  /** Opened from the list's "+ New" or member count: it opens beside the list, the work stays in view. */
+  anchored?: boolean;
   onClose?: () => void;
 }) {
   const { setUi } = useWorkspace();
   const close = onClose ?? (() => setUi({ dialog: null }));
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div
+      className={`overlay ${anchored ? 'anchored' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
       <section className={`dialog ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
         {!bare && (
           <header>
@@ -213,7 +219,7 @@ export function PasteText() {
     }
   };
   return (
-    <Dialog title="Paste text" wide>
+    <Dialog title="Paste text" wide anchored>
       <input
         value={title}
         placeholder="Title, like Customer call, May 20"
@@ -267,7 +273,7 @@ export function AgentBuilder() {
     }
   };
   return (
-    <Dialog title="New agent">
+    <Dialog title="New agent" anchored>
       <form
         className="dialog-form"
         onSubmit={(e) => {
@@ -399,7 +405,7 @@ export function People() {
     }
   };
   return (
-    <Dialog title={`People in ${space.name}`}>
+    <Dialog title={`People in ${space.name}`} anchored>
       <ul className="people">
         {people.map((p) => {
           const at = where(p);

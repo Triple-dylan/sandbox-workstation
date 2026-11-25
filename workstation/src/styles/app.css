@@ -5928,3 +5928,28 @@ select:focus-visible {
 .dialog .builder-row input {
   flex: 1;
 }
+
+/* Popups opened from the list open beside it, under "+ New", and leave the work in view. */
+.overlay.anchored {
+  background: transparent;
+  backdrop-filter: none;
+  justify-items: start;
+  align-items: start;
+  padding: 44px 16px 16px 10px;
+}
+.overlay.anchored .dialog {
+  box-shadow: var(--lift);
+  transform-origin: top left;
+  animation: anchored-in 120ms ease-out;
+}
+@keyframes anchored-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay.anchored .dialog {
+    animation: none;
+  }
+}

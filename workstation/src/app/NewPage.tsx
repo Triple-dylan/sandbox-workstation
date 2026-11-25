@@ -35,7 +35,7 @@ export function NewPage() {
     }
   };
   return (
-    <Dialog title="New page" bare onClose={close}>
+    <Dialog title="New page" bare anchored onClose={close}>
       <form
         className="new-page"
         onSubmit={(e) => {
