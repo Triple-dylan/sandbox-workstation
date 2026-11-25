@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Archive,
   Columns2,
-  FolderInput,
+  Pin,
   Lock,
   Menu,
   MessagesSquare,
@@ -127,35 +127,22 @@ function ShareBox({ page, close }: { page: Resource; close: () => void }) {
 }
 
 function PageMenu({ page, close }: { page: Resource; close: () => void }) {
-  const { s, run, notify, closePane, ui } = useWorkspace();
-  const folders = s.resources.filter((r) => r.spaceId === page.spaceId && r.kind === 'folder');
+  const { run, notify, closePane, ui } = useWorkspace();
   const index = ui.panes.findIndex((t) => t.type === 'page' && t.id === page.id);
   return (
     <div className="popover menu" role="menu">
-      {folders.length > 0 && (
-        <label>
-          <FolderInput size={13} /> Move to
-          <select
-            value={page.parentId ?? ''}
-            aria-label="Move to folder"
-            onChange={(e) => {
-              close();
-              void run(() =>
-                api(`/resources/${page.id}`, {
-                  method: 'PATCH',
-                  body: { parentId: e.target.value || null },
-                }),
-              );
-            }}
-          >
-            <option value="">No folder</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.title}
-              </option>
-            ))}
-          </select>
-        </label>
+      {!page.role && (
+        <button
+          role="menuitem"
+          onClick={() => {
+            close();
+            void run(() =>
+              api(`/resources/${page.id}`, { method: 'PATCH', body: { pinned: !page.pinned } }),
+            );
+          }}
+        >
+          <Pin size={13} /> {page.pinned ? 'Unpin' : 'Pin for everyone and their agents'}
+        </button>
       )}
       {!page.role && (
         <button

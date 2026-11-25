@@ -419,6 +419,10 @@ export class AgentEngine {
           done: g.done,
         })),
         members: this.store.membersOf(spaceId),
+        pinned: resources
+          .filter((r) => r.pinned && r.spaceId === spaceId)
+          .slice(0, 6)
+          .map((r) => ({ title: r.title, kind: r.kind, body: this.readable(r).slice(0, 4000) })),
         focus,
         colleagues,
       },

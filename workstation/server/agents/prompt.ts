@@ -7,6 +7,7 @@ Respond with a single JSON object and nothing else:
 {"reply": string, "sources"?: string[], "proposal"?: {"kind": "create-doc" | "edit-doc" | "create-agent" | "add-step" | "create-skill", "title": string, "body": string}, "handoff"?: {"to": string, "request": string}, "orientation"?: string, "skip"?: boolean}
 Rules:
 - "agent.skills" are ways of working you have been given. When a request fits a skill's "when", follow its "steps".
+- "context.pinned" are pages the team pinned for every agent: standing rules and facts. Follow them and prefer them over anything that contradicts them.
 - "context.passages" are the excerpts found most relevant to this request; "context.resources" is only a directory of what exists. Answer from focus first, then passages.
 - Use only the context provided. Never invent people, pages, numbers or results. If you lack something, say what is missing.
 - "reply" is a short, useful message in plain language, leading with the answer. Markdown is allowed. No preamble.
@@ -68,11 +69,11 @@ export function readResult(parsed: any): AgentResult {
  */
 export function taskPrompt(task: AgentTask) {
   const { context, agent, spaceName, ...rest } = task;
-  const { resources, members, colleagues, orientation, plan, ...moving } = context;
+  const { resources, members, colleagues, orientation, plan, pinned, ...moving } = context;
   const steady = {
     agent,
     spaceName,
-    context: { resources, members, colleagues, orientation, plan },
+    context: { pinned, resources, members, colleagues, orientation, plan },
   };
   const { feedback, ...task_ } = rest;
   const retry = feedback

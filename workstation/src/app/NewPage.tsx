@@ -14,13 +14,11 @@ const blurb: Record<PageKind, string> = {
 };
 
 export function NewPage() {
-  const { s, space, setUi, run, open } = useWorkspace();
+  const { space, setUi, run, open } = useWorkspace();
   const [kind, setKind] = useState<PageKind>('doc');
   const [title, setTitle] = useState('');
-  const [folder, setFolder] = useState('');
   const [mine, setMine] = useState(false);
   const shared = space.kind === 'project';
-  const folders = s.resources.filter((r) => r.spaceId === space.id && r.kind === 'folder');
   const close = () => setUi({ creating: false });
   const create = async () => {
     const made = await run(() =>
@@ -30,7 +28,6 @@ export function NewPage() {
           kind,
           title: title.trim(),
           body: '',
-          parentId: folder || null,
           visibility: mine ? 'private' : 'space',
         },
       }),
@@ -76,16 +73,6 @@ export function NewPage() {
           onChange={(e) => setTitle(e.target.value)}
         />
         <div className="new-row">
-          {folders.length > 0 && (
-            <select value={folder} aria-label="Folder" onChange={(e) => setFolder(e.target.value)}>
-              <option value="">No folder</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.title}
-                </option>
-              ))}
-            </select>
-          )}
           {shared ? (
             <span className="seg" role="radiogroup" aria-label="Who can open it">
               <button

@@ -117,6 +117,7 @@ export function openDb(path: string): Db {
     'alter table resources add column style text',
     'alter table resources add column source text',
     'alter table resources add column archived integer not null default 0',
+    'alter table resources add column pinned integer not null default 0',
     'alter table messages add column resolved integer not null default 0',
     'alter table messages add column embed text',
     'alter table messages add column sources text',

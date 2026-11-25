@@ -46,7 +46,7 @@ export type Ui = {
   /** Pages added to what it looks at by dropping them on your agent's rail. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
-  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'invite';
+  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'people';
   /** How things look for this person. */
   prefs: {
     size: 's' | 'm' | 'l';

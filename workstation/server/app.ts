@@ -574,6 +574,7 @@ export function createApp(options: AppOptions) {
             ...('style' in input ? { style: str('style') || null } : {}),
             ...('parentId' in input ? { parentId: str('parentId') || null } : {}),
             ...(typeof input.archived === 'boolean' ? { archived: input.archived } : {}),
+            ...(typeof input.pinned === 'boolean' ? { pinned: input.pinned } : {}),
             ...(input.visibility === 'private' || input.visibility === 'space'
               ? { visibility: input.visibility }
               : {}),

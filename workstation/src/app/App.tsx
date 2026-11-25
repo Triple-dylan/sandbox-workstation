@@ -13,7 +13,7 @@ import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
-import { AgentBuilder, Invite, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { AgentBuilder, People, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
 import { PAGE_KINDS, isPage } from '../../shared/types.ts';
@@ -598,7 +598,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         {ui.dialog === 'shortcuts' && <Shortcuts />}
         {ui.dialog === 'agent' && <AgentBuilder />}
         {ui.dialog === 'paste' && <PasteText />}
-        {ui.dialog === 'invite' && <Invite />}
+        {ui.dialog === 'people' && <People />}
         <input
           ref={fileInput}
           type="file"
