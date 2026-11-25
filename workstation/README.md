@@ -20,7 +20,7 @@ npm start            # builds the client, then serves everything on http://127.0
 Agents run on a pluggable runtime (`server/agents/runtime.ts`).
 
 - **Scripted** (default): deterministic, free, no network. Answers from project context, proposes docs, keeps the orientation doc current.
-- **OpenAI**: used when `OPENAI_API_KEY` is set. Copy `../.env.example` to `../.env` (repo root, gitignored) and fill in the key. The key is read only by the server and never sent to the browser or logged. Defaults: `gpt-4.1-mini`, 200k tokens per UTC day (`OPENAI_DAILY_TOKEN_LIMIT`); past the limit, agents fall back to the scripted runtime. `AGENT_RUNTIME=scripted` forces the stub.
+- **OpenAI**: used when `OPENAI_API_KEY` is set. Copy `../.env.example` to `../.env` (repo root, gitignored) and fill in the key. The key is read only by the server and never sent to the browser or logged. Every agent uses `gpt-6-luna`; there is no model setting. Default budget: 200k tokens per UTC day (`OPENAI_DAILY_TOKEN_LIMIT`); past the limit, agents fall back to the scripted runtime. `AGENT_RUNTIME=scripted` forces the stub.
 
 The server prints which runtime is active at startup, and agent messages are tagged with it.
 

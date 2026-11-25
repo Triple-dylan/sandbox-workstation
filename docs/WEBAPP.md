@@ -4,7 +4,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 
 ## Ready now
 
-- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_DAILY_TOKEN_LIMIT`.
+- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`.
 - **Health check** at `/healthz`.
 - **Sign-in by invitation** (`SIGN_IN=invite`, set in the container). New people join only through a space's invite link (good for 14 days, replaceable) or, for the first people in, the setup code in `ACCESS_CODE`. Someone signs in on another device with a one-time link they make in Settings (15 minutes). Session and sign-in tokens are stored only as hashes. People outside your spaces are not visible and cannot be messaged. The doors in are rate limited.
 - **Safe defaults for a public address:** a content security policy, no framing, session cookies that are `HttpOnly`, `SameSite=Strict` and `Secure` behind HTTPS, a request header check on every write, fingerprinted files cached for a year and the page itself never cached.

@@ -20,7 +20,6 @@ export function loadEnv(path = new URL('../../.env', import.meta.url)) {
   }
 }
 
-export const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 export const DEFAULT_DAILY_TOKENS = 200_000;
 
 export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntime {
@@ -29,7 +28,6 @@ export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntim
   const limit = Number(env.OPENAI_DAILY_TOKEN_LIMIT);
   return createOpenAIRuntime({
     apiKey: key,
-    model: env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL,
     dailyTokenLimit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_DAILY_TOKENS,
     usageToday: () => store.usageToday(),
     addUsage: (tokens) => store.addUsage(tokens),
