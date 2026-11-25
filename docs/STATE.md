@@ -74,6 +74,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 - Every agent runs on `gpt-6-luna`; there is no model setting.
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
+- Meaning-based search: passages are embedded with `text-embedding-3-small` when an OpenAI key is set, stored until the page changes, and merged with keyword ranking. Search only; answers are gpt-6-luna.
 - Agent spend guardrails: daily token allowances per space (100k) and per person (50k) on top of the server-wide limit, and at most 10 agent requests a minute per person. Background upkeep counts against its space. Set by `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 

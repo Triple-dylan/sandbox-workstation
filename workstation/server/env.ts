@@ -3,6 +3,7 @@ import type { Store } from './store.ts';
 import type { AgentLimits, AgentRuntime } from './agents/runtime.ts';
 import { scriptedRuntime } from './agents/scripted.ts';
 import { createOpenAIRuntime } from './agents/openai.ts';
+import { createOpenAIEmbedder, type Embedder } from './agents/embed.ts';
 
 /** Reads KEY=VALUE pairs from the repository-root .env. Existing environment variables win. */
 export function loadEnv(path = new URL('../../.env', import.meta.url)) {
@@ -21,6 +22,13 @@ export function loadEnv(path = new URL('../../.env', import.meta.url)) {
 }
 
 export const DEFAULT_DAILY_TOKENS = 200_000;
+
+/** Meaning-based search uses OpenAI embeddings whenever agents use OpenAI. */
+export function selectEmbedder(env: NodeJS.ProcessEnv): Embedder | undefined {
+  const key = env.OPENAI_API_KEY?.trim();
+  if (!key || env.AGENT_RUNTIME === 'scripted') return undefined;
+  return createOpenAIEmbedder({ apiKey: key });
+}
 
 /** Reads the spend guardrails, falling back to defaults for anything unset or invalid. */
 export function agentLimits(env: NodeJS.ProcessEnv): AgentLimits {

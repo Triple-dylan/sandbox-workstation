@@ -7,7 +7,8 @@ import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
-import { agentLimits, selectRuntime } from './env.ts';
+import type { Embedder } from './agents/embed.ts';
+import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
 
@@ -26,6 +27,8 @@ const types: Record<string, string> = {
 export type AppOptions = {
   dbPath: string;
   runtime?: AgentRuntime;
+  /** Turns text into search vectors. Tests pass a stand-in; by default chosen from the environment. */
+  embedder?: Embedder | null;
   staticDir?: string | null;
   maintenanceDelayMs?: number;
   env?: NodeJS.ProcessEnv;
@@ -64,6 +67,12 @@ export function createApp(options: AppOptions) {
   const engine = new AgentEngine(store, runtime, {
     maintenanceDelayMs: options.maintenanceDelayMs,
     limits: agentLimits(env),
+    embedder:
+      options.embedder === undefined
+        ? options.runtime
+          ? undefined
+          : selectEmbedder(env)
+        : (options.embedder ?? undefined),
   });
   const staticDir =
     options.staticDir === undefined

@@ -9,6 +9,7 @@ import {
 } from './runtime.ts';
 import { scriptedRuntime } from './scripted.ts';
 import { AnswerCache, Retriever } from './retrieve.ts';
+import { VectorIndex, type Embedder } from './embed.ts';
 import type { AgentResult } from './runtime.ts';
 
 const PROACTIVE_COOLDOWN_MS = 120_000;
@@ -26,14 +27,22 @@ export class AgentEngine {
   readonly answers = new AnswerCache<AgentResult>();
   private store: Store;
   readonly runtime: AgentRuntime;
-  private options: { maintenanceDelayMs?: number; limits?: AgentLimits };
+  private options: { maintenanceDelayMs?: number; limits?: AgentLimits; embedder?: Embedder };
+  /** Meaning-based search, when an embedder is available. */
+  readonly vectors: VectorIndex | null;
+  /** The pages each task may search, kept beside the task rather than sent to the model. */
+  private searchable = new WeakMap<
+    AgentTask,
+    { id: string; stamp: string; title: string; kind: string; text: string }[]
+  >();
   /** When each person last had a model answer, for the per-minute limit. */
   private recentAsks = new Map<Id, number[]>();
   constructor(
     store: Store,
     runtime: AgentRuntime,
-    options: { maintenanceDelayMs?: number; limits?: AgentLimits } = {},
+    options: { maintenanceDelayMs?: number; limits?: AgentLimits; embedder?: Embedder } = {},
   ) {
+    this.vectors = options.embedder ? new VectorIndex(store, options.embedder) : null;
     this.store = store;
     this.runtime = runtime;
     this.options = options;
@@ -276,6 +285,13 @@ export class AgentEngine {
           r.role !== 'orientation',
       );
     const orientation = this.store.resourcesIn(spaceId).find((r) => r.role === 'orientation');
+    const pages = resources.map((r) => ({
+      id: r.id,
+      stamp: r.updatedAt,
+      title: r.title,
+      kind: r.kind,
+      text: this.readable(r),
+    }));
     const shared =
       kind === 'maintenance' || (kind === 'delegation' && !conversation)
         ? this.store
@@ -331,7 +347,7 @@ export class AgentEngine {
       .projectAgents(colleagueSpace)
       .filter((a) => a.id !== agent.id && this.store.isMember(agent.id, colleagueSpace))
       .map((a) => ({ name: a.name, purpose: a.purpose ?? '' }));
-    return {
+    const task: AgentTask = {
       kind,
       agent: {
         name: agent.name,
@@ -365,16 +381,7 @@ export class AgentEngine {
         passages:
           kind === 'maintenance'
             ? []
-            : this.retriever.search(
-                `${request} ${trigger?.anchor?.quote ?? ''}`,
-                resources.map((r) => ({
-                  id: r.id,
-                  stamp: r.updatedAt,
-                  title: r.title,
-                  kind: r.kind,
-                  text: this.readable(r),
-                })),
-              ),
+            : this.retriever.search(`${request} ${trigger?.anchor?.quote ?? ''}`, pages),
         recent,
         plan: this.store.goals(spaceId).map((g) => ({
           step: g.title,
@@ -388,6 +395,8 @@ export class AgentEngine {
         colleagues,
       },
     };
+    this.searchable.set(task, pages);
+    return task;
   }
 
   private async runJob(
@@ -424,6 +433,23 @@ export class AgentEngine {
     });
     this.store.setJob(job.id, 'running');
     const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger, relay);
+    // Meaning-based search alongside keywords. Pages without vectors yet are embedded in the
+    // background and still found by keyword this time; any embedding failure leaves keywords alone.
+    const pages = this.searchable.get(task);
+    if (this.vectors && pages && kind !== 'maintenance') {
+      this.track(
+        this.vectors.refresh(pages).catch((error) => console.error('embedding failed', error)),
+      );
+      try {
+        task.context.passages = await this.vectors.search(
+          `${request} ${trigger?.anchor?.quote ?? ''}`,
+          pages,
+          task.context.passages,
+        );
+      } catch (error) {
+        console.error('meaning search failed', error);
+      }
+    }
     let result;
     let runtime = this.runtime;
     let note = '';
