@@ -82,7 +82,9 @@ export class SharedBrowsers {
       headless?: boolean;
     },
   ) {
-    this.headless = options.headless ?? false;
+    // Visible Chrome only where it can be kept off any real screen: a server, on a virtual one.
+    // On a desktop it would open windows in front of the person, so it runs headless there.
+    this.headless = options.headless ?? process.platform !== 'linux';
     this.store = store;
     this.dataDir = options.dataDir;
     const allowed = new Set(options.allowHosts ?? []);
@@ -113,8 +115,6 @@ export class SharedBrowsers {
           '--disable-dev-shm-usage',
           '--no-first-run',
           '--disable-features=Translate',
-          // Visible Chrome, but its window is kept out of sight on a desktop machine.
-          '--window-position=-32000,-32000',
           `--window-size=${WIDTH},${HEIGHT + 120}`,
         ],
       };
