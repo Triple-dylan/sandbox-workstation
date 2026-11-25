@@ -81,7 +81,7 @@ export function NewPage() {
             </small>
           )}
           <button className="primary" type="submit">
-            Create <kbd>↵</kbd>
+            Create <kbd aria-hidden="true">↵</kbd>
           </button>
         </div>
       </form>
