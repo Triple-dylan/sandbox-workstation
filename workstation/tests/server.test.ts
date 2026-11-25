@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp, type GoogleAccount } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
-import type { AgentRuntime, AgentTask } from '../server/agents/runtime.ts';
+import type { AgentResult, AgentRuntime, AgentTask } from '../server/agents/runtime.ts';
 
 const PLACEHOLDER_KEY = 'placeholder-key-for-tests';
 
@@ -1316,6 +1316,164 @@ test("meaning search: finds a page by what it means, embeds each page once until
   await ask('vehicle price today');
   await engine.idle();
   assert.ok(embedded.some((t) => t.includes('$450')));
+});
+
+test('answer checks: a fixable mistake gets one retry with the problem spelled out, and what is still wrong is left out and said', async () => {
+  const tasks: AgentTask[] = [];
+  let script: ((task: AgentTask) => AgentResult)[] = [];
+  const model: AgentRuntime = {
+    id: 'fake-model',
+    label: 'Fake model',
+    run: async (task) => {
+      // Background orientation upkeep also calls the model; it is not what is being tested here.
+      if (task.kind === 'maintenance') return {};
+      tasks.push(task);
+      return { ...script.shift()!(task), tokens: 10 };
+    },
+  };
+  const { store, engine, dylan, project, agent, snap } = setup(model);
+  const page = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Shortlist',
+    body: '# Shortlist\n\nPaperie costs $58 for 50 boxes.',
+  });
+  const feed = store.openDiscussion(dylan.id, page.id);
+  const ask = async (text: string) => {
+    const m = store.postMessage(dylan.id, {
+      conversationId: feed.id,
+      text,
+      addressedTo: agent.id,
+      anchor: { resourceId: page.id, quote: 'Paperie costs $58 for 50 boxes.' },
+    });
+    await engine.idle();
+    return snap(dylan.id).messages.find((x) => x.replyTo === m.id)!;
+  };
+
+  // An edit quoting text that isn't on the page: retried with the reason, then right.
+  script = [
+    () => ({
+      reply: 'Suggested.',
+      proposal: { kind: 'edit-doc', title: 'Paperie costs $85 for 50 boxes.', body: 'x' },
+    }),
+    () => ({
+      reply: 'Suggested.',
+      proposal: {
+        kind: 'edit-doc',
+        title: 'Paperie costs $58 for 50 boxes.',
+        body: 'Paperie costs $61 for 50 boxes.',
+      },
+    }),
+  ];
+  const fixed = await ask('make it $61');
+  assert.equal(tasks.length, 2);
+  assert.match(tasks[1].feedback!, /does not appear on "Shortlist" exactly/);
+  assert.ok(fixed.approvalId, 'the corrected edit is proposed');
+  assert.equal(engine.retries, 1);
+
+  // Still wrong after the retry: no edit is proposed, the reply says so, and invented sources go.
+  tasks.length = 0;
+  script = [
+    () => ({
+      reply: 'Done.',
+      sources: ['Shortlist', 'Made-up page'],
+      proposal: { kind: 'edit-doc', title: 'nope', body: 'x' },
+    }),
+    () => ({
+      reply: 'Done.',
+      sources: ['Made-up page'],
+      proposal: { kind: 'edit-doc', title: 'still nope', body: 'x' },
+    }),
+  ];
+  const failed = await ask('make it $70');
+  assert.equal(tasks.length, 2, 'only one retry');
+  assert.match(tasks[1].feedback!, /"Made-up page"/);
+  assert.equal(failed.approvalId ?? null, null);
+  assert.match(failed.text, /couldn't match the text to change on "Shortlist"/);
+  assert.deepEqual(failed.sourceIds, []);
+
+  // A handoff to someone who doesn't exist is not claimed as done.
+  script = [
+    () => ({ reply: 'Handing this to Nobody.', handoff: { to: 'Nobody', request: 'x' } }),
+    () => ({ reply: 'Handing this to Nobody.', handoff: { to: 'Nobody', request: 'x' } }),
+  ];
+  const handoff = await ask('who should do this?');
+  assert.match(handoff.text, /couldn't hand this to "Nobody"/);
+
+  // An unreadable answer is retried; a good answer needs no retry.
+  script = [() => ({ reply: '', malformed: true }), () => ({ reply: 'Here it is.' })];
+  assert.equal((await ask('summarise')).text, 'Here it is.');
+  const before = engine.retries;
+  script = [() => ({ reply: 'Fine first time.', sources: ['Shortlist'] })];
+  assert.equal((await ask('anything else')).text, 'Fine first time.');
+  assert.equal(engine.retries, before);
+});
+
+test('openai runtime asks for the strict answer schema, and falls back to plain JSON if the model refuses it', async () => {
+  const formats: any[] = [];
+  const fakeFetch = (async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    formats.push(body.response_format);
+    if (body.response_format.type === 'json_schema')
+      return new Response(
+        JSON.stringify({
+          error: {
+            message:
+              "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model.",
+          },
+        }),
+        { status: 400 },
+      );
+    return new Response(
+      JSON.stringify({
+        usage: { total_tokens: 5 },
+        choices: [{ message: { content: '{"reply":"ok"}' } }],
+      }),
+      { status: 200 },
+    );
+  }) as unknown as typeof fetch;
+  const runtime = createOpenAIRuntime({
+    apiKey: PLACEHOLDER_KEY,
+    dailyTokenLimit: 1000,
+    usageToday: () => 0,
+    addUsage: () => {},
+    fetch: fakeFetch,
+  });
+  const task = {
+    kind: 'ask',
+    request: 'hi',
+    agent: { name: 'A', role: 'project' },
+    spaceName: 'S',
+    context: {
+      resources: [],
+      members: [],
+      colleagues: [],
+      orientation: null,
+      plan: [],
+      passages: [],
+      recent: [],
+    },
+  } as unknown as AgentTask;
+  assert.equal((await runtime.run(task)).reply, 'ok');
+  assert.equal(formats[0].type, 'json_schema');
+  assert.equal(formats[0].json_schema.strict, true);
+  assert.equal(formats[1].type, 'json_object');
+  await runtime.run(task);
+  assert.equal(formats[2].type, 'json_object', 'remembered for later requests');
+  // Prose instead of JSON is flagged so the engine can retry, and kept as the reply.
+  const prose = createOpenAIRuntime({
+    apiKey: PLACEHOLDER_KEY,
+    dailyTokenLimit: 1000,
+    usageToday: () => 0,
+    addUsage: () => {},
+    fetch: (async () =>
+      new Response(JSON.stringify({ choices: [{ message: { content: 'Just text.' } }] }), {
+        status: 200,
+      })) as unknown as typeof fetch,
+  });
+  const r = await prose.run(task);
+  assert.equal(r.malformed, true);
+  assert.equal(r.reply, 'Just text.');
 });
 
 test('google sign-in: verified accounts only, new people need an invite or the setup code, and the same account comes back as the same person', async () => {

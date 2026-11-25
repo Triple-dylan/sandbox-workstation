@@ -10,6 +10,7 @@ import {
 import { scriptedRuntime } from './scripted.ts';
 import { AnswerCache, Retriever } from './retrieve.ts';
 import { VectorIndex, type Embedder } from './embed.ts';
+import { keepOnlyValid, problemsWith, type CheckContext } from './checks.ts';
 import type { AgentResult } from './runtime.ts';
 
 const PROACTIVE_COOLDOWN_MS = 120_000;
@@ -25,6 +26,8 @@ export class AgentEngine {
   private lastProactive = new Map<Id, number>();
   readonly retriever = new Retriever();
   readonly answers = new AnswerCache<AgentResult>();
+  /** How many answers needed a second try; reported for tests and tuning. */
+  retries = 0;
   private store: Store;
   readonly runtime: AgentRuntime;
   private options: { maintenanceDelayMs?: number; limits?: AgentLimits; embedder?: Embedder };
@@ -473,8 +476,18 @@ export class AgentEngine {
       try {
         if (!remembered) this.guard(task.spaceName, spaceId, requester);
         result = remembered ?? (await this.runtime.run(task));
-        if (!remembered && result.tokens)
-          this.store.addAgentUsage(spaceId, requester, result.tokens);
+        if (!remembered) {
+          if (result.tokens) this.store.addAgentUsage(spaceId, requester, result.tokens);
+          result = await this.checked(
+            result,
+            task,
+            agent,
+            conversation,
+            trigger,
+            spaceId,
+            requester,
+          );
+        }
         if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
           this.answers.set(key, result);
       } catch (error) {
@@ -510,11 +523,7 @@ export class AgentEngine {
     let approvalId: Id | undefined;
     if (result.proposal) {
       const looking = trigger ? this.store.messageContext(trigger.id) : null;
-      const anchored =
-        trigger?.anchor?.resourceId ??
-        (conversation?.kind === 'discussion' ? conversation.resourceId : null) ??
-        looking?.resourceIds[0] ??
-        null;
+      const anchored = this.pageInQuestion(conversation, trigger);
       // An edit targets the page in question; a new page lands on the canvas being looked at.
       const canvas = (looking?.resourceIds ?? [])
         .map((id) => this.store.resource(id))
@@ -573,6 +582,64 @@ export class AgentEngine {
         );
     }
     this.store.setJob(job.id, approvalId ? 'awaiting_approval' : 'done');
+  }
+
+  /** The page a request is about: the anchored text's page, the discussed page, or the one in view. */
+  private pageInQuestion(conversation: Conversation | null, trigger: Message | null): Id | null {
+    return (
+      trigger?.anchor?.resourceId ??
+      (conversation?.kind === 'discussion' ? conversation.resourceId : null) ??
+      (trigger ? this.store.messageContext(trigger.id)?.resourceIds[0] : null) ??
+      null
+    );
+  }
+
+  /**
+   * Checks an answer against what the agent was actually given. If something is fixable, the model
+   * gets one retry with the problems spelled out; whatever is still wrong is left out and said so.
+   */
+  private async checked(
+    first: AgentResult,
+    task: AgentTask,
+    agent: User,
+    conversation: Conversation | null,
+    trigger: Message | null,
+    spaceId: Id,
+    requester: Id | null,
+  ): Promise<AgentResult> {
+    if (this.runtime === scriptedRuntime) return first;
+    const targetId = this.pageInQuestion(conversation, trigger);
+    const target = targetId ? this.store.resource(targetId) : null;
+    const ctx: CheckContext = {
+      kind: task.kind,
+      titles: new Set(
+        this.store
+          .memberSpaces(agent.id)
+          .flatMap((id) => this.store.readableResources(agent.id, id))
+          .map((r) => r.title.toLowerCase()),
+      ),
+      editTarget:
+        target && this.store.canReadResource(agent.id, target)
+          ? { title: target.title, body: target.body }
+          : null,
+      colleagues: task.context.colleagues.map((c) => c.name),
+    };
+    const problems = problemsWith(first, ctx);
+    if (!problems.length) return first;
+    let answer = first;
+    try {
+      answer = await this.runtime.run({
+        ...task,
+        feedback: problems.map((p) => `- ${p}`).join('\n'),
+      });
+      if (answer.tokens) this.store.addAgentUsage(spaceId, requester, answer.tokens);
+      this.retries++;
+      // A retry that came back worse (unreadable) keeps the first answer's usable parts.
+      if (answer.malformed && !first.malformed) answer = first;
+    } catch (error) {
+      console.error('agent retry failed', error);
+    }
+    return keepOnlyValid(answer, ctx);
   }
 
   private reply(

@@ -74,5 +74,9 @@ export function taskPrompt(task: AgentTask) {
     spaceName,
     context: { resources, members, colleagues, orientation, plan },
   };
-  return `${agentInstructions}\n\nStanding context:\n${JSON.stringify(steady)}\n\nTask:\n${JSON.stringify({ ...rest, context: moving })}`;
+  const { feedback, ...task_ } = rest;
+  const retry = feedback
+    ? `\n\nYour previous answer to this task had problems. Fix them and answer again:\n${feedback}`
+    : '';
+  return `${agentInstructions}\n\nStanding context:\n${JSON.stringify(steady)}\n\nTask:\n${JSON.stringify({ ...task_, context: moving })}${retry}`;
 }

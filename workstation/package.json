@@ -11,9 +11,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "test:e2e": "node --disable-warning=ExperimentalWarning --test tests/e2e/*.test.ts",
-    "format": "prettier --write src server shared tests scripts vite.config.ts",
-    "format:check": "prettier --check src server shared tests scripts vite.config.ts",
-    "build:inpage": "vite build -c inpage/vite.config.ts && node inpage/assemble.mjs"
+    "format": "prettier --write src server shared tests evals scripts vite.config.ts",
+    "format:check": "prettier --check src server shared tests evals scripts vite.config.ts",
+    "build:inpage": "vite build -c inpage/vite.config.ts && node inpage/assemble.mjs",
+    "eval": "node --disable-warning=ExperimentalWarning evals/run.ts"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "5.3.0",
