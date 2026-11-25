@@ -14,6 +14,7 @@ import {
 import type {
   AgentRequest,
   ApprovalLevel,
+  BrowserBody,
   Watch,
   Anchor,
   Approval,
@@ -1013,6 +1014,14 @@ export class Store {
       if (!Array.isArray(rows))
         body = json({ rows: Array.from({ length: 8 }, () => ['', '', '', '']) })!;
       title = title || 'Untitled sheet';
+    } else if (input.kind === 'browser') {
+      // Opens on DuckDuckGo. What it shows afterwards is set only by the browser itself.
+      body = json({
+        tabs: [{ url: 'https://duckduckgo.com/', title: 'DuckDuckGo' }],
+        active: 0,
+        text: '',
+      })!;
+      title = title || 'Browser';
     } else if (input.kind === 'deck') {
       const slides = parse<{ slides?: unknown }>(body)?.slides;
       if (!Array.isArray(slides)) body = json({ slides: [{ title: title || 'Title', body: '' }] })!;
@@ -1323,6 +1332,15 @@ export class Store {
       return this.updateResource(link.linkedBy, resourceId, { body: json(next)! });
     // Only the sync time or an error changed: no new version of the page.
     this.run('update resources set body = ? where id = ?', json(next), resourceId);
+    this.changed();
+  }
+  /** What a shared browser page has open. Saved quietly: browsing is not a new version of the page. */
+  setBrowserBody(resourceId: Id, body: BrowserBody) {
+    const page = this.resource(resourceId);
+    if (!page || page.kind !== 'browser') return;
+    const next = json(body)!;
+    if (next === page.body) return;
+    this.run('update resources set body = ? where id = ?', next, resourceId);
     this.changed();
   }
   linkedSheets() {

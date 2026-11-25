@@ -13,6 +13,11 @@ WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 SIGN_IN=invite WORKSTATION_DB=/data/workstation.db
 COPY workstation/package.json workstation/package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
+# The workspace's shared browser: Chromium and the system libraries it needs.
+# It runs as a normal, visible Chrome on a virtual screen (Xvfb), since many sites refuse headless ones.
+RUN npx playwright install --with-deps chromium \
+  && apt-get update && apt-get install -y --no-install-recommends xvfb \
+  && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/dist ./dist
 COPY workstation/server ./server
 COPY workstation/shared ./shared

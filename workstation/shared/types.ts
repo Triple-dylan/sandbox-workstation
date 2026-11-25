@@ -91,7 +91,7 @@ export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agen
 
 /** Pages: things you open and work in. Each has its own editor. */
 /** asset: something brought in and kept as it is: a picture, or a file's text. */
-export const PAGE_KINDS = ['doc', 'sheet', 'deck', 'canvas', 'asset'] as const;
+export const PAGE_KINDS = ['doc', 'sheet', 'deck', 'canvas', 'browser', 'asset'] as const;
 export type PageKind = (typeof PAGE_KINDS)[number];
 /**
  * Things that live on a canvas page. note: typed text. sticky, shape, frame: drawing pieces.
@@ -141,6 +141,11 @@ export type SheetBody = {
   freeze?: number;
   link?: SheetLink | null;
 };
+/**
+ * A shared browser page: the tabs it had open, which was in front, and the readable text of that
+ * tab, so agents can read what the team is looking at. The live screen is never stored.
+ */
+export type BrowserBody = { tabs: { url: string; title: string }[]; active: number; text: string };
 /** A deck's stored form. */
 export type DeckBody = { slides: { title: string; body: string }[] };
 /** What an embed on a canvas points at. */

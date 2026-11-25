@@ -62,6 +62,7 @@ In the service, **Variables**, add:
 | `GOOGLE_CLIENT_ID` | the Client ID from step 2.5 |
 | `GOOGLE_CLIENT_SECRET` | optional; turns on linking Google Sheets. The same OAuth client's secret. In Google Cloud, enable the **Google Sheets API**, add the `.../auth/spreadsheets` scope to the consent screen, and add `https://<your address>/api/connect/google/callback` as an authorised redirect URI |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | optional; turn on linking Excel workbooks in OneDrive or SharePoint. An app registration in Microsoft Entra with delegated `Files.ReadWrite`, `User.Read` and `offline_access`, and the redirect URI `https://<your address>/api/connect/microsoft/callback` |
+| (shared browser) | nothing to set. The image includes Chromium and a virtual screen. Give the service at least 2 GB of memory; sign-ins are kept under `/data/browsers`, so mount the volume at `/data` |
 | `PUBLIC_URL` | optional; the address people use, if sign-in redirects should not be worked out from the request |
 | `WORKSPACE_CREATORS` | optional; emails and/or `@domain`s allowed to start workspaces. Unset, anyone signed in may |
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents answer with the labelled scripted stand-in |

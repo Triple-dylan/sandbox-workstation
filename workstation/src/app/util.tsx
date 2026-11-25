@@ -1,6 +1,7 @@
 import {
   FileText,
   Folder,
+  Globe,
   Hash,
   Paperclip,
   Image as ImageIcon,
@@ -37,6 +38,7 @@ export const kindName: Record<string, string> = {
   sheet: 'Sheet',
   deck: 'Deck',
   canvas: 'Canvas',
+  browser: 'Browser',
   asset: 'Asset',
   folder: 'Folder',
 };
@@ -45,6 +47,7 @@ export function KindIcon({ kind, size = 14 }: { kind: ResourceKind | 'channel'; 
   if (kind === 'sheet') return <Sheet size={size} aria-hidden="true" />;
   if (kind === 'deck') return <Presentation size={size} aria-hidden="true" />;
   if (kind === 'canvas') return <LayoutDashboard size={size} aria-hidden="true" />;
+  if (kind === 'browser') return <Globe size={size} aria-hidden="true" />;
   if (kind === 'folder') return <Folder size={size} aria-hidden="true" />;
   if (kind === 'channel') return <Hash size={size} aria-hidden="true" />;
   if (kind === 'asset') return <Paperclip size={size} aria-hidden="true" />;
@@ -84,6 +87,18 @@ export function excerpt(r: Resource, length = 160) {
     );
   }
   if (r.kind === 'canvas') return 'Canvas';
+  if (r.kind === 'browser') {
+    try {
+      const b = JSON.parse(r.body) as { tabs: { url: string; title: string }[]; active: number };
+      const open = b.tabs[b.active];
+      return `${b.tabs.length} tab${b.tabs.length === 1 ? '' : 's'}${open ? ` · ${open.title || open.url}` : ''}`.slice(
+        0,
+        length,
+      );
+    } catch {
+      return 'Browser';
+    }
+  }
   if (r.kind === 'asset' && r.body.startsWith('data:')) return r.source?.name ?? 'Picture';
   return r.body
     .replace(/^#.*$/m, '')

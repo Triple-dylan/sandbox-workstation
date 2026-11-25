@@ -86,6 +86,8 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-25
 
+- Shared browser: New page → Browser. Live screen, tabs, address bar (DuckDuckGo search), one driver with Take control, teammates' pointers, sign-ins kept per workspace. Agents read the open tab's text. Checked in the browser locally: DuckDuckGo results for a search, and clicking through on the stream. Tested: two viewers get the same frames, the driver rule, pointers, the private-address guard and proxy, and that a page body sent from outside is ignored. Each open workspace browser uses roughly 300–500 MB on the server and closes five minutes after the last person leaves; at most four workspaces at once.
+
 - Sheets: Excel keys and clipboard, fill, undo, number formats, column widths, sort, keep row 1 in view, `.xlsx` in and out, CSV out. Checked in the browser: typing, Enter, Shift-select, paste of tab-separated text with a formula, undo, currency format, the column menu.
 - Connectors: Google Sheets and Excel (OneDrive/SharePoint) links become live sheet pages, synced both ways. Tested end to end against a stand-in provider (sign-in, refresh, link every tab, edits out, changes in, link protection). Not tried against real Google or Microsoft accounts; needs `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` and the redirect addresses in `docs/WEBAPP.md`.
 - Private chat: answers show what they read, answers to tap, fitting actions, Send to a teammate; follow-ups revise the waiting draft; suggested changes can be edited first, shown on the page, and (when made at once) undone.

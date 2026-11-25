@@ -27,6 +27,7 @@ import { GraphPage } from './GraphPage.tsx';
 import { WhoPage } from './WhoPage.tsx';
 import { agentsIn } from '../features/feed/Feed.tsx';
 import { AssetPage } from './AssetPage.tsx';
+import { BrowserPage } from './BrowserPage.tsx';
 
 /** Who can open a page, and the way to change it. Only its owner changes it. */
 function ShareBox({ page, close }: { page: Resource; close: () => void }) {
@@ -470,6 +471,7 @@ export function Pane({
         {page?.kind === 'sheet' && <SheetPage key={page.id} page={page} />}
         {page?.kind === 'deck' && <DeckPage key={page.id} page={page} />}
         {page?.kind === 'asset' && <AssetPage key={page.id} page={page} />}
+        {page?.kind === 'browser' && <BrowserPage key={page.id} page={page} />}
         {page?.kind === 'canvas' && <CanvasPage key={page.id} page={page} active={active} />}
         {chat && <ChatPage key={chat.id} chat={chat} />}
         {target.type === 'graph' && <GraphPage />}

@@ -1,7 +1,15 @@
 import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
 import { readSheet } from '../../shared/sheet.ts';
 import type { ChangeEvent, Store } from '../store.ts';
-import type { Conversation, Id, Job, JobKind, Message, User } from '../../shared/types.ts';
+import type {
+  BrowserBody,
+  Conversation,
+  Id,
+  Job,
+  JobKind,
+  Message,
+  User,
+} from '../../shared/types.ts';
 import {
   BudgetExceeded,
   TooManyRequests,
@@ -356,6 +364,16 @@ export class AgentEngine {
       if (r.kind === 'arrow' || r.kind === 'plan' || r.kind === 'image') return r.title;
       if (r.kind === 'asset' && r.body.startsWith('data:')) return r.title;
       if (r.kind === 'sheet') return sheetText(JSON.parse(r.body).rows as string[][]);
+      if (r.kind === 'browser') {
+        const b = JSON.parse(r.body) as BrowserBody;
+        const open = b.tabs[b.active];
+        return open
+          ? `The team's shared browser. Open tab: ${open.title || open.url} (${open.url})\nOther tabs: ${b.tabs
+              .filter((_, i) => i !== b.active)
+              .map((t) => t.title || t.url)
+              .join('; ')}\n\n${b.text}`
+          : "The team's shared browser, with nothing open.";
+      }
       if (r.kind === 'deck')
         return (JSON.parse(r.body).slides as { title: string; body: string }[])
           .map((s, i) => `Slide ${i + 1}: ${s.title}\n${s.body}`)
