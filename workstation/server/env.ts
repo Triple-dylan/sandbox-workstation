@@ -21,7 +21,8 @@ export function loadEnv(path = new URL('../../.env', import.meta.url)) {
   }
 }
 
-export const DEFAULT_DAILY_TOKENS = 200_000;
+// Safety nets against a runaway loop or a surprise bill, not rations: a call is about 3-4k tokens.
+export const DEFAULT_DAILY_TOKENS = 10_000_000;
 
 /** Meaning-based search uses OpenAI embeddings whenever agents use OpenAI. */
 export function selectEmbedder(env: NodeJS.ProcessEnv): Embedder | undefined {
@@ -37,9 +38,9 @@ export function agentLimits(env: NodeJS.ProcessEnv): AgentLimits {
     return Number.isFinite(value) && value > 0 ? value : fallback;
   };
   return {
-    spaceTokensPerDay: n('AGENT_SPACE_DAILY_TOKENS', 100_000),
-    personTokensPerDay: n('AGENT_PERSON_DAILY_TOKENS', 50_000),
-    requestsPerMinute: n('AGENT_REQUESTS_PER_MINUTE', 10),
+    spaceTokensPerDay: n('AGENT_SPACE_DAILY_TOKENS', 3_000_000),
+    personTokensPerDay: n('AGENT_PERSON_DAILY_TOKENS', 1_000_000),
+    requestsPerMinute: n('AGENT_REQUESTS_PER_MINUTE', 20),
   };
 }
 
