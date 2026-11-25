@@ -4,15 +4,12 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 ## Repository status (2026-11-24)
 
-Until this lands, `main` is stale (2026-10-31). Where the work is:
+`main` holds the current product (the Nov 11–18 rebuild). Other branches:
 
 | Branch | What | Status |
 |---|---|---|
-| `claude/epic-dirac-96j4oz` | Nov 11–18 rebuild: pages, channels, graph, right-hand agent rail, cursors, Railway prep. Everything in this file describes it. | Basis for the cleanup PR into `main`. 31 commits carry co-author trailers; they must not reach `main` (squash-merge). |
-| `archive/local-codex-cursor-nov7` | Nov 6–7 local work never committed until now: gpt-6-luna runtime, Google sign-in, MVP plan, product corrections, deployment notes. | Preserved, not merged. Conflicts with the Claude line on runtime and sign-in; see the open item in `DECISIONS.md`. |
-| `cursor/cleanup-588c`, `cursor/demo-foundation-588c` (PRs #1, #2) | Nov 5 cleanup and demo foundation. | Contained in both lines above; PRs can be closed. |
-| `cursor/agent-character-orb-3f54`, `cursor/thinking-orbs-character-92f2`, `cursor/shared-planning-docs-3d89` | Nov 5–6 Orb character and shared planning docs. | Contained in `archive/local-codex-cursor-nov7` only. |
-| `cursor/agent-character-options` | Standalone page comparing four agent character directions. | In neither line; keep until the Orb choice is settled. |
+| `archive/local-codex-cursor-nov7` | Nov 6–7 local work: gpt-6-luna runtime, Google sign-in, MVP plan, product corrections, deployment notes. Also carries the history of the Nov 5–6 `cursor/*` branches. | Preserved, not merged. Conflicts with `main` on runtime and sign-in; see the open item in `DECISIONS.md`. |
+| `cursor/agent-character-options` | Standalone page comparing four agent character directions. | Kept until the Orb choice is settled. |
 
 ## Open it
 
