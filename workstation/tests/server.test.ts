@@ -228,7 +228,6 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
   }) as unknown as typeof fetch;
   const runtime = createOpenAIRuntime({
     apiKey: PLACEHOLDER_KEY,
-    model: 'test-model',
     dailyTokenLimit: 150,
     usageToday: () => usage,
     addUsage: (t) => (usage += t),
@@ -243,7 +242,7 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
     .at(-1)!;
   assert.equal(last.text, 'Real model answer');
   assert.equal(last.runtime, 'openai');
-  assert.equal(calls[0].model, 'test-model');
+  assert.equal(calls[0].model, 'gpt-6-luna', 'every agent uses gpt-6-luna');
   assert.equal(headers[0], `Bearer ${PLACEHOLDER_KEY}`);
   assert.ok(
     !JSON.stringify(calls[0]).includes(PLACEHOLDER_KEY),

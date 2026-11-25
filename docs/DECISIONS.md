@@ -6,7 +6,8 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 - **GitHub is the project's record, not any harness.** Work had drifted into a Claude cloud branch, a published preview page and 44 uncommitted local files, and the chat history behind it was not findable. From now on everything that matters is committed and pushed, `main` is the source of truth, and every harness (Claude Code, Codex, Cursor) follows the same `AGENTS.md`. Published pages are previews only.
 - **Never put a co-author tag or AI attribution on anything on GitHub.** Hard rule; see `AGENTS.md`.
-- *Open:* **Which agent runtime wins.** The Nov 6–7 local work (branch `archive/local-codex-cursor-nov7`) pins every agent to OpenAI gpt-6-luna with no overrides and adds Google sign-in. The Nov 11–18 line this branch is built on answers with Claude in the in-page preview, OpenAI on the local server, and uses invite and device links for sign-in on Railway. These conflict and need Dylan's call before the archive branch's runtime work is brought over.
+- **Agents run on gpt-6-luna.** Dylan: "GPT Luna prefferably. but we do want some cacheing and guardrail optimizations within the harness and RAG to support the models." Every server-side agent uses `gpt-6-luna`; the `OPENAI_MODEL` setting is removed. Caching, guardrails and retrieval are strengthened in the harness itself, not by switching models. Resolves the open runtime question.
+- **Google sign-in, then deploy for test users.** Dylan: "Google login would be great. I want to get this deployed so I can get some other users to join test and make a net new workstation based on some real projects." Google sign-in is ported from `archive/local-codex-cursor-nov7` onto the current invite-based sign-in, then the app goes to Railway (decided 2026-11-14).
 
 ## 2026-11-18
 
