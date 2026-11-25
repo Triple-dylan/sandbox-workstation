@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
@@ -28,7 +29,29 @@ export type AppOptions = {
   staticDir?: string | null;
   maintenanceDelayMs?: number;
   env?: NodeJS.ProcessEnv;
+  /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
+  verifyGoogle?: (credential: string, clientId: string) => Promise<GoogleAccount>;
 };
+
+export type GoogleAccount = {
+  subject: string;
+  name: string;
+  email: string | null;
+  verified: boolean;
+};
+
+const googleClient = new OAuth2Client();
+async function verifyWithGoogle(credential: string, clientId: string): Promise<GoogleAccount> {
+  const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: clientId });
+  const p = ticket.getPayload();
+  if (!p?.sub) throw new AccessError('Google sign-in could not be verified.');
+  return {
+    subject: p.sub,
+    name: p.name ?? '',
+    email: p.email ?? null,
+    verified: !!p.email_verified,
+  };
+}
 
 const segments0 = (path: string) => path.split('/')[2] ?? '';
 
@@ -47,6 +70,18 @@ export function createApp(options: AppOptions) {
       : options.staticDir;
   // When set, joining needs this code: the least a hosted copy should ask before real accounts exist.
   const accessCode = env.ACCESS_CODE?.trim() || '';
+  // With a Google client ID set, people sign in with Google; device links still work.
+  const googleClientId = env.GOOGLE_CLIENT_ID?.trim() || '';
+  const verifyGoogle = options.verifyGoogle ?? verifyWithGoogle;
+  /** Who may make a new account: anyone locally; by invite link or setup code when hosted. */
+  const mayCreate = (invite: string, code: unknown) => {
+    if (invite) return void store.inviteInfo(invite);
+    if (accessCode && String(code ?? '').trim() !== accessCode)
+      throw new AccessError(
+        mode === 'invite' ? 'That setup code is not right.' : 'That access code is not right.',
+      );
+    if (mode === 'invite' && !accessCode) throw new AccessError('You need an invite link to join.');
+  };
   // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
   const attempts = new Map<string, { n: number; at: number }>();
   const slowDown = (req: IncomingMessage) => {
@@ -136,7 +171,32 @@ export function createApp(options: AppOptions) {
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
     if (path === '/api/config' && method === 'GET')
-      return send(res, 200, { accessCode: !!accessCode, mode });
+      return send(res, 200, {
+        accessCode: !!accessCode,
+        mode,
+        googleClientId: googleClientId || null,
+      });
+    if (path === '/api/auth/google' && method === 'POST') {
+      if (!googleClientId) return send(res, 404, { error: 'Google sign-in is not set up here.' });
+      const input = await body(req);
+      slowDown(req);
+      let account: GoogleAccount;
+      try {
+        account = await verifyGoogle(String(input.credential ?? ''), googleClientId);
+      } catch {
+        throw new AccessError('Google sign-in could not be verified.');
+      }
+      if (!account.verified) throw new AccessError('Use a Google account with a verified email.');
+      const invite = typeof input.invite === 'string' ? input.invite : '';
+      let user = store.googleUser(account.subject);
+      if (!user) {
+        mayCreate(invite, input.code);
+        user = store.createGoogleUser(account.subject, account.name, account.email);
+      }
+      if (invite) store.acceptInvite(user.id, invite);
+      const token = store.createSession(user.id);
+      return send(res, 200, { ok: true }, { 'set-cookie': cookieFor(req, token) });
+    }
     if (segments0(path) === 'invite' && method === 'GET') {
       slowDown(req);
       return send(res, 200, store.inviteInfo(path.split('/')[3] ?? ''));
@@ -155,6 +215,7 @@ export function createApp(options: AppOptions) {
       slowDown(req);
       let user: User | null = null;
       if (typeof input.signin === 'string') user = store.useSignInLink(input.signin);
+      else if (googleClientId) throw new AccessError('Sign in with Google.');
       else if (mode === 'invite') {
         // A new account needs an invite link, or the setup code for the first people in.
         const invite = typeof input.invite === 'string' ? input.invite : '';
@@ -548,9 +609,12 @@ export function createApp(options: AppOptions) {
         'cache-control': page ? 'no-cache' : 'public, max-age=31536000, immutable',
         ...(page
           ? {
-              'content-security-policy':
-                "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'",
-              'referrer-policy': 'same-origin',
+              'content-security-policy': googleClientId
+                ? // Google's sign-in button loads its script, styles and frame from accounts.google.com.
+                  "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com/gsi/; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; connect-src 'self' https://accounts.google.com/gsi/; frame-ancestors 'none'; base-uri 'self'"
+                : "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+              // Google's button needs the origin in the referrer.
+              'referrer-policy': googleClientId ? 'strict-origin-when-cross-origin' : 'same-origin',
               'x-frame-options': 'DENY',
             }
           : {}),

@@ -228,6 +228,25 @@ export class Store {
     const row = this.get('select * from users where id = ?', userId);
     return row ? toUser(row) : null;
   }
+  /** The person who signed in with this Google account before, if any. */
+  googleUser(subject: string) {
+    const row = this.get('select user_id from identities where subject = ?', subject);
+    return row ? this.user(String(row.user_id)) : null;
+  }
+  /** A new person from a Google account, under the first free version of their Google name. */
+  createGoogleUser(subject: string, googleName: string, email: string | null) {
+    const base = googleName.trim().slice(0, 36) || 'Guest';
+    let name = base;
+    for (
+      let n = 2;
+      this.get(`select 1 from users where kind = 'human' and lower(name) = lower(?)`, name);
+      n++
+    )
+      name = `${base} ${n}`;
+    const user = this.createHuman(name);
+    this.run('insert into identities values (?, ?, ?)', subject, user.id, email);
+    return user;
+  }
   createHuman(rawName: string) {
     const name = rawName.trim().slice(0, 40);
     if (!name) throw new InputError('A name is required.');

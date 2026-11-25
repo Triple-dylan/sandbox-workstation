@@ -5560,3 +5560,8 @@ button.chat-pin.add:hover {
   border-radius: 999px;
   padding: 1px 9px;
 }
+.join-google {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+}
