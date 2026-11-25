@@ -207,16 +207,14 @@ test('unsolicited replies: the project agent may chip in on a relevant question,
   });
   store.postMessage(maya.id, { conversationId: general.id, text: 'Where did we land on pricing?' });
   await engine.idle();
-  const proactive = snap(dylan.id).messages.filter((m) => m.authorId === agent.id);
+  // Its introduction when the workspace was made is not an answer; only answers carry a job.
+  const answers = () => snap(dylan.id).messages.filter((m) => m.authorId === agent.id && m.jobId);
+  const proactive = answers();
   assert.equal(proactive.length, 1);
   assert.match(proactive[0].text, /Pricing research/);
   store.postMessage(maya.id, { conversationId: general.id, text: 'And the pricing deadline?' });
   await engine.idle();
-  assert.equal(
-    snap(dylan.id).messages.filter((m) => m.authorId === agent.id).length,
-    1,
-    'cooldown holds',
-  );
+  assert.equal(answers().length, 1, 'cooldown holds');
   await app.close();
 });
 
@@ -1875,4 +1873,117 @@ test('sheet changes: an agent proposes cells by sheet title, a person applies th
   assert.equal(problemsWith(bad, ctx).length, 2);
   assert.equal(keepOnlyValid(bad, ctx).proposal, undefined);
   assert.deepEqual(cellEdits('B5 = =SUM(B2:B4)'), [{ row: 4, col: 1, value: '=SUM(B2:B4)' }]);
+});
+
+test('talking to agents: follow-ups reach them untagged, the workspace agent introduces itself and stays', async () => {
+  const asked: string[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance' || task.kind === 'proactive') return {};
+      asked.push(task.request);
+      return { reply: 'Which sheet do you mean?' };
+    },
+  };
+  const { store, engine, dylan, maya, general, agent, project, snap } = setup(runtime);
+  // A new workspace opens with its agent saying what it does.
+  const fresh = store.createProject(dylan.id, 'Northwind');
+  const intro = snap(dylan.id).messages.find(
+    (m) => m.authorId === store.projectAgent(fresh.id)!.id,
+  );
+  assert.match(intro!.text, /Tag @Northwind agent/);
+  assert.throws(
+    () => store.retireAgent(dylan.id, store.projectAgent(fresh.id)!.id),
+    /keeps its own agent/,
+  );
+
+  const q = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'change the budget',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  // Answering its question in the channel, untagged, reaches it.
+  const answer = store.postMessage(dylan.id, { conversationId: general.id, text: 'the Q1 one' });
+  assert.equal(answer.addressedTo, agent.id);
+  await engine.idle();
+  assert.deepEqual(asked, ['change the budget', 'the Q1 one']);
+  // So does a reply in its thread.
+  const inThread = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'and travel too',
+    replyTo: q.id,
+  });
+  assert.equal(inThread.addressedTo, agent.id);
+  await engine.idle();
+  // Someone else talking, or a statement after an agent that asked nothing, stays between people.
+  assert.equal(
+    store.postMessage(maya.id, { conversationId: general.id, text: 'morning all' }).addressedTo,
+    null,
+  );
+  void project;
+});
+
+test('agents asking agents: exchanges say who asked, and a teammate’s agent answers only through them', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance' || task.kind === 'proactive') return {};
+      if (task.agent.front && /budget/.test(task.request))
+        return {
+          reply: 'Asking Finance.',
+          handoff: { to: 'Finance', request: 'Is the budget on plan?' },
+        };
+      if (task.agent.name === 'Finance') return { reply: 'Yes, $100 under.' };
+      return { reply: `Draft: the vendor quoted $2,100.` };
+    },
+  };
+  const { store, engine, dylan, maya, general, agent, project, snap } = setup(runtime);
+  const finance = store.newAgent(dylan.id, {
+    name: 'Finance',
+    purpose: 'Budget',
+    spaceId: project.id,
+  });
+
+  // The workspace agent brings in Finance; Finance's answer says who asked it and what.
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'how is the budget?',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  const fromFinance = snap(dylan.id).messages.find((m) => m.authorId === finance.id)!;
+  assert.deepEqual(fromFinance.asked, { agentId: agent.id, request: 'Is the budget on plan?' });
+
+  // Dylan's agent asks Maya's agent: it becomes a request to Maya, not a reply from her agent.
+  const mine = store.privateChat(dylan.id)!;
+  const mayaAgent = store.personalAgent(maya.id)!;
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'what did the vendor quote for travel?',
+    context: { resourceIds: [], spaceId: project.id, conversationIds: [], handTo: mayaAgent.id },
+  });
+  await engine.idle();
+  const request = snap(maya.id).agentRequests.find((r) => r.toUserId === maya.id)!;
+  assert.equal(request.status, 'pending');
+  assert.equal(request.fromUserId, dylan.id);
+  assert.ok(
+    !snap(dylan.id).messages.some((m) => m.authorId === mayaAgent.id),
+    'nothing from Maya’s agent yet',
+  );
+  assert.throws(() => store.sendAgentRequest(dylan.id, request.id, 'sneaky'), /Not available/);
+
+  // Maya has her agent draft it, in her own conversation, then sends it as she chooses.
+  store.draftAgentRequest(maya.id, request.id);
+  await engine.idle();
+  assert.equal(store.agentRequest(request.id)!.status, 'drafting');
+  store.sendAgentRequest(maya.id, request.id, 'The vendor quoted $2,100.');
+  const arrived = snap(dylan.id).messages.find(
+    (m) => m.conversationId === mine.id && m.authorId === mayaAgent.id,
+  )!;
+  assert.equal(arrived.text, 'The vendor quoted $2,100.');
+  assert.deepEqual(arrived.sharedFrom, { agentId: mayaAgent.id, ownerId: maya.id });
+  assert.equal(store.agentRequest(request.id)!.status, 'sent');
 });

@@ -4858,6 +4858,8 @@ button.scope[aria-expanded='true'] {
   margin: 0 2px;
 }
 .rail-menu {
+  /* Never squeezed by the conversation above it: the list shows in full, up to its cap. */
+  flex: none;
   margin: 0 12px 6px;
   border-radius: 12px;
   background: var(--paper);
@@ -6102,4 +6104,116 @@ select:focus-visible {
   font-weight: 600;
   box-shadow: var(--lift);
   white-space: nowrap;
+}
+
+.agent-reach {
+  margin: 0 0 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.agent-reach b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* ---------- agents asking agents ---------- */
+.requests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.request {
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--paper);
+}
+.request-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.request-text {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.request-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.request-actions button:not(.primary) {
+  padding: 4px 10px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.request-actions .primary {
+  padding: 4px 12px;
+  font-size: 12.5px;
+}
+.request-actions small,
+.request-note {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.request-status {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.request-status.is-declined {
+  color: var(--ink-2);
+}
+.send-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.send-draft textarea {
+  width: 100%;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.rail-asked {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 4px;
+}
+.rail-asked span {
+  color: var(--ink-2);
+}
+.rail-direct {
+  font-size: 12px;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+.msg-asked {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 2px;
+}
+.msg-asked span {
+  color: var(--ink-2);
+}
+/* In the rail, @ suggestions sit in place above the box rather than floating like in a chat. */
+.rail-menu .mention-menu {
+  position: static;
+  width: auto;
+  box-shadow: none;
+  border: 0;
+  background: none;
+  padding: 0;
 }

@@ -211,6 +211,40 @@ const cases: Case[] = [
     },
   },
   {
+    name: 'the workspace agent brings in the specialist who fits',
+    async run() {
+      const s = space();
+      const finance = s.store.newAgent(s.dylan.id, {
+        name: 'Finance',
+        purpose: 'Owns pricing, the budget and anything about money',
+        spaceId: s.project.id,
+      });
+      const m = s.store.postMessage(s.dylan.id, {
+        conversationId: s.general.id,
+        text: 'How much is the Team plan per seat?',
+        addressedTo: s.agent.id,
+      });
+      s.engine.stop();
+      await s.engine.idle();
+      const said = s
+        .snap(s.dylan.id)
+        .messages.filter(
+          (x) => x.conversationId === m.conversationId && x.createdAt >= m.createdAt,
+        );
+      const fromFinance = said.find((x) => x.authorId === finance.id);
+      await s.app.close();
+      return {
+        pass: !!fromFinance && /32/.test(fromFinance.text),
+        detail: fromFinance
+          ? `Finance: ${fromFinance.text.slice(0, 120)}`
+          : said
+              .map((x) => x.text)
+              .join(' | ')
+              .slice(0, 160),
+      };
+    },
+  },
+  {
     name: "never repeats someone's private page in a shared channel",
     async run() {
       const s = space();

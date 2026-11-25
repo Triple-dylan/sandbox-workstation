@@ -273,6 +273,11 @@ export function MessageView({
             {m.anchor.quote ? `“${m.anchor.quote.slice(0, 140)}”` : anchored?.title}
           </button>
         )}
+        {m.asked && (
+          <p className="msg-asked">
+            {user(m.asked.agentId)?.name ?? 'An agent'} asked: <span>“{m.asked.request}”</span>
+          </p>
+        )}
         <Md text={markMentions(m.text, mentionable)} />
         {m.embed && <LivePiece embed={m.embed} />}
         {m.resolved && !m.anchor && (

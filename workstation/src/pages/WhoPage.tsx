@@ -51,7 +51,10 @@ export function WhoPage({ who }: { who: User }) {
   const editable = personal
     ? who.ownerId === s.me.id
     : s.members.some((m) => m.spaceId === who.spaceId && m.userId === s.me.id);
-  const jobs = s.jobs.filter((j) => j.agentId === who.id).slice(0, 4);
+  // Upkeep it does on its own (keeping the workspace summary current) is not news.
+  const home = s.spaces.find((x) => x.id === who.spaceId);
+  const front = !!home && home.agentId === who.id;
+  const jobs = s.jobs.filter((j) => j.agentId === who.id && j.kind !== 'maintenance').slice(0, 4);
   const approvals = s.approvals.filter((a) => a.agentId === who.id && a.status === 'pending');
   const assignments = s.assignments.filter((a) => a.agentId === who.id && a.active);
   const patch = (body: Record<string, unknown>) =>
@@ -63,6 +66,15 @@ export function WhoPage({ who }: { who: User }) {
   };
   return (
     <div className="agent-page">
+      {who.role === 'project' && (
+        <p className="agent-reach">
+          {front
+            ? `${home!.name}'s own agent. Anyone here can ask it anything; it brings in the right specialist. `
+            : ''}
+          Tag <b>@{who.name}</b> in any chat, select something on a page and Ask, or ask it from
+          your rail with @.
+        </p>
+      )}
       <div className="agent-cols">
         <section className="agent-setup" aria-label="How it works">
           <label>
@@ -119,7 +131,7 @@ export function WhoPage({ who }: { who: User }) {
               ))}
             </div>
           </div>
-          {editable && !personal && (
+          {editable && !personal && !front && (
             <button
               type="button"
               className="agent-retire"

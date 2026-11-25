@@ -162,6 +162,42 @@ export class AgentEngine {
         chosen && conversation.kind === 'agent-private'
           ? this.store.projectAgents(spaceId).find((a) => a.id === chosen)
           : undefined;
+      // Picked a teammate's own agent: that is a request to the teammate, and your agent says so.
+      const theirs =
+        chosen && conversation.kind === 'agent-private' ? this.store.user(chosen) : null;
+      if (
+        theirs?.kind === 'agent' &&
+        theirs.role === 'personal' &&
+        theirs.ownerId &&
+        theirs.ownerId !== message.authorId &&
+        addressed.role === 'personal'
+      ) {
+        const who = this.store.user(theirs.ownerId)?.name ?? 'They';
+        try {
+          this.store.createAgentRequest(addressed.id, {
+            toUserId: theirs.ownerId,
+            spaceId,
+            // The tag was how you picked them; the request is the rest.
+            request:
+              request
+                .replace(
+                  new RegExp(`@${theirs.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
+                  '',
+                )
+                .trim() || request,
+          });
+          this.store.postMessage(addressed.id, {
+            conversationId: conversation.id,
+            text: `I've asked ${theirs.name}. ${who} sees it first and decides what to send back; it will show up here.`,
+          });
+        } catch (error) {
+          this.store.postMessage(addressed.id, {
+            conversationId: conversation.id,
+            text: `I couldn't ask ${theirs.name}: ${(error as Error).message}`,
+          });
+        }
+        return;
+      }
       if (colleague && this.store.isMember(message.authorId, spaceId)) {
         await this.runJob(
           colleague,
@@ -374,12 +410,24 @@ export class AgentEngine {
     const colleagues = this.store
       .projectAgents(colleagueSpace)
       .filter((a) => a.id !== agent.id && this.store.isMember(agent.id, colleagueSpace))
-      .map((a) => ({ name: a.name, purpose: a.purpose ?? '' }));
+      .map((a) => ({ name: a.name, purpose: a.purpose ?? '' }))
+      .concat(
+        agent.role === 'personal'
+          ? this.teammateAgents(agent, colleagueSpace).map((a) => {
+              const who = this.store.user(a.ownerId!)?.name ?? 'Their owner';
+              return {
+                name: a.name,
+                purpose: `${who}'s own agent. Asking it sends ${who} a request; ${who} decides what it shares, so the answer comes later.`,
+              };
+            })
+          : [],
+      );
     const task: AgentTask = {
       kind,
       agent: {
         name: agent.name,
         role: agent.role ?? 'project',
+        front: agent.role === 'project' && this.store.projectAgent(spaceId)?.id === agent.id,
         purpose: agent.purpose ?? '',
         instructions: agent.instructions ?? '',
         skills: this.store
@@ -439,7 +487,7 @@ export class AgentEngine {
     trigger: Message | null,
     _assignmentId: Id | null = null,
     explicitSpaceId?: Id,
-    relay = false,
+    relay: boolean | { askedBy: Id } = false,
   ) {
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
@@ -464,7 +512,7 @@ export class AgentEngine {
       runtime: this.runtime.id,
     });
     this.store.setJob(job.id, 'running');
-    const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger, relay);
+    const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger, !!relay);
     // Meaning-based search alongside keywords. Pages without vectors yet are embedded in the
     // background and still found by keyword this time; any embedding failure leaves keywords alone.
     const pages = this.searchable.get(task);
@@ -597,12 +645,23 @@ export class AgentEngine {
     // Passing part of the job to a colleague: it answers in the same conversation, visibly as itself.
     if (result.handoff && conversation && trigger && !relay) {
       const looking = this.store.messageContext(trigger.id);
+      const where = looking?.spaceId ?? spaceId;
+      const name = result.handoff.to.toLowerCase();
       const colleague = this.store
-        .projectAgents(looking?.spaceId ?? spaceId)
-        .find(
-          (a) => a.name.toLowerCase() === result.handoff!.to.toLowerCase() && a.id !== agent.id,
-        );
-      if (colleague && this.store.isMember(trigger.authorId, colleague.spaceId ?? ''))
+        .projectAgents(where)
+        .find((a) => a.name.toLowerCase() === name && a.id !== agent.id);
+      // A teammate's own agent is reached through the teammate: it becomes a request to them.
+      const teammate =
+        agent.role === 'personal'
+          ? this.teammateAgents(agent, where).find((a) => a.name.toLowerCase() === name)
+          : undefined;
+      if (teammate?.ownerId)
+        this.store.createAgentRequest(agent.id, {
+          toUserId: teammate.ownerId,
+          spaceId: where,
+          request: result.handoff.request,
+        });
+      else if (colleague && this.store.isMember(trigger.authorId, colleague.spaceId ?? ''))
         await this.runJob(
           colleague,
           conversation,
@@ -611,13 +670,12 @@ export class AgentEngine {
           trigger,
           null,
           colleague.spaceId,
-          true,
+          { askedBy: agent.id },
         );
     }
     this.store.setJob(job.id, approvalId ? 'awaiting_approval' : 'done');
   }
 
-  /** The page a request is about: the anchored text's page, the discussed page, or the one in view. */
   /** The sheet a proposed change names, by title, among those the agent can read; the one in question first. */
   private sheetNamed(agent: User, title: string, inQuestion: Id | null): Id | null {
     const sheets = this.store
@@ -628,6 +686,17 @@ export class AgentEngine {
     return (named.find((r) => r.id === inQuestion) ?? named[0])?.id ?? null;
   }
 
+  /** Teammates' own agents in a workspace: reachable from your agent, through the teammate. */
+  private teammateAgents(agent: User, spaceId: Id): User[] {
+    const owner = this.store.principal(agent.id);
+    return this.store
+      .people(spaceId)
+      .filter((u) => u.id !== owner)
+      .map((u) => this.store.personalAgent(u.id))
+      .filter((a): a is User => !!a);
+  }
+
+  /** The page a request is about: the anchored text's page, the discussed page, or the one in view. */
   private pageInQuestion(conversation: Conversation | null, trigger: Message | null): Id | null {
     return (
       trigger?.anchor?.resourceId ??
@@ -701,7 +770,7 @@ export class AgentEngine {
     runtime: string,
     approvalId?: Id,
     sourceIds: Id[] = [],
-    relay = false,
+    relay: boolean | { askedBy: Id } = false,
   ) {
     this.store.postMessage(
       agent.id,
@@ -711,7 +780,16 @@ export class AgentEngine {
         replyTo:
           trigger && conversation.kind !== 'agent-private' ? (trigger.replyTo ?? trigger.id) : null,
       },
-      { jobId: job.id, approvalId, runtime, sourceIds, relay },
+      {
+        jobId: job.id,
+        approvalId,
+        runtime,
+        sourceIds,
+        relay: !!relay,
+        ...(typeof relay === 'object'
+          ? { asked: { agentId: relay.askedBy, request: job.request } }
+          : {}),
+      },
     );
   }
 }

@@ -6,6 +6,8 @@ export type AgentTask = {
   agent: {
     name: string;
     role: 'personal' | 'project';
+    /** The workspace's own agent: answers anything here and brings in specialists. */
+    front: boolean;
     purpose: string;
     instructions: string;
     /** Ways of working this agent has been given. Follow the one that fits the request. */

@@ -1,4 +1,5 @@
 import { useClickAway } from './clickAway.ts';
+import { IncomingRequests, OutgoingRequests, SendDraft, draftFor } from './AgentRequests.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
@@ -158,8 +159,17 @@ export function Rail({ docked }: { docked: boolean }) {
   const box = useRef<HTMLTextAreaElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLElement>(null);
+  // Who you can bring in with @: this workspace's agents, and teammates' own agents (which reach
+  // the teammate first).
+  const teammates = new Set(
+    s.members.filter((m) => m.spaceId === space.id && m.userId !== s.me.id).map((m) => m.userId),
+  );
   const roster = s.users.filter(
-    (u) => u.kind === 'agent' && u.role === 'project' && u.spaceId === space.id && !u.retired,
+    (u) =>
+      u.kind === 'agent' &&
+      !u.retired &&
+      ((u.role === 'project' && u.spaceId === space.id) ||
+        (u.role === 'personal' && !!u.ownerId && teammates.has(u.ownerId))),
   );
   const mentions = useMentions({ text, setText, agents: roster, jobs: s.jobs, box });
   const thread = myChat ? s.messages.filter((m) => m.conversationId === myChat.id) : [];
@@ -407,9 +417,19 @@ export function Rail({ docked }: { docked: boolean }) {
           <Character agent={user(m.authorId) ?? myAgent} size={18} />
           {user(m.authorId)?.id === myAgent.id
             ? 'Your agent'
-            : `${user(m.authorId)?.name} · only you see this`}
+            : m.sharedFrom
+              ? `${user(m.authorId)?.name} · sent by ${user(m.sharedFrom.ownerId)?.name}`
+              : `${user(m.authorId)?.name} · only you see this`}
           {m.runtime === 'scripted' && <span className="tag">scripted stand-in</span>}
         </p>
+        {m.asked && (
+          <p className="rail-asked">
+            {user(m.asked.agentId)?.id === myAgent.id
+              ? 'Your agent asked'
+              : `${user(m.asked.agentId)?.name} asked`}
+            : <span>“{m.asked.request}”</span>
+          </p>
+        )}
         {about && aboutPage && (
           <button
             className="rail-ref"
@@ -425,6 +445,24 @@ export function Rail({ docked }: { docked: boolean }) {
           <Md text={m.text} />
         </div>
         {m.approvalId && <ApprovalCard approvalId={m.approvalId} />}
+        {(() => {
+          const request = draftFor(s.agentRequests, thread, m);
+          if (!request) return null;
+          // A draft that failed is not something to send: write it yourself instead.
+          const failed = s.jobs.find((j) => j.id === m.jobId)?.status === 'failed';
+          return <SendDraft request={request} text={failed ? '' : m.text} />;
+        })()}
+        {m.asked && user(m.authorId)?.role === 'project' && (
+          <button
+            className="link rail-direct"
+            onClick={() => {
+              setText(`@${user(m.authorId)!.name} `);
+              box.current?.focus();
+            }}
+          >
+            Ask {user(m.authorId)!.name} directly
+          </button>
+        )}
         {done ? (
           <p className="rail-shared">
             <Share size={11} /> Shared to <b>{done.label}</b>
@@ -571,6 +609,8 @@ export function Rail({ docked }: { docked: boolean }) {
       </div>
 
       <div className="rail-body" ref={body} onScroll={() => picked && setPicked(null)}>
+        <IncomingRequests />
+        <OutgoingRequests />
         {thread.length === 0 && (
           <p className="rail-empty">Select text on any page to ask about just that part.</p>
         )}
