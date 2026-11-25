@@ -96,4 +96,4 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Checks
 
-From `workstation/`: `npm run typecheck`, `npm run format:check`, `npm test`, `npm run build && npm run test:e2e`. Set `CHROMIUM_PATH` to run the browser test with an existing Chromium.
+From `workstation/`: `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build && npm run test:e2e`. Set `CHROMIUM_PATH` to run the browser test with an existing Chromium.

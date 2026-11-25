@@ -14,6 +14,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **The sign-in page should say what this is.** Dylan on the first Google screen: "can do much better than this screen".
 - **Spend limits are a safety net, not rations.** Dylan on the first defaults (100k per space, 50k per person): "seems low". Measured: one call is about 3-4k tokens, so those allowed about 15 questions a day. Defaults are now 10M per day for the server, 3M per space, 1M per person and 20 requests a minute. "Guardrails" means harness rules that improve answer quality, which is separate work.
 - **Search may use OpenAI embeddings.** Dylan approved `text-embedding-3-small` for turning page text into search vectors. It never writes answers; gpt-6-luna remains the only model agents answer with.
+- **CI lints the rules of hooks.** A hook placed after an early `return` crashed the rail twice in one session, and only the browser test caught it. `npm run lint` (oxlint, because typescript-eslint does not support TypeScript 7 yet) now fails on it in seconds. Only that rule is on; the wider React rule sets flag existing code that works and would be noise.
 - **Google sign-in, then deploy for test users.** Dylan: "Google login would be great. I want to get this deployed so I can get some other users to join test and make a net new workstation based on some real projects." Google sign-in is ported from `archive/local-codex-cursor-nov7` onto the current invite-based sign-in, then the app goes to Railway (decided 2026-11-14).
 
 ## 2026-11-18

@@ -30,7 +30,7 @@ Rules:
 - Don't compartmentalise the interface: no summary pages that take over the view, no frames and separator lines boxing areas off, and nothing docked or fixed over content that scrolls. Check layouts while resizing the window.
 - Never show an empty product for review; the in-page preview seeds a labelled example project.
 - Ask Dylan only consequential, decision-shaped questions. Don't re-ask anything settled in `DECISIONS.md`.
-- Keep `main` working: typecheck, format and tests green. Add tests for new behaviour.
+- Keep `main` working: typecheck, lint, format and tests green. Add tests for new behaviour. The lint (`npm run lint`, oxlint) checks only the rules of hooks: every React hook runs before any early `return` in a component. It is narrow on purpose; add a rule only when it catches a mistake that actually happened here.
 - Changing agent prompts, context or checks: run `npm run eval` (in `workstation/`, needs the key) before and after, and report both scores in the PR.
 - Secrets (`OPENAI_API_KEY`) live only in the gitignored root `.env` and are read server-side.
 - Agents answer only with OpenAI `gpt-6-luna`, fixed in code with no setting to change it. The one other model allowed is `text-embedding-3-small`, for search vectors only.
