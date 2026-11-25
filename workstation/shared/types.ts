@@ -38,7 +38,15 @@ export type User = {
   retired?: boolean;
   /** Agents only: the skills it has been given. */
   skillIds?: Id[];
+  /**
+   * Agents only: how it makes changes. ask: a person accepts each one (the default). small: small
+   * sheet and text fixes are made at once and can be undone. plan: it lays out the steps first.
+   */
+  approvals?: ApprovalLevel;
 };
+export type ApprovalLevel = 'ask' | 'small' | 'plan';
+/** A page an agent looks after, and the line it was told to say something at. */
+export type Watch = { agentId: Id; resourceId: Id; rule: string; setBy: Id };
 
 /**
  * A skill: a named way of doing one kind of job, written once and given to any agent that should
@@ -108,8 +116,31 @@ export type ResourceKind = 'folder' | PageKind | CanvasKind;
 export const isPage = (kind: ResourceKind): kind is PageKind =>
   (PAGE_KINDS as readonly string[]).includes(kind);
 
-/** A sheet's stored form: rows of cells. A cell beginning with "=" is a formula. */
-export type SheetBody = { rows: string[][] };
+/** How a column's numbers are shown. The stored value is unchanged. */
+export type SheetFormat = 'plain' | 'number' | 'currency' | 'percent';
+/** Where a linked sheet's cells live, when they live in Excel or Google Sheets. */
+export type SheetLink = {
+  provider: 'google' | 'microsoft';
+  /** The spreadsheet's id at the provider, and which tab. */
+  fileId: string;
+  tab: string;
+  url: string;
+  /** Who linked it; their sign-in is used to read and write it. */
+  linkedBy: Id;
+  syncedAt: string | null;
+  error?: string | null;
+};
+/**
+ * A sheet's stored form: rows of cells. A cell beginning with "=" is a formula. Formats and
+ * widths are per column (by index); freeze is how many top rows stay in view.
+ */
+export type SheetBody = {
+  rows: string[][];
+  formats?: Record<string, SheetFormat>;
+  widths?: Record<string, number>;
+  freeze?: number;
+  link?: SheetLink | null;
+};
 /** A deck's stored form. */
 export type DeckBody = { slides: { title: string; body: string }[] };
 /** What an embed on a canvas points at. */
@@ -182,6 +213,10 @@ export type Message = {
   sharedFrom: { agentId: Id; ownerId: Id } | null;
   /** An answer one agent gave because another asked it: who asked, and what. */
   asked: { agentId: Id; request: string } | null;
+  /** Answers the person might tap, when an agent asked them something. */
+  replies: string[];
+  /** What an agent's answer read: the pages and conversations it was given. */
+  read: string[];
   reactions: { emoji: string; userIds: Id[] }[];
   createdAt: string;
 };
@@ -262,6 +297,8 @@ export type Proposal = {
   body: string;
   /** edit-doc and edit-cells: the page to change. create-doc: the canvas to put the new page on, if any. */
   resourceId?: Id;
+  /** edit-cells, once applied: the cells as they were, in the same form, so it can be undone. */
+  undo?: string;
 };
 export type Approval = {
   id: Id;
@@ -269,7 +306,8 @@ export type Approval = {
   spaceId: Id;
   agentId: Id;
   proposal: Proposal;
-  status: 'pending' | 'approved' | 'declined';
+  /** replaced: a newer draft of the same change took its place. */
+  status: 'pending' | 'approved' | 'declined' | 'replaced' | 'undone';
   decidedBy: Id | null;
   resultResourceId: Id | null;
   createdAt: string;
@@ -318,6 +356,8 @@ export type Snapshot = {
   approvals: Approval[];
   /** Requests between people's agents that involve you, either way. */
   agentRequests: AgentRequest[];
+  /** Pages agents look after, for the pages and agents this person can see. */
+  watches: Watch[];
   goals: Goal[];
   skills: Skill[];
   /** Agents at work right now, as much as this person may know about each. */
@@ -329,6 +369,13 @@ export type Snapshot = {
   signIn?: 'open' | 'invite';
   /** Whether this person may start a new workspace here. */
   mayStartWorkspace?: boolean;
+  /** Places spreadsheets can be linked from, and whether this person has signed in to each. */
+  connectors?: {
+    id: 'google' | 'microsoft';
+    name: string;
+    ready: boolean;
+    account: string | null;
+  }[];
 };
 
 /** What the composer sends. Exactly one destination; never inferred from a selection. */

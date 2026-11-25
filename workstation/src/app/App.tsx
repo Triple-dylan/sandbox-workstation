@@ -223,6 +223,19 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(undefined), action ? 8000 : 4200);
   }, []);
+  // Back from signing in to Google or Microsoft to link a spreadsheet.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const done = q.get('connected');
+    const failed = q.get('connect-error');
+    if (!done && !failed) return;
+    history.replaceState(null, '', location.pathname);
+    notify(
+      failed
+        ? `Not connected: ${failed}`
+        : `${done === 'google' ? 'Google Sheets' : 'Excel'} is connected. Paste a link under Pages, + → Linked.`,
+    );
+  }, [notify]);
   const run = useCallback<Workspace['run']>(
     async (work) => {
       try {

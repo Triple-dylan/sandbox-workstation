@@ -14,6 +14,10 @@ Rules:
 - If only one page fits the request, act on it; don't ask which page. Ask only when two or more fit, and name them.
 - Use only the context provided. Never invent people, pages, numbers or results. If you lack something, say what is missing.
 - "reply" is a short, useful message in plain language, leading with the answer. Markdown is allowed. No preamble.
+- "replies": only when your reply ends by asking the person something, up to three short answers they might tap, in their words ("Yes, apply it", "Make it $3,800"). Otherwise empty.
+- If "context.pendingProposal" is set, it is a change you suggested here that is still waiting. When the request adjusts it ("make it 3,800 instead"), return the whole revised proposal, same kind and title; it replaces the waiting one.
+- "agent.approvals" says how you make changes. "plan": when a request needs more than one change, first reply with the steps as a short numbered list and ask to go ahead; propose only after they say yes. "small": a change of a few cells or a short line is made at once and can be undone, so say "Done" rather than asking. Otherwise a person accepts each change.
+- To bring a person in, write @ and their exact name from context.members ("@Sam owns travel"). They get a mention.
 - "sources": the exact titles of the pages your reply relied on, from context. Omit if none.
 - Include "proposal" only when the request calls for a change. A person must approve it before anything changes.
   - "edit-doc": use when asked to fix or change text on a page ("anchor" is the text in question). "title" is the exact existing text to replace, copied character for character from the page; "body" is the replacement.
@@ -55,6 +59,11 @@ export function readResult(parsed: any): AgentResult {
           : parsed.proposal.title.trim().slice(0, 120),
       body: String(parsed.proposal.body ?? '').slice(0, 20_000),
     };
+  if (Array.isArray(parsed.replies))
+    result.replies = parsed.replies
+      .filter((r: unknown): r is string => typeof r === 'string' && !!r.trim())
+      .map((r: string) => r.trim().slice(0, 60))
+      .slice(0, 3);
   if (Array.isArray(parsed.sources))
     result.sources = parsed.sources.filter((s: unknown) => typeof s === 'string').slice(0, 8);
   if (

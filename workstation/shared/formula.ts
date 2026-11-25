@@ -24,7 +24,7 @@ type Token =
   | { t: 'op'; v: string };
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
-  const pattern = /\s*(?:(\d+\.?\d*|\.\d+)|([A-Za-z]{1,2}\d{1,3})|([A-Za-z]+)|([-+*/(),:]))/y;
+  const pattern = /\s*(?:(\d+\.?\d*|\.\d+)|(\$?[A-Za-z]{1,2}\$?\d{1,3})|([A-Za-z]+)|([-+*/(),:]))/y;
   let at = 0;
   while (at < source.length) {
     pattern.lastIndex = at;
@@ -35,7 +35,7 @@ function tokenize(source: string): Token[] {
     }
     at = pattern.lastIndex;
     if (m[1]) tokens.push({ t: 'num', v: Number(m[1]) });
-    else if (m[2]) tokens.push({ t: 'ref', v: m[2].toUpperCase() });
+    else if (m[2]) tokens.push({ t: 'ref', v: m[2].replace(/\$/g, '').toUpperCase() });
     else if (m[3]) tokens.push({ t: 'name', v: m[3].toUpperCase() });
     else tokens.push({ t: 'op', v: m[4] });
   }

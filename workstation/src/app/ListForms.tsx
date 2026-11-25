@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Copy, Lock, Plus, Upload, X } from 'lucide-react';
+import { Copy, Link2, Lock, Plus, Upload, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character } from '../features/agents/Character.tsx';
 import { ORB_FORMS, PAGE_KINDS, type PageKind, type User } from '../../shared/types.ts';
@@ -99,13 +99,38 @@ function Who({
 /** Kinds you make here. A file from your computer comes in through "New → File" instead. */
 const MADE = PAGE_KINDS.filter((k) => k !== 'asset');
 
+/** Which connector a pasted link belongs to, as the server decides it. */
+const linkProvider = (url: string) =>
+  /docs\.google\.com\/spreadsheets\/d\//.test(url)
+    ? 'google'
+    : /(onedrive\.live\.com|1drv\.ms|sharepoint\.com|office\.com)/.test(url)
+      ? 'microsoft'
+      : null;
+
 export function NewPage() {
-  const { ui, space, setUi, run, open, chooseFiles } = useWorkspace();
-  const [kind, setKind] = useState<PageKind>(typeof ui.creating === 'string' ? ui.creating : 'doc');
+  const { s, ui, space, setUi, run, open, chooseFiles, notify } = useWorkspace();
+  const [kind, setKind] = useState<PageKind | 'link'>(
+    typeof ui.creating === 'string' ? ui.creating : 'doc',
+  );
   const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
   const [mine, setMine] = useState(false);
   const close = () => setUi({ creating: false });
+  const provider = s.connectors?.find((c) => c.id === linkProvider(url.trim()));
   const create = async () => {
+    if (kind === 'link') {
+      const made = await run(() =>
+        api<{ id: string; title: string }[]>('/sheets/link', {
+          body: { spaceId: space.id, url: url.trim(), visibility: mine ? 'private' : 'space' },
+        }),
+      );
+      if (made?.length) {
+        close();
+        open({ type: 'page', id: made[0].id });
+        if (made.length > 1) notify(`Linked ${made.length} tabs as ${made.length} sheets.`);
+      }
+      return;
+    }
     const made = await run(() =>
       api<{ id: string }>('/resources', {
         body: {
@@ -122,22 +147,54 @@ export function NewPage() {
       open({ type: 'page', id: made.id });
     }
   };
+  const needsSignIn = kind === 'link' && provider && provider.ready && !provider.account;
   return (
     <ListForm
       label="New page"
       onClose={close}
       onSubmit={() => void create()}
+      submit={kind === 'link' ? 'Link' : 'Create'}
+      ready={kind !== 'link' || (!!provider?.ready && !!provider.account)}
       foot={<Who mine={mine} setMine={setMine} label="Who can open it" />}
     >
-      <input
-        className="list-new-name"
-        autoFocus
-        value={title}
-        maxLength={120}
-        placeholder={`Untitled ${kindName[kind].toLowerCase()}`}
-        aria-label="Title"
-        onChange={(e) => setTitle(e.target.value)}
-      />
+      {kind === 'link' ? (
+        <input
+          className="list-new-name"
+          autoFocus
+          value={url}
+          placeholder="Paste a Google Sheets or Excel link"
+          aria-label="Spreadsheet link"
+          onChange={(e) => setUrl(e.target.value)}
+        />
+      ) : (
+        <input
+          className="list-new-name"
+          autoFocus
+          value={title}
+          maxLength={120}
+          placeholder={`Untitled ${kindName[kind].toLowerCase()}`}
+          aria-label="Title"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      )}
+      {kind === 'link' && (
+        <p className="list-new-note">
+          {!url.trim() ? (
+            'It stays in sync both ways. Every tab becomes a sheet here.'
+          ) : !provider ? (
+            'That is not a Google Sheets or OneDrive Excel link.'
+          ) : !provider.ready ? (
+            `${provider.name} is not set up on this server yet.`
+          ) : needsSignIn ? (
+            <>
+              <a href={`/api/connect/${provider.id}`}>Connect {provider.name}</a> first. You come
+              back here after.
+            </>
+          ) : (
+            `Through ${provider.account}.`
+          )}
+        </p>
+      )}
       <div className="list-new-kinds" role="radiogroup" aria-label="Kind of page">
         {MADE.map((k) => (
           <button
@@ -154,8 +211,18 @@ export function NewPage() {
         ))}
         <button
           type="button"
+          role="radio"
+          aria-checked={kind === 'link'}
+          aria-label="Linked from Google Sheets or Excel"
+          title="Linked from Google Sheets or Excel"
+          onClick={() => setKind('link')}
+        >
+          <Link2 size={15} />
+        </button>
+        <button
+          type="button"
           aria-label="From a file on your computer"
-          title="From a file on your computer"
+          title="From a file on your computer (.xlsx, .csv, .docx, .pptx and more)"
           onClick={() => {
             close();
             chooseFiles();

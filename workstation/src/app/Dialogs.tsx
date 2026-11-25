@@ -72,7 +72,7 @@ export function Shortcuts() {
 const accents = [null, 20, 110, 160, 210, 265, 330];
 
 export function Settings() {
-  const { ui, setUi, s } = useWorkspace();
+  const { ui, setUi, s, run } = useWorkspace();
   const prefs = ui.prefs;
   const set = (patch: Partial<typeof prefs>) => setUi({ prefs: { ...prefs, ...patch } });
   const seg = <T extends string>(
@@ -166,6 +166,28 @@ export function Settings() {
         (v) => set({ shareCursor: v === 'on' }),
       )}
       <DeviceLink />
+      {s.connectors?.map((c) => (
+        <div className="setting" key={c.id}>
+          <span>{c.name}</span>
+          {!c.ready ? (
+            <small className="muted">Not set up on this server yet</small>
+          ) : c.account ? (
+            <span className="setting-pair">
+              <small className="muted truncate">{c.account}</small>
+              <button
+                className="plain"
+                onClick={() => void run(() => api(`/connections/${c.id}`, { method: 'DELETE' }))}
+              >
+                Disconnect
+              </button>
+            </span>
+          ) : (
+            <a className="plain" href={`/api/connect/${c.id}`}>
+              Connect
+            </a>
+          )}
+        </div>
+      ))}
       <div className="setting">
         <span>Shortcuts</span>
         <button className="plain" onClick={() => setUi({ dialog: 'shortcuts' })}>

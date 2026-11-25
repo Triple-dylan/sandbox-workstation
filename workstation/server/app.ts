@@ -6,10 +6,13 @@ import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
+import { Connectors } from './connectors/index.ts';
+import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
+import { readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
 
 const COOKIE = 'sw_session';
@@ -32,6 +35,8 @@ export type AppOptions = {
   staticDir?: string | null;
   maintenanceDelayMs?: number;
   env?: NodeJS.ProcessEnv;
+  /** Where linked spreadsheets live. Tests pass stand-ins; by default Google Sheets and Excel. */
+  providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
   verifyGoogle?: (credential: string, clientId: string) => Promise<GoogleAccount>;
 };
@@ -74,6 +79,14 @@ export function createApp(options: AppOptions) {
           : selectEmbedder(env)
         : (options.embedder ?? undefined),
   });
+  const connectors = new Connectors(store, env, options.providers);
+  // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
+  const callback = (req: IncomingMessage, provider: string) => {
+    const origin =
+      env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
+      `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
+    return `${origin}/api/connect/${provider}/callback`;
+  };
   const staticDir =
     options.staticDir === undefined
       ? fileURLToPath(new URL('../dist/', import.meta.url))
@@ -266,7 +279,34 @@ export function createApp(options: AppOptions) {
         ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
         signIn: mode,
         mayStartWorkspace: mayStartWorkspace(me.id),
+        connectors: connectors.info(me.id),
       });
+    if (segments0(path) === 'connect' && method === 'GET') {
+      const [, , , provider, step] = path.split('/');
+      const query = new URL(req.url ?? '/', 'http://local').searchParams;
+      if (step === 'callback') {
+        let note = `connected=${provider}`;
+        try {
+          if (query.get('error')) throw new InputError('Sign-in was cancelled.');
+          await connectors.finish(
+            me.id,
+            provider,
+            query.get('code') ?? '',
+            query.get('state') ?? '',
+            callback(req, provider),
+          );
+        } catch (error) {
+          note = `connect-error=${encodeURIComponent((error as Error).message)}`;
+        }
+        res.writeHead(302, { location: `/?${note}`, 'cache-control': 'no-store' });
+        return res.end();
+      }
+      res.writeHead(302, {
+        location: connectors.start(me.id, provider, callback(req, provider)),
+        'cache-control': 'no-store',
+      });
+      return res.end();
+    }
     if (path === '/api/events' && method === 'GET') {
       res.writeHead(200, {
         'content-type': 'text/event-stream',
@@ -434,7 +474,48 @@ export function createApp(options: AppOptions) {
       return send(
         res,
         200,
-        store.setCell(me.id, segments[1], Number(input.row), Number(input.col), str('value')),
+        Array.isArray(input.edits)
+          ? store.setCells(
+              me.id,
+              segments[1],
+              (input.edits as any[]).map((e) => ({
+                row: Number(e?.row),
+                col: Number(e?.col),
+                value: String(e?.value ?? ''),
+              })),
+            )
+          : store.setCell(me.id, segments[1], Number(input.row), Number(input.col), str('value')),
+      );
+    if (segments[0] === 'connections' && segments[1] && method === 'DELETE') {
+      connectors.disconnect(me.id, segments[1]);
+      return send(res, 200, { ok: true });
+    }
+    if (path === '/api/sheets/link' && method === 'POST')
+      return send(
+        res,
+        200,
+        await connectors.link(me.id, {
+          spaceId: str('spaceId'),
+          url: str('url'),
+          parentId: str('parentId') || null,
+          visibility: input.visibility === 'private' ? 'private' : 'space',
+        }),
+      );
+    if (segments[0] === 'resources' && segments[1] && segments[2] === 'sync' && method === 'POST') {
+      const page = store.resource(segments[1]);
+      if (!page || !store.canReadResource(me.id, page)) throw new AccessError('Not available.');
+      await connectors.pull(page.id);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'resources' && segments[1] && segments[2] === 'layout' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.setSheetLayout(me.id, segments[1], {
+          formats: input.formats,
+          widths: input.widths,
+          freeze: input.freeze,
+        }),
       );
     if (path === '/api/reads' && method === 'POST') {
       store.markRead(me.id, str('conversationId'));
@@ -522,8 +603,17 @@ export function createApp(options: AppOptions) {
           ...(typeof input.instructions === 'string' ? { instructions: input.instructions } : {}),
           ...(typeof input.hue === 'number' ? { hue: input.hue } : {}),
           ...(typeof input.form === 'string' ? { form: input.form } : {}),
+          ...(typeof input.approvals === 'string' ? { approvals: input.approvals } : {}),
         }),
       );
+    if (segments[0] === 'agents' && segments[1] && segments[2] === 'watches') {
+      if (method === 'POST')
+        return send(res, 200, store.setWatch(me.id, segments[1], str('resourceId'), str('rule')));
+      if (method === 'DELETE' && segments[3]) {
+        store.dropWatch(me.id, segments[1], segments[3]);
+        return send(res, 200, { ok: true });
+      }
+    }
     if (path === '/api/folders' && method === 'POST')
       return send(
         res,
@@ -542,7 +632,7 @@ export function createApp(options: AppOptions) {
           spaceId: str('spaceId'),
           kind: [...PAGE_KINDS, ...CANVAS_KINDS].find((k) => k === input.kind) ?? 'doc',
           title: str('title'),
-          body: str('body'),
+          body: ownLink(str('body'), null),
           visibility: input.visibility === 'private' ? 'private' : 'space',
           parentId: str('parentId') || null,
           placement: placement(input.placement),
@@ -569,7 +659,9 @@ export function createApp(options: AppOptions) {
           200,
           store.updateResource(me.id, segments[1], {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
-            ...(typeof input.body === 'string' ? { body: input.body } : {}),
+            ...(typeof input.body === 'string'
+              ? { body: ownLink(input.body, store.resource(segments[1])?.body ?? null) }
+              : {}),
             ...('placement' in input ? { placement: placement(input.placement) } : {}),
             ...('style' in input ? { style: str('style') || null } : {}),
             ...('parentId' in input ? { parentId: str('parentId') || null } : {}),
@@ -593,6 +685,8 @@ export function createApp(options: AppOptions) {
       if (segments[2] === 'decline')
         return send(res, 200, store.declineAgentRequest(me.id, segments[1]));
     }
+    if (segments[0] === 'approvals' && segments[1] && segments[2] === 'undo' && method === 'POST')
+      return send(res, 200, store.undoApproval(me.id, segments[1]));
     if (segments[0] === 'approvals' && segments[1] && method === 'POST')
       return send(
         res,
@@ -601,6 +695,7 @@ export function createApp(options: AppOptions) {
           me.id,
           segments[1],
           input.decision === 'approved' ? 'approved' : 'declined',
+          typeof input.body === 'string' ? input.body : undefined,
         ),
       );
     if (segments[0] === 'jobs' && segments[1] && segments[2] === 'stop' && method === 'POST') {
@@ -689,17 +784,41 @@ export function createApp(options: AppOptions) {
     server,
     store,
     engine,
+    connectors,
     runtime,
     async close() {
       if (closed) return;
       closed = true;
       clearInterval(heartbeat);
       engine.stop();
+      connectors.close();
       for (const res of streams.keys()) res.end();
       await new Promise((resolve) => server.close(resolve));
       store.db.close();
     },
   };
+}
+
+/**
+ * A sheet's link to Excel or Google Sheets reads and writes with the sign-in of whoever linked it,
+ * so only the connector sets it: a body sent from outside keeps the page's own link, or none.
+ */
+function ownLink(body: string, current: string | null) {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return body;
+  }
+  if (!parsed || typeof parsed !== 'object' || !('link' in parsed)) {
+    const kept = current ? readSheet(current).link : null;
+    return kept && parsed && typeof parsed === 'object' && Array.isArray(parsed.rows)
+      ? JSON.stringify({ ...parsed, link: kept })
+      : body;
+  }
+  const { link: _ignored, ...rest } = parsed;
+  const kept = current ? readSheet(current).link : null;
+  return JSON.stringify(kept ? { ...rest, link: kept } : rest);
 }
 
 function placement(value: any) {

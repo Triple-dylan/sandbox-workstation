@@ -9,6 +9,8 @@ export type AgentTask = {
     /** The workspace's own agent: answers anything here and brings in specialists. */
     front: boolean;
     purpose: string;
+    /** How it makes changes: ask first, small fixes at once, or the plan first. */
+    approvals?: 'ask' | 'small' | 'plan';
     instructions: string;
     /** Ways of working this agent has been given. Follow the one that fits the request. */
     skills: { name: string; when: string; steps: string }[];
@@ -43,6 +45,8 @@ export type AgentTask = {
     pinned: { title: string; kind: string; body: string }[];
     /** Other agents this agent may hand work to, by name. */
     colleagues: { name: string; purpose: string }[];
+    /** A change this agent suggested here that is still waiting: a follow-up revises it. */
+    pendingProposal?: { kind: string; title: string; body: string } | null;
   };
 };
 
@@ -57,6 +61,8 @@ export type AgentResult = {
   skip?: boolean;
   /** Titles of the pages the reply drew on. */
   sources?: string[];
+  /** Short answers the person might tap, when the reply asks them something. */
+  replies?: string[];
   /** Pass part of the job to a colleague, by name. */
   handoff?: { to: string; request: string };
   tokens?: number;

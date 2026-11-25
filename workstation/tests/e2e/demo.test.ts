@@ -279,11 +279,11 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await row(dylan, 'general').click();
   await dylan.locator('.feed .msg', { hasText: 'Stall is confirmed.' }).waitFor();
 
-  // Agents are tagged in the feed: "@" suggests them, and the tagged one answers in the thread.
+  // People and agents are tagged in the feed: "@" suggests them, and a tagged agent answers in the thread.
   const box = dylan.getByLabel('Message #general');
   await box.click();
   await box.pressSequentially('@Laun');
-  await dylan.getByRole('listbox', { name: 'Tag an agent' }).waitFor();
+  await dylan.getByRole('listbox', { name: 'Tag someone' }).waitFor();
   await box.press('Enter');
   await box.pressSequentially('summarize');
   await dylan.getByText('Launch agent will answer here').waitFor();

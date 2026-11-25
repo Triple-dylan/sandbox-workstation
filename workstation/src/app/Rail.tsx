@@ -11,6 +11,8 @@ import {
   LayoutDashboard,
   MessageSquareReply,
   Paperclip,
+  Plus,
+  Send,
   Settings2,
   Share,
   Sparkles,
@@ -142,7 +144,9 @@ export function Rail({ docked }: { docked: boolean }) {
     commands,
     resource,
     jump,
+    pick,
   } = ws;
+  const popMenu = ws.menu;
   const [text, setText] = useState('');
   const [earlier, setEarlier] = useState(false);
   const attach = useRef<HTMLInputElement>(null);
@@ -158,6 +162,17 @@ export function Rail({ docked }: { docked: boolean }) {
   const [seen, setSeen] = useState<string | undefined>(undefined);
   const box = useRef<HTMLTextAreaElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  // Asked from a page header or elsewhere: start the box with what was chosen.
+  useEffect(() => {
+    if (ui.railText === null) return;
+    setText(ui.railText);
+    setUi({ railText: null });
+    requestAnimationFrame(() => {
+      const el = box.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [ui.railText, setUi]);
   const rail = useRef<HTMLElement>(null);
   // Who you can bring in with @: this workspace's agents, and teammates' own agents (which reach
   // the teammate first).
@@ -346,6 +361,34 @@ export function Rail({ docked }: { docked: boolean }) {
           s,
         )
       : 'this page';
+  // Your agent's words, in a direct message to a teammate, for you to send.
+  const sendTo = (m: Message, e: React.MouseEvent) => {
+    const teammates = s.members
+      .filter((x) => x.spaceId === space.id && x.userId !== s.me.id)
+      .map((x) => user(x.userId))
+      .filter((u): u is NonNullable<typeof u> => u?.kind === 'human');
+    if (!teammates.length) return notify('Nobody else is in this workspace yet.');
+    const r = e.currentTarget.getBoundingClientRect();
+    popMenu(
+      { clientX: r.left, clientY: r.bottom + 4, preventDefault: () => {} },
+      teammates.map((p) => ({
+        label: `To ${p.name}`,
+        run: async () => {
+          const dm =
+            s.conversations.find((c) => c.kind === 'dm' && c.participantIds.includes(p.id)) ??
+            (await run(() => api<{ id: string }>('/dms', { body: { userId: p.id } })));
+          if (!dm) return;
+          setUi((old) => ({ drafts: { ...old.drafts, [`chat:${dm.id}`]: m.text } }));
+          open({ type: 'chat', id: dm.id }, true);
+          notify(`Drafted to ${p.name}. Read it over; nothing is sent until you send it.`);
+        },
+      })),
+    );
+  };
+  // Worth keeping as a page only when it reads like one.
+  const pageLength = (t: string) =>
+    t.length > 700 || (t.match(/^#{1,3} /gm)?.length ?? 0) >= 2 || t.split('\n').length > 12;
+  const lastAnswerId = thread.at(-1)?.authorId !== s.me.id ? thread.at(-1)?.id : undefined;
   const saveAsPage = async (m: Message) => {
     const title = (questionOf(m)?.text ?? 'Answer').slice(0, 80);
     const made = await run(() =>
@@ -419,7 +462,9 @@ export function Rail({ docked }: { docked: boolean }) {
             ? 'Your agent'
             : m.sharedFrom
               ? `${user(m.authorId)?.name} · sent by ${user(m.sharedFrom.ownerId)?.name}`
-              : `${user(m.authorId)?.name} · only you see this`}
+              : m.asked
+                ? `${user(m.authorId)?.name} answered ${user(m.asked.agentId)?.id === myAgent.id ? 'your agent' : user(m.asked.agentId)?.name}`
+                : `${user(m.authorId)?.name} · only you see this`}
           {m.runtime === 'scripted' && <span className="tag">scripted stand-in</span>}
         </p>
         {m.asked && (
@@ -444,6 +489,48 @@ export function Rail({ docked }: { docked: boolean }) {
         <div className={done ? 'rail-text was-shared' : 'rail-text'}>
           <Md text={m.text} />
         </div>
+        {m.read.length > 0 && (
+          <p className="rail-read">
+            <span>Read</span>
+            {m.read.map((title) => {
+              const page = s.resources.find(
+                (r) => r.title === title.replace(/ \(pinned\)$/, '') && r.kind !== 'folder',
+              );
+              return page ? (
+                <button key={title} onClick={() => open({ type: 'page', id: page.id }, true)}>
+                  {title}
+                </button>
+              ) : (
+                <i key={title}>{title}</i>
+              );
+            })}
+            <button
+              className="rail-read-add"
+              title="Give it another page to read next time"
+              onClick={() =>
+                pick({
+                  title: 'Add a page for your agent to read',
+                  onPick: (t) => {
+                    if (t.type !== 'page') return;
+                    setUi({ barExtras: [...new Set([...ui.barExtras, t.id])].slice(0, 6) });
+                    notify(`It will read ${resource(t.id)?.title ?? 'that page'} too.`);
+                  },
+                })
+              }
+            >
+              <Plus size={11} /> page
+            </button>
+          </p>
+        )}
+        {m.id === lastAnswerId && m.replies.length > 0 && !m.approvalId && (
+          <p className="rail-replies">
+            {m.replies.map((r) => (
+              <button key={r} onClick={() => void put(r)}>
+                {r}
+              </button>
+            ))}
+          </p>
+        )}
         {m.approvalId && <ApprovalCard approvalId={m.approvalId} />}
         {(() => {
           const request = draftFor(s.agentRequests, thread, m);
@@ -496,7 +583,7 @@ export function Rail({ docked }: { docked: boolean }) {
                 <LayoutDashboard size={12} /> Put on the board
               </button>
             )}
-            {replyKey && (
+            {replyKey && !m.approvalId && (
               <button
                 title={`Put this in the reply box for ${replyName}. You send it.`}
                 onClick={() => {
@@ -509,9 +596,16 @@ export function Rail({ docked }: { docked: boolean }) {
                 <MessageSquareReply size={12} /> Use as my reply
               </button>
             )}
-            <button onClick={() => void saveAsPage(m)}>
-              <FilePlus2 size={12} /> Save as a page
-            </button>
+            {!m.approvalId && (
+              <button onClick={(e) => sendTo(m, e)} title="Draft it to a teammate; you send it">
+                <Send size={12} /> Send to…
+              </button>
+            )}
+            {!m.approvalId && pageLength(m.text) && (
+              <button onClick={() => void saveAsPage(m)}>
+                <FilePlus2 size={12} /> Save as a page
+              </button>
+            )}
           </p>
         )}
         {sharing?.id === m.id && (

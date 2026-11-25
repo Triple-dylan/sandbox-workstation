@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Character, agentState } from '../agents/Character.tsx';
+import { Fragment, useState } from 'react';
+import { Actor, Character, agentState } from '../agents/Character.tsx';
 import type { Job, User } from '../../../shared/types.ts';
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -21,6 +21,11 @@ export function addressed<T extends { name: string }>(text: string, agents: T[])
   );
 }
 
+/** Whether a message tags this person by name. */
+export function mentions(text: string, name: string) {
+  return new RegExp(`(^|[^\\w@])@${escape(name)}(?![\\w])`, 'i').test(text);
+}
+
 /** Marks @Name for people and agents so messages can show who was tagged. */
 export function markMentions(text: string, names: string[]) {
   const sorted = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -37,19 +42,22 @@ export function mentionQuery(text: string, caret: number) {
 }
 
 /**
- * Suggestions shown while typing "@": the agents that can be tagged here. Arrow keys move,
- * Enter or Tab picks, Escape closes. Returns the menu and a key handler for the text box.
+ * Suggestions shown while typing "@": the people and agents that can be tagged here, people
+ * first. Arrow keys move, Enter or Tab picks, Escape closes. Returns the menu and a key handler.
  */
 export function useMentions({
   text,
   setText,
   agents,
+  people = [],
   jobs,
   box,
 }: {
   text: string;
   setText: (value: string) => void;
   agents: User[];
+  /** People who can be tagged: they get a mention. */
+  people?: User[];
   jobs: Job[];
   box: React.RefObject<HTMLTextAreaElement | null>;
 }) {
@@ -57,7 +65,8 @@ export function useMentions({
   const [at, setAt] = useState(0);
   const [dismissed, setDismissed] = useState<number | null>(null);
   const q = mentionQuery(text, caret);
-  const options = q ? agents.filter((a) => a.name.toLowerCase().includes(q.query)).slice(0, 6) : [];
+  const fits = (u: User) => u.name.toLowerCase().includes(q!.query);
+  const options = q ? [...people.filter(fits).slice(0, 4), ...agents.filter(fits)].slice(0, 7) : [];
   const open = !!q && options.length > 0 && dismissed !== q.start;
   const pick = (agent: User) => {
     if (!q) return;
@@ -90,29 +99,39 @@ export function useMentions({
     <div
       className="mention-menu"
       role="listbox"
-      aria-label="Tag an agent"
+      aria-label={people.length ? 'Tag someone' : 'Tag an agent'}
       onMouseDown={(e) => e.preventDefault()}
     >
-      <p>Tag an agent</p>
       {options.map((a, i) => (
-        <button
-          type="button"
-          key={a.id}
-          role="option"
-          aria-selected={i === Math.min(at, options.length - 1)}
-          onMouseEnter={() => setAt(i)}
-          onClick={() => pick(a)}
-        >
-          <Character agent={a} size={24} state={agentState(a.id, jobs)} />
-          <span>
-            <strong>{a.name}</strong>
-            <small>
-              {a.role === 'personal'
-                ? `Asks ${a.name.replace(/'s agent$/, '')} first; they decide what it shares`
-                : a.purpose || 'Shared with the space'}
-            </small>
-          </span>
-        </button>
+        <Fragment key={a.id}>
+          {(i === 0 || options[i - 1].kind !== a.kind) && (
+            <p>{a.kind === 'human' ? 'People' : 'Agents'}</p>
+          )}
+          <button
+            type="button"
+            key={a.id}
+            role="option"
+            aria-selected={i === Math.min(at, options.length - 1)}
+            onMouseEnter={() => setAt(i)}
+            onClick={() => pick(a)}
+          >
+            {a.kind === 'human' ? (
+              <Actor user={a} jobs={jobs} size={24} />
+            ) : (
+              <Character agent={a} size={24} state={agentState(a.id, jobs)} />
+            )}
+            <span>
+              <strong>{a.name}</strong>
+              <small>
+                {a.kind === 'human'
+                  ? 'Gets a mention'
+                  : a.role === 'personal'
+                    ? `Asks ${a.name.replace(/'s agent$/, '')} first; they decide what it shares`
+                    : a.purpose || 'Shared with the space'}
+              </small>
+            </span>
+          </button>
+        </Fragment>
       ))}
     </div>
   ) : null;

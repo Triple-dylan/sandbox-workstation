@@ -13,7 +13,7 @@ import { useWorkspace } from '../../app/workspace.tsx';
 import { KindIcon, Md, ago, clock, excerpt, sheetRows } from '../../app/util.tsx';
 import { Actor, Character, agentState, nameStyle } from '../agents/Character.tsx';
 import { proposalText } from '../agents/proposal.ts';
-import { addressed, markMentions, useMentions } from './mentions.tsx';
+import { addressed, markMentions, mentions as mentionsMe, useMentions } from './mentions.tsx';
 import { DRAG, pagesNamed } from '../../app/scope.ts';
 import { cellEdits, colName, evaluate } from '../../../shared/formula.ts';
 import { REACTIONS } from '../../../shared/types.ts';
@@ -37,17 +37,47 @@ export function agentsIn(conversation: Conversation, users: User[]) {
 
 /** An agent's suggestion, waiting on a person. */
 export function ApprovalCard({ approvalId }: { approvalId: Id }) {
-  const { s, run, resource, open, user } = useWorkspace();
+  const { s, run, resource, open, user, jump } = useWorkspace();
   const a = s.approvals.find((x) => x.id === approvalId);
+  const [editing, setEditing] = useState<string | null>(null);
   if (!a) return null;
   const page = resource(a.proposal.resourceId);
   const words = proposalText(a.proposal, page?.title);
-  const decide = (decision: 'approved' | 'declined') =>
-    void run(() => api(`/approvals/${a.id}`, { body: { decision } }));
+  const decide = (decision: 'approved' | 'declined', body?: string) =>
+    void run(() =>
+      api(`/approvals/${a.id}`, { body: { decision, ...(body !== undefined ? { body } : {}) } }),
+    ).then(() => setEditing(null));
+  // Where the change would land, lit on the page.
+  const showMe = () => {
+    if (!page) return;
+    if (a.proposal.kind === 'edit-cells') {
+      const rows = (cellEdits(a.proposal.body) ?? []).map((e) => e.row);
+      if (rows.length)
+        jump(
+          { resourceId: page.id, rows: [Math.min(...rows), Math.max(...rows)] },
+          'Shown on the sheet',
+        );
+      else open({ type: 'page', id: page.id }, true);
+    } else if (a.proposal.kind === 'edit-doc')
+      jump({ resourceId: page.id, quote: a.proposal.title });
+    else open({ type: 'page', id: page.id }, true);
+  };
+  const editable = ['edit-cells', 'edit-doc', 'create-doc', 'create-skill'].includes(
+    a.proposal.kind,
+  );
   return (
     <div className={`approval is-${a.status}`}>
       <strong>{words.title}</strong>
-      {a.proposal.kind === 'edit-cells' ? (
+      {editing !== null ? (
+        <textarea
+          className="approval-edit"
+          rows={Math.min(10, Math.max(3, editing.split('\n').length + 1))}
+          value={editing}
+          aria-label="The change, as it will be applied"
+          onChange={(e) => setEditing(e.target.value)}
+          autoFocus
+        />
+      ) : a.proposal.kind === 'edit-cells' ? (
         <CellChanges proposal={a.proposal} page={page} done={a.status !== 'pending'} />
       ) : a.proposal.kind === 'edit-doc' ? (
         <p className="diff">
@@ -61,16 +91,46 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
       )}
       {a.status === 'pending' ? (
         <div className="approval-actions">
-          <button className="primary" onClick={() => decide('approved')}>
-            <Check size={13} /> {words.yes}
-          </button>
-          <button onClick={() => decide('declined')}>{words.no}</button>
+          {editing !== null ? (
+            <>
+              <button className="primary" onClick={() => decide('approved', editing)}>
+                <Check size={13} /> {words.yes} as edited
+              </button>
+              <button onClick={() => setEditing(null)}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <button className="primary" onClick={() => decide('approved')}>
+                <Check size={13} /> {words.yes}
+              </button>
+              {editable && <button onClick={() => setEditing(a.proposal.body)}>Edit first</button>}
+              {page && (a.proposal.kind === 'edit-cells' || a.proposal.kind === 'edit-doc') && (
+                <button onClick={showMe}>Show me</button>
+              )}
+              <button onClick={() => decide('declined')}>{words.no}</button>
+            </>
+          )}
           <small>Nothing changes until a person says yes.</small>
         </div>
+      ) : a.status === 'replaced' ? (
+        <small className="approval-done">Replaced by the newer draft below</small>
+      ) : a.status === 'undone' ? (
+        <small className="approval-done">Undone by {user(a.decidedBy)?.name ?? 'someone'}</small>
       ) : (
         <small className="approval-done">
-          {a.status === 'approved' ? 'Accepted' : 'Declined'} by{' '}
+          {a.status === 'approved' ? 'Accepted by' : 'Declined by'}{' '}
           {user(a.decidedBy)?.name ?? 'someone'}
+          {a.status === 'approved' && a.proposal.undo !== undefined && (
+            <>
+              {' · '}
+              <button
+                className="link"
+                onClick={() => void run(() => api(`/approvals/${a.id}/undo`, { body: {} }))}
+              >
+                Undo
+              </button>
+            </>
+          )}
           {a.status === 'approved' && resource(a.resultResourceId) && (
             <>
               {' · '}
@@ -241,7 +301,10 @@ export function MessageView({
     void run(() => api(`/messages/${m.id}/react`, { body: { emoji } }));
   };
   return (
-    <div className={`msg ${author?.kind === 'agent' ? 'from-agent' : ''}`} data-message={m.id}>
+    <div
+      className={`msg ${author?.kind === 'agent' ? 'from-agent' : ''} ${m.authorId !== s.me.id && mentionsMe(m.text, s.me.name) ? 'mentions-me' : ''}`}
+      data-message={m.id}
+    >
       <span className="msg-who">{author && <Actor user={author} jobs={s.jobs} size={26} />}</span>
       <div className="msg-main">
         <p className="msg-head">
@@ -392,10 +455,21 @@ export function Composer({
   const privateAgent = conversation?.kind === 'agent-private';
   // An agent is spoken to the way a person is: tagged with @Name, or named at the start.
   const target = privateAgent ? null : (addressed(text, agents) ?? null);
+  const people = privateAgent
+    ? []
+    : s.users.filter(
+        (u) =>
+          u.kind === 'human' &&
+          u.id !== s.me.id &&
+          (conversation && conversation.kind !== 'channel'
+            ? conversation.participantIds.includes(u.id)
+            : s.members.some((m) => m.spaceId === space.id && m.userId === u.id)),
+      );
   const mentions = useMentions({
     text,
     setText,
     agents: privateAgent ? [] : agents,
+    people,
     jobs: s.jobs,
     box,
   });
@@ -473,7 +547,9 @@ export function Composer({
           rows={1}
           value={text}
           placeholder={
-            agents.length && !privateAgent ? `${placeholder} · @ to tag an agent` : placeholder
+            (agents.length || people.length) && !privateAgent
+              ? `${placeholder} · @ to tag someone`
+              : placeholder
           }
           aria-label={placeholder}
           onChange={(e) => {

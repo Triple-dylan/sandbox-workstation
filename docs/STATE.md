@@ -84,6 +84,16 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: a sign-in page that says what the product is, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The space switcher offers both at any time ("New workspace", "Join with an invite link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
+## Added 2026-11-25
+
+- Sheets: Excel keys and clipboard, fill, undo, number formats, column widths, sort, keep row 1 in view, `.xlsx` in and out, CSV out. Checked in the browser: typing, Enter, Shift-select, paste of tab-separated text with a formula, undo, currency format, the column menu.
+- Connectors: Google Sheets and Excel (OneDrive/SharePoint) links become live sheet pages, synced both ways. Tested end to end against a stand-in provider (sign-in, refresh, link every tab, edits out, changes in, link protection). Not tried against real Google or Microsoft accounts; needs `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` and the redirect addresses in `docs/WEBAPP.md`.
+- Private chat: answers show what they read, answers to tap, fitting actions, Send to a teammate; follow-ups revise the waiting draft; suggested changes can be edited first, shown on the page, and (when made at once) undone.
+- @ for people, with mentions marked in the conversation and the list.
+- Agents look after pages: exact cell lines and model-judged lines; header "Ask Finance"; list and channel headers show what agents watch and where they listen. Checked in the browser: Finance said "Heads up on Q1 Budget: Total (B4) is now 5200, above 5,000." in the page feed.
+- Approval levels per agent: ask first, small fixes with Undo, plan first.
+- Not run against the live model yet: the evals need the OpenAI key's daily limit to reset.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.

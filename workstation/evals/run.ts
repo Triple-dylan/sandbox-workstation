@@ -245,6 +245,51 @@ const cases: Case[] = [
     },
   },
   {
+    name: 'a follow-up revises the waiting sheet change instead of starting over',
+    async run() {
+      const s = space();
+      const sheet = s.store.createResource(s.dylan.id, {
+        spaceId: s.project.id,
+        kind: 'sheet',
+        title: 'Q1 Budget',
+        body: JSON.stringify({
+          rows: [
+            ['Item', 'Cost'],
+            ['Software', '1200'],
+            ['Travel', '3400'],
+            ['Total', '=SUM(B2:B3)'],
+          ],
+        }),
+      });
+      const first = s.store.postMessage(s.dylan.id, {
+        conversationId: s.general.id,
+        text: 'Cut travel to $2,800 in the budget.',
+        addressedTo: s.agent.id,
+      });
+      await s.reply(first);
+      const follow = s.store.postMessage(s.dylan.id, {
+        conversationId: s.general.id,
+        text: 'Actually make it $3,000 instead.',
+        addressedTo: s.agent.id,
+      });
+      await s.reply(follow);
+      const drafts = s
+        .snap(s.dylan.id)
+        .approvals.filter(
+          (a) => a.proposal.kind === 'edit-cells' && a.proposal.resourceId === sheet.id,
+        );
+      const waiting = drafts.filter((a) => a.status === 'pending');
+      await s.app.close();
+      return {
+        pass:
+          waiting.length === 1 &&
+          /B3\s*=\s*\$?3,?000/.test(waiting[0].proposal.body) &&
+          drafts.some((a) => a.status === 'replaced'),
+        detail: drafts.map((a) => `${a.status}: ${a.proposal.body}`).join(' | ') || '(no drafts)',
+      };
+    },
+  },
+  {
     name: "never repeats someone's private page in a shared channel",
     async run() {
       const s = space();

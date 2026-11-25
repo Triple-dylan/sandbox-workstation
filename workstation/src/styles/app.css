@@ -6217,3 +6217,269 @@ select:focus-visible {
   background: none;
   padding: 0;
 }
+
+/* ---------- sheets that behave like Excel ---------- */
+.sheet-tools {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.sheet-tools .choice {
+  font-size: 12.5px;
+}
+.sheet-tools button[aria-pressed='true'] {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+.sheet thead th {
+  position: sticky;
+  padding: 0;
+}
+.sheet thead th.on,
+.sheet tbody th.on {
+  background: color-mix(in oklab, var(--focus) 16%, var(--bg-2));
+  color: var(--ink);
+}
+.sheet .col-name {
+  width: 100%;
+  height: 24px;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.sheet .col-name small {
+  font-size: 10px;
+  color: var(--ink-3);
+}
+.sheet .col-name:hover {
+  background: var(--wash);
+}
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+.col-resize:hover {
+  background: var(--focus);
+}
+.sheet td {
+  min-width: 0;
+}
+.sheet td input {
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.sheet td input:not(.typing) {
+  caret-color: transparent;
+  cursor: cell;
+}
+.sheet td input:not(.typing)::selection {
+  background: transparent;
+}
+.sheet td.here input {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.sheet tr.frozen td,
+.sheet tr.frozen th {
+  position: sticky;
+  top: var(--frozen-top);
+  z-index: 2;
+  background: var(--bg);
+}
+.sheet tr.frozen th {
+  z-index: 3;
+  background: var(--bg-2);
+}
+.sheet tr.frozen:last-of-type td,
+.sheet tr.frozen + tr:not(.frozen) td {
+  border-top: 0;
+}
+.sheet tr.frozen td {
+  box-shadow: inset 0 -1px 0 var(--line-2, var(--line));
+}
+.link-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 340px;
+  min-width: 0;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.link-status.is-error {
+  background: color-mix(in oklab, #d33 14%, transparent);
+  color: var(--ink);
+}
+.sheet-tools .link-status button,
+.link-status a {
+  border: 0;
+  padding: 3px;
+  display: inline-flex;
+  color: inherit;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.list-new-note {
+  margin: 2px 2px 6px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.setting-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.muted {
+  color: var(--ink-3);
+}
+
+/* What an answer read, and answers to tap. */
+.rail-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.rail-read > span {
+  margin-right: 2px;
+}
+.rail-read button,
+.rail-read i {
+  font-style: normal;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.rail-read button:hover {
+  color: var(--ink);
+  background: var(--wash-2);
+}
+.rail-read .rail-read-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: 1px dashed var(--line);
+}
+.rail-replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 2px;
+}
+.rail-replies button {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--focus);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+.rail-replies button:hover {
+  background: color-mix(in oklab, var(--focus) 14%, transparent);
+}
+.approval-edit {
+  width: 100%;
+  margin: 6px 0;
+  font: 12.5px/1.45 var(--mono, ui-monospace, monospace);
+  padding: 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+}
+.approval.is-replaced {
+  opacity: 0.6;
+}
+
+/* Agents that look after a page, in its header. */
+.looks-after {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 3px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.looks-after:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.looks-after small {
+  font-size: 12px;
+}
+.watch-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.watch-line .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.watch-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin-bottom: 6px;
+}
+.watch-new span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.watch-new input {
+  width: 100%;
+}
+.watch-new .primary {
+  align-self: flex-end;
+}
+.who-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  padding: 4px 0;
+}
+.who-add:hover {
+  color: var(--ink);
+}
+.count.mention {
+  background: var(--focus);
+  color: #fff;
+}
+.msg.mentions-me {
+  box-shadow: inset 3px 0 0 var(--focus);
+  background: color-mix(in oklab, var(--focus) 7%, transparent);
+}

@@ -1,4 +1,5 @@
-import { cellEdits } from '../shared/formula.ts';
+import { cellEdits, colName } from '../shared/formula.ts';
+import { MAX_COLS, MAX_ROWS, readSheet } from '../shared/sheet.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
@@ -12,6 +13,8 @@ import {
 } from '../shared/types.ts';
 import type {
   AgentRequest,
+  ApprovalLevel,
+  Watch,
   Anchor,
   Approval,
   Assignment,
@@ -30,6 +33,8 @@ import type {
   Proposal,
   Resource,
   SendRequest,
+  SheetFormat,
+  SheetLink,
   Snapshot,
   Skill,
   Space,
@@ -85,7 +90,14 @@ const toUser = (r: Row): User => ({
   ...(r.space_id ? { spaceId: r.space_id } : {}),
   ...(r.role ? { role: r.role } : {}),
   ...(r.kind === 'agent'
-    ? { purpose: r.purpose ?? '', instructions: r.instructions ?? '', retired: !!r.retired }
+    ? {
+        purpose: r.purpose ?? '',
+        instructions: r.instructions ?? '',
+        retired: !!r.retired,
+        approvals: (['ask', 'small', 'plan'].includes(r.approvals)
+          ? r.approvals
+          : 'ask') as ApprovalLevel,
+      }
     : {}),
 });
 const toResource = (r: Row): Resource => ({
@@ -123,8 +135,16 @@ const toMessage = (r: Row): Message => ({
   sourceIds: parse<Id[]>(r.sources) ?? [],
   sharedFrom: parse<Message['sharedFrom']>(r.shared_from),
   asked: parse<Message['asked']>(r.asked),
+  replies: parse<string[]>(r.replies) ?? [],
+  read: parse<string[]>(r.read) ?? [],
   reactions: [],
   createdAt: r.created_at,
+});
+const toWatch = (r: Row): Watch => ({
+  agentId: r.agent_id,
+  resourceId: r.resource_id,
+  rule: r.rule,
+  setBy: r.set_by,
 });
 const toAgentRequest = (r: Row): AgentRequest => ({
   id: r.id,
@@ -378,6 +398,7 @@ export class Store {
       instructions?: string;
       hue?: number;
       form?: string;
+      approvals?: string;
     },
   ) {
     const agent = this.user(agentId);
@@ -396,6 +417,8 @@ export class Store {
       (patch.instructions ?? agent.instructions ?? '').slice(0, 4000),
       agentId,
     );
+    if (patch.approvals && ['ask', 'small', 'plan'].includes(patch.approvals))
+      this.run('update users set approvals = ? where id = ?', patch.approvals, agentId);
     if (typeof patch.hue === 'number' && Number.isFinite(patch.hue)) {
       const hue = ((Math.round(patch.hue) % 360) + 360) % 360;
       this.run(
@@ -1224,25 +1247,135 @@ export class Store {
   }
   /** One cell of a sheet. Two people editing different cells never overwrite each other. */
   setCell(actorId: Id, resourceId: Id, row: number, col: number, value: string) {
+    return this.setCells(actorId, resourceId, [{ row, col, value }]);
+  }
+  /** Several cells at once (a paste, a fill, a cleared range), saved as one change. */
+  setCells(actorId: Id, resourceId: Id, edits: { row: number; col: number; value: string }[]) {
     const sheet = this.resource(resourceId);
     if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
       throw new AccessError('Not available.');
-    if (
-      !Number.isInteger(row) ||
-      !Number.isInteger(col) ||
-      row < 0 ||
-      col < 0 ||
-      row > 499 ||
-      col > 51
-    )
-      throw new InputError('That cell is outside the sheet.');
-    const rows = parse<{ rows: string[][] }>(sheet.body)?.rows ?? [];
-    const width = Math.max(col + 1, ...rows.map((r) => r.length), 1);
-    while (rows.length <= row) rows.push([]);
+    if (!Array.isArray(edits) || !edits.length || edits.length > MAX_ROWS * MAX_COLS)
+      throw new InputError('Nothing to change.');
+    for (const { row, col } of edits)
+      if (
+        !Number.isInteger(row) ||
+        !Number.isInteger(col) ||
+        row < 0 ||
+        col < 0 ||
+        row >= MAX_ROWS ||
+        col >= MAX_COLS
+      )
+        throw new InputError('That cell is outside the sheet.');
+    const body = readSheet(sheet.body);
+    const rows = body.rows;
+    const width = Math.max(...edits.map((e) => e.col + 1), ...rows.map((r) => r.length), 1);
+    while (rows.length <= Math.max(...edits.map((e) => e.row))) rows.push([]);
     for (const r of rows) while (r.length < width) r.push('');
-    rows[row][col] = String(value ?? '').slice(0, 2000);
-    return this.updateResource(actorId, resourceId, { body: json({ rows })! });
+    for (const e of edits) rows[e.row][e.col] = String(e.value ?? '').slice(0, 2000);
+    const saved = this.updateResource(actorId, resourceId, { body: json({ ...body, rows })! });
+    this.syncOut?.(resourceId, edits);
+    return saved;
   }
+  /** How a sheet is shown: number formats and widths per column, and the rows kept in view. */
+  setSheetLayout(
+    actorId: Id,
+    resourceId: Id,
+    layout: { formats?: unknown; widths?: unknown; freeze?: unknown },
+  ) {
+    const sheet = this.resource(resourceId);
+    if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
+      throw new AccessError('Not available.');
+    const body = readSheet(sheet.body);
+    const columns = <T>(input: unknown, ok: (v: unknown) => v is T) =>
+      Object.fromEntries(
+        Object.entries((input ?? {}) as Record<string, unknown>).filter(
+          ([k, v]) => /^\d{1,2}$/.test(k) && Number(k) < MAX_COLS && ok(v),
+        ),
+      ) as Record<string, T>;
+    if (layout.formats !== undefined)
+      body.formats = columns(layout.formats, (v): v is SheetFormat =>
+        ['plain', 'number', 'currency', 'percent'].includes(v as string),
+      );
+    if (layout.widths !== undefined)
+      body.widths = Object.fromEntries(
+        Object.entries(
+          columns(layout.widths, (v): v is number => typeof v === 'number' && v >= 40 && v <= 600),
+        ).map(([k, v]) => [k, Math.round(v)]),
+      );
+    if (layout.freeze !== undefined) {
+      const freeze = Number(layout.freeze);
+      if (!Number.isInteger(freeze) || freeze < 0 || freeze > 5)
+        throw new InputError('Keep between 0 and 5 rows in view.');
+      body.freeze = freeze;
+    }
+    return this.updateResource(actorId, resourceId, { body: json(body)! });
+  }
+  /**
+   * A linked sheet brought up to date from Excel or Google Sheets. Its formats stay; the cells are
+   * the other side's. Not pushed back, since it came from there.
+   */
+  replaceLinkedSheet(resourceId: Id, rows: string[][] | null, link: SheetLink) {
+    const sheet = this.resource(resourceId);
+    if (!sheet || sheet.kind !== 'sheet') return;
+    const body = readSheet(sheet.body);
+    const next = { ...body, rows: rows ?? body.rows, link };
+    if (rows && JSON.stringify(rows) !== JSON.stringify(body.rows))
+      return this.updateResource(link.linkedBy, resourceId, { body: json(next)! });
+    // Only the sync time or an error changed: no new version of the page.
+    this.run('update resources set body = ? where id = ?', json(next), resourceId);
+    this.changed();
+  }
+  linkedSheets() {
+    return this.all(
+      `select id from resources where kind = 'sheet' and deleted = 0 and body like '%"link":{%'`,
+    ).map((r) => String(r.id));
+  }
+  // ---------- connections to Google and Microsoft ----------
+  connection(userId: Id, provider: string) {
+    const row = this.get(
+      'select * from connections where user_id = ? and provider = ?',
+      userId,
+      provider,
+    );
+    return row
+      ? {
+          account: String(row.account),
+          access: String(row.access),
+          refresh: row.refresh ? String(row.refresh) : null,
+          expiresAt: Number(row.expires_at),
+        }
+      : null;
+  }
+  connectionsOf(userId: Id) {
+    return this.all('select provider, account from connections where user_id = ?', userId).map(
+      (r) => ({ provider: String(r.provider), account: String(r.account) }),
+    );
+  }
+  saveConnection(
+    userId: Id,
+    provider: string,
+    tokens: { account: string; access: string; refresh: string | null; expiresAt: number },
+  ) {
+    const before = this.connection(userId, provider);
+    this.run(
+      `insert into connections (user_id, provider, account, access, refresh, expires_at) values (?, ?, ?, ?, ?, ?)
+       on conflict (user_id, provider) do update set account = excluded.account, access = excluded.access,
+       refresh = coalesce(excluded.refresh, connections.refresh), expires_at = excluded.expires_at`,
+      userId,
+      provider,
+      tokens.account || before?.account || '',
+      tokens.access,
+      tokens.refresh,
+      tokens.expiresAt,
+    );
+    this.changed();
+  }
+  dropConnection(userId: Id, provider: string) {
+    this.run('delete from connections where user_id = ? and provider = ?', userId, provider);
+    this.changed();
+  }
+  /** Set by the connector module: pushes a linked sheet's changed cells to Excel or Google Sheets. */
+  syncOut?: (resourceId: Id, edits: { row: number; col: number; value: string }[]) => void;
   revisions(actorId: Id, resourceId: Id) {
     const resource = this.resource(resourceId);
     if (!resource || !this.canReadResource(actorId, resource))
@@ -1453,6 +1586,9 @@ export class Store {
       asked?: { agentId: Id; request: string };
       /** Sent on by a person from their own conversation with their agent. */
       sentBy?: { agentId: Id; ownerId: Id };
+      /** Answers to tap, and what the answer read. */
+      replies?: string[];
+      read?: string[];
     } = {},
   ) {
     const conversation = this.conversation(request.conversationId);
@@ -1528,7 +1664,7 @@ export class Store {
         : null);
     const messageId = id();
     this.run(
-      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context, shared_from, asked) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context, shared_from, asked, replies, read) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       messageId,
       conversation.id,
       actorId,
@@ -1559,6 +1695,8 @@ export class Store {
       ),
       json(shared),
       json(extra.asked ?? null),
+      json(extra.replies?.length ? extra.replies : null),
+      json(extra.read?.length ? extra.read : null),
     );
     const message = toMessage(this.get('select * from messages where id = ?', messageId)!);
     if (actor.kind === 'human') this.markRead(actorId, conversation.id);
@@ -1840,16 +1978,124 @@ export class Store {
     this.changed();
     return this.approval(approvalId)!;
   }
+  // ---------- pages agents look after ----------
+  /** Who may change what an agent does: its owner, or anyone in its workspace. */
+  private mayDirect(actorId: Id, agent: User) {
+    return agent.role === 'personal'
+      ? agent.ownerId === actorId
+      : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+  }
+  /** An agent looks after a page, saying something in its feed when the rule is met. */
+  setWatch(actorId: Id, agentId: Id, resourceId: Id, rule: string) {
+    const agent = this.user(agentId);
+    const page = this.resource(resourceId);
+    if (!agent || agent.kind !== 'agent' || agent.retired || !this.mayDirect(actorId, agent))
+      throw new AccessError('Not available.');
+    if (!page || !isPage(page.kind) || !this.canReadResource(actorId, page))
+      throw new AccessError('Not available.');
+    if (!this.canReadResource(agentId, page))
+      throw new InputError(`${agent.name} can't open ${page.title}, so it can't look after it.`);
+    this.run(
+      `insert into watches (agent_id, resource_id, rule, set_by, last_state, created_at) values (?, ?, ?, ?, null, ?)
+       on conflict (agent_id, resource_id) do update set rule = excluded.rule, set_by = excluded.set_by, last_state = null`,
+      agentId,
+      resourceId,
+      rule.trim().slice(0, 300),
+      actorId,
+      now(),
+    );
+    this.changed();
+    return { ok: true };
+  }
+  dropWatch(actorId: Id, agentId: Id, resourceId: Id) {
+    const agent = this.user(agentId);
+    if (!agent || agent.kind !== 'agent' || !this.mayDirect(actorId, agent))
+      throw new AccessError('Not available.');
+    this.run('delete from watches where agent_id = ? and resource_id = ?', agentId, resourceId);
+    this.changed();
+  }
+  watchersOf(resourceId: Id) {
+    return this.all('select * from watches where resource_id = ?', resourceId).map((r) => ({
+      ...toWatch(r),
+      lastState: r.last_state ? String(r.last_state) : null,
+    }));
+  }
+  markWatch(agentId: Id, resourceId: Id, state: string) {
+    this.run(
+      'update watches set last_state = ? where agent_id = ? and resource_id = ?',
+      state,
+      agentId,
+      resourceId,
+    );
+  }
+  /** A change made at once under "small fixes": put back as it was, by a person. */
+  undoApproval(actorId: Id, approvalId: Id) {
+    const approval = this.approval(approvalId);
+    if (!approval || !this.isMember(actorId, approval.spaceId))
+      throw new AccessError('Not available.');
+    if (approval.status !== 'approved' || !approval.proposal.undo)
+      throw new InputError('This change cannot be undone here.');
+    const page = this.resource(approval.proposal.resourceId ?? '');
+    if (!page || !this.canReadResource(actorId, page)) throw new AccessError('Not available.');
+    if (approval.proposal.kind === 'edit-cells') {
+      const edits = cellEdits(approval.proposal.undo);
+      if (edits) this.setCells(actorId, page.id, edits);
+    } else if (approval.proposal.kind === 'edit-doc') {
+      if (!page.body.includes(approval.proposal.body))
+        throw new InputError('The page has changed since; undo it by hand.');
+      this.updateResource(actorId, page.id, {
+        body: page.body.replace(approval.proposal.body, approval.proposal.title),
+      });
+    }
+    this.run(
+      `update approvals set status = 'undone', decided_by = ? where id = ?`,
+      actorId,
+      approvalId,
+    );
+    this.changed();
+    return this.approval(approvalId)!;
+  }
+  /** A newer draft of the same change takes the place of one still waiting. */
+  replaceApproval(approvalId: Id) {
+    this.run(
+      `update approvals set status = 'replaced' where id = ? and status = 'pending'`,
+      approvalId,
+    );
+    const job = this.get('select job_id from approvals where id = ?', approvalId)?.job_id;
+    if (job)
+      this.run(
+        `update jobs set status = 'done' where id = ? and status = 'awaiting_approval'`,
+        job,
+      );
+    this.changed();
+  }
   approval(approvalId: Id) {
     const row = this.get('select * from approvals where id = ?', approvalId);
     return row ? toApproval(row) : null;
   }
-  decideApproval(actorId: Id, approvalId: Id, decision: 'approved' | 'declined') {
+  decideApproval(
+    actorId: Id,
+    approvalId: Id,
+    decision: 'approved' | 'declined',
+    /** The change as the person edited it before accepting. */
+    edited?: string,
+  ) {
     const approval = this.approval(approvalId);
     if (!approval) throw new AccessError('Not available.');
     const space = this.requireMember(actorId, approval.spaceId);
     if (this.user(actorId)?.kind !== 'human') throw new AccessError('People decide approvals.');
     if (approval.status !== 'pending') throw new InputError('Already decided.');
+    if (decision === 'approved' && typeof edited === 'string') {
+      if (approval.proposal.kind === 'edit-cells' && !cellEdits(edited))
+        throw new InputError('Write one change per line, like B3 = 2800.');
+      if (!edited.trim()) throw new InputError('There is nothing left to apply.');
+      approval.proposal = { ...approval.proposal, body: edited.slice(0, 20_000) };
+      this.run(
+        'update approvals set proposal = ? where id = ?',
+        json(approval.proposal),
+        approvalId,
+      );
+    }
     const job = this.job(approval.jobId);
     const from = job?.conversationId ? this.conversation(job.conversationId) : null;
     if (from && !this.canReadConversation(actorId, from)) throw new AccessError('Not available.');
@@ -1889,6 +2135,12 @@ export class Store {
       this.updateResource(approval.agentId, page.id, {
         body: page.body.replace(approval.proposal.title, approval.proposal.body),
       });
+      approval.proposal = { ...approval.proposal, undo: approval.proposal.title };
+      this.run(
+        'update approvals set proposal = ? where id = ?',
+        json(approval.proposal),
+        approvalId,
+      );
       resultResourceId = page.id;
     }
     if (decision === 'approved' && approval.proposal.kind === 'edit-cells') {
@@ -1897,7 +2149,19 @@ export class Store {
         throw new AccessError('Not available.');
       const edits = cellEdits(approval.proposal.body);
       if (!edits) throw new InputError('This change could not be read. Ask again.');
-      for (const e of edits) this.setCell(actorId, sheet.id, e.row, e.col, e.value);
+      const before = readSheet(sheet.body).rows;
+      approval.proposal = {
+        ...approval.proposal,
+        undo: edits
+          .map((e) => `${colName(e.col)}${e.row + 1} = ${before[e.row]?.[e.col] ?? ''}`)
+          .join('\n'),
+      };
+      this.run(
+        'update approvals set proposal = ? where id = ?',
+        json(approval.proposal),
+        approvalId,
+      );
+      this.setCells(actorId, sheet.id, edits);
       resultResourceId = sheet.id;
     }
     if (decision === 'approved' && approval.proposal.kind === 'add-step')
@@ -2375,6 +2639,13 @@ export class Store {
       routines,
       approvals,
       agentRequests: this.agentRequestsFor(userId),
+      watches: this.all('select * from watches order by created_at')
+        .map(toWatch)
+        .filter(
+          (w) =>
+            users.some((u) => u.id === w.agentId) &&
+            resources.some((r: Resource) => r.id === w.resourceId),
+        ),
       goals: spaces.flatMap((s) => this.goals(s.id)),
       skills: spaces.flatMap((s) => this.skillsIn(s.id)),
       activity,
