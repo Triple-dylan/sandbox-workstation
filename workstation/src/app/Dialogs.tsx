@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Copy, Link2 } from 'lucide-react';
-import { Lock, Users, X } from 'lucide-react';
+import { Lock, Plus, Users, X } from 'lucide-react';
 import { api } from '../data/client.ts';
-import { Character } from '../features/agents/Character.tsx';
+import { Actor, Character } from '../features/agents/Character.tsx';
 import { ORB_FORMS } from '../../shared/types.ts';
 import type { User } from '../../shared/types.ts';
 import { useWorkspace } from './workspace.tsx';
@@ -417,9 +417,9 @@ function DeviceLink() {
   );
 }
 
-/** Inviting people into the shared space you are in. */
-export function Invite() {
-  const { s, space, notify, run } = useWorkspace();
+/** The people in this workspace: who is here now, a message to any of them, and the invite link. */
+export function People() {
+  const { s, space, user, resource, notify, run, open, setUi } = useWorkspace();
   const [link, setLink] = useState<{ token: string; expiresAt: string } | null>(null);
   const [error, setError] = useState('');
   const make = async (fresh = false) => {
@@ -431,14 +431,68 @@ export function Invite() {
   };
   if (!link && !error) void make();
   const url = link ? `${location.origin}/?invite=${link.token}` : '';
+  const people = s.members
+    .filter((m) => m.spaceId === space.id)
+    .map((m) => user(m.userId))
+    .filter((u): u is User => !!u && u.kind === 'human');
+  const where = (p: User) => {
+    const here = s.presence.find((x) => x.userId === p.id && x.online);
+    if (!here) return '';
+    const page = resource(here.resourceId);
+    const chat = s.conversations.find((c) => c.id === here.conversationId);
+    return page ? `In ${page.title}` : chat?.kind === 'channel' ? `In #${chat.title}` : 'Here now';
+  };
   const others = s.users.filter(
-    (u) =>
-      u.kind === 'human' &&
-      u.id !== s.me.id &&
-      !s.members.some((m) => m.spaceId === space.id && m.userId === u.id),
+    (u) => u.kind === 'human' && u.id !== s.me.id && !people.some((p) => p.id === u.id),
   );
+  const message = async (p: User) => {
+    const dm =
+      s.conversations.find((c) => c.kind === 'dm' && c.participantIds.includes(p.id)) ??
+      (await run(() => api<{ id: string }>('/dms', { body: { userId: p.id } })));
+    if (dm) {
+      setUi({ dialog: null });
+      open({ type: 'chat', id: dm.id });
+    }
+  };
   return (
-    <Dialog title={`Invite people to ${space.name}`}>
+    <Dialog title={`People in ${space.name}`}>
+      <ul className="people">
+        {people.map((p) => {
+          const at = where(p);
+          return (
+            <li key={p.id}>
+              <span className={`dot-wrap ${at ? 'online' : ''}`}>
+                <Actor user={p} jobs={s.jobs} size={28} />
+              </span>
+              <span>
+                <b>
+                  {p.name}
+                  {p.id === s.me.id && ' (you)'}
+                </b>
+                {at && <small>{at}</small>}
+              </span>
+              {p.id !== s.me.id && <button onClick={() => void message(p)}>Message</button>}
+            </li>
+          );
+        })}
+      </ul>
+      {others.length > 0 && (
+        <div className="chips">
+          {others.map((p) => (
+            <button
+              key={p.id}
+              onClick={() =>
+                void run(() =>
+                  api(`/projects/${space.id}/members`, { body: { userId: p.id } }),
+                ).then((ok) => ok && notify(`${p.name} can now open ${space.name}.`))
+              }
+            >
+              <Plus size={12} /> Add {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <span className="label">Invite with a link</span>
       {error && <p className="join-error">{error}</p>}
       {link && (
         <>
@@ -454,37 +508,18 @@ export function Invite() {
             </button>
           </span>
           <p className="dialog-note">
-            Anyone with this link can join {space.name} until{' '}
+            Works until{' '}
             {new Date(link.expiresAt).toLocaleDateString(undefined, {
               month: 'short',
               day: 'numeric',
             })}
-            . They see what is shared with the space, never what is private to you.{' '}
+            .{' '}
             <button className="link" onClick={() => void make(true)}>
               Make a new link
             </button>{' '}
-            to stop the old one working.
+            to stop this one working.
           </p>
         </>
-      )}
-      {others.length > 0 && (
-        <div>
-          <span className="label">People you already work with</span>
-          <div className="chips">
-            {others.map((p) => (
-              <button
-                key={p.id}
-                onClick={() =>
-                  void run(() =>
-                    api(`/projects/${space.id}/members`, { body: { userId: p.id } }),
-                  ).then((ok) => ok && notify(`${p.name} can now open ${space.name}.`))
-                }
-              >
-                Add {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
       )}
     </Dialog>
   );

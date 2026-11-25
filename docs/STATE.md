@@ -19,7 +19,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 ## The structure
 
-**Left: one list.** The space (shared or only you) with a switcher, Graph, pages by folder with their type, channels, then people and agents with where they are. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there. Find and New page at the bottom.
+**Left: one list, three parts.** At the top: the workspace (switcher), its member count (opens the people panel: who is here, message anyone, invite link) and one "+ New" for a page, a file, pasted text, a channel, an agent or inviting people. Then **Chats** (general, channels, direct messages), **Pages** (pinned first, then the 8 most recent, "Show all", "See as a map") and **Agents** (by name, with what each is doing). Your name at the bottom opens settings, shortcuts and sign out. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there.
 
 **Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). The line between the two is a handle: drag to resize, double-click to even out, and a control on it swaps sides. In a narrow window the two become tabs named after the pages, each with its own close, and the list becomes a drawer.
 
@@ -80,7 +80,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Spend safety nets: one agent call is about 3-4k tokens. Daily limits of 10M for the server, 3M per space and 1M per person (about 300 questions), and at most 20 agent requests a minute per person. They exist to stop a runaway loop or a surprise bill, not to ration use. Background upkeep counts against its space. Set by `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
 - Routines: an agent can do a job on a schedule (every day, weekdays, or weekly at a time), set on its page. Your own agent answers you in the rail; a workspace agent posts in the channel chosen. Checked twice a minute; each runs once per occurrence.
 - Agent page: one screen with setup (what it is for, how it should work, look) on the left and routines, skills and recent work on the right. Fields save when you leave them.
-- Less clutter: one "+" for pages (new page, from a file, new folder); folders take dragged pages; graph filters behind one Filter button; the rail's reads menu has only real choices; "Attach" brings a file in as a private page for the question.
+- Less clutter: graph filters behind one Filter button; the rail's reads menu has only real choices; "Attach" brings a file in as a private page for the question.
 - Welcome and workspaces: a sign-in page that says what the product is, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The space switcher offers both at any time ("New workspace", "Join with an invite link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 

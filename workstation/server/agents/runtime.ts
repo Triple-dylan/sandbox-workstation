@@ -37,6 +37,8 @@ export type AgentTask = {
     members: { name: string; kind: 'human' | 'agent' }[];
     /** What the requester was looking at or had selected, in full. Answer from these first. */
     focus: { title: string; kind: string; body: string }[];
+    /** Pages the team pinned: standing background every agent reads in full. */
+    pinned: { title: string; kind: string; body: string }[];
     /** Other agents this agent may hand work to, by name. */
     colleagues: { name: string; purpose: string }[];
   };

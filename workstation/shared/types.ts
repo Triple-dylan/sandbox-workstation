@@ -127,6 +127,8 @@ export type Resource = {
   source?: { name: string; type: string; at: string };
   /** Put away: out of the list and the live graph, kept in the archive. */
   archived?: boolean;
+  /** Pinned to the top of the list; agents read it as standing background. */
+  pinned?: boolean;
   /** People and agents given access to a private page, beyond its owner. */
   grants?: Id[];
   /** Orientation doc maintained by the project agent. */

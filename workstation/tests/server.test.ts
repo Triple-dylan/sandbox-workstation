@@ -1789,3 +1789,33 @@ test('a message marked decided reaches the agent as settled', async () => {
   await engine.idle();
   assert.ok(seen.at(-1).context.recent.some((m: any) => m.text === '[decided] Team is $32.'));
 });
+
+test('pinned pages: every agent in the space reads them in full, and unpinning takes them out', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind !== 'maintenance') seen.push(task);
+      return task.kind === 'maintenance' ? {} : { reply: 'ok' };
+    },
+  };
+  const { store, engine, dylan, general, agent, project } = setup(runtime);
+  const rules = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Brand rules',
+    body: 'Always write "Sandbox" with a capital S.',
+  });
+  assert.equal(store.updateResource(dylan.id, rules.id, { pinned: true }).pinned, true);
+  store.postMessage(dylan.id, { conversationId: general.id, text: 'hi', addressedTo: agent.id });
+  await engine.idle();
+  assert.deepEqual(
+    seen.at(-1).context.pinned.map((p: any) => p.body),
+    ['Always write "Sandbox" with a capital S.'],
+  );
+  store.updateResource(dylan.id, rules.id, { pinned: false });
+  store.postMessage(dylan.id, { conversationId: general.id, text: 'again', addressedTo: agent.id });
+  await engine.idle();
+  assert.deepEqual(seen.at(-1).context.pinned, []);
+});

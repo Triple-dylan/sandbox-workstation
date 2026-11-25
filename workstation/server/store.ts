@@ -100,6 +100,7 @@ const toResource = (r: Row): Resource => ({
   ...(r.style ? { style: r.style as string } : {}),
   ...(r.source ? { source: parse<NonNullable<Resource['source']>>(r.source)! } : {}),
   ...(r.archived ? { archived: true } : {}),
+  ...(r.pinned ? { pinned: true } : {}),
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
 });
@@ -603,14 +604,6 @@ export class Store {
     this.run('insert into members values (?, ?, ?)', spaceId, agentId, 'agent');
     this.insertResource(agentId, {
       spaceId,
-      kind: 'folder',
-      title: 'Resources & context',
-      body: '',
-      visibility: 'space',
-      role: 'resources',
-    });
-    this.insertResource(agentId, {
-      spaceId,
       kind: 'doc',
       title: 'Orientation',
       body: `# ${name}\n\nThe project agent keeps this orientation up to date as work happens.`,
@@ -947,6 +940,7 @@ export class Store {
       style?: string | null;
       parentId?: Id | null;
       archived?: boolean;
+      pinned?: boolean;
     },
   ) {
     const resource = this.resource(resourceId);
@@ -1002,6 +996,9 @@ export class Store {
       );
       if (patch.archived) this.run('delete from channel_pins where resource_id = ?', resourceId);
     }
+    // Pinned pages sit at the top of the list and every agent in the space reads them in full.
+    if (patch.pinned !== undefined && isPage(resource.kind) && !resource.role)
+      this.run('update resources set pinned = ? where id = ?', patch.pinned ? 1 : 0, resourceId);
     if (patch.style !== undefined)
       this.run(
         'update resources set style = ? where id = ?',

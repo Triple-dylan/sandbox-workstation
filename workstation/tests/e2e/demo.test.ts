@@ -58,8 +58,8 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
 const row = (page: Page, name: string) =>
   page.locator('.sidebar .list-row', { hasText: name }).first();
 const newPage = async (page: Page, kind: string, title: string, mine = false) => {
-  await page.getByRole('button', { name: 'Add a page', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'New page' }).click();
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Page', exact: true }).click();
   await page.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await page.getByLabel('Title').last().fill(title);
   if (mine) await page.getByRole('radio', { name: 'Only you' }).click();
@@ -74,7 +74,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
 
   // Dylan adds Maya to his workspace.
   await dylan.locator('.space-name', { hasText: 'Launch' }).waitFor();
-  await dylan.getByRole('button', { name: 'Invite people' }).click();
+  await dylan.locator('.space-people').click();
   await dylan.getByRole('button', { name: 'Add Maya' }).click();
   await dylan.keyboard.press('Escape');
   await maya.locator('.space-name').click();
@@ -87,6 +87,13 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByText('Saved').waitFor();
   await row(maya, 'Brief').click();
   await maya.locator('.tiptap', { hasText: 'Boxes cost $58 for 50.' }).waitFor();
+
+  // Pinning a page puts it at the top of everyone's list, marked for their agents.
+  await row(dylan, 'Brief').click({ button: 'right' });
+  await dylan.getByRole('menuitem', { name: 'Pin for everyone and their agents' }).click();
+  await maya
+    .locator('.sidebar .list-row:has([aria-label="Pinned"])', { hasText: 'Brief' })
+    .waitFor();
 
   // A private page stays out of Maya's list.
   await newPage(dylan, 'Document', 'Only for Dylan', true);
@@ -193,7 +200,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   // and nothing opens its conversation in the middle.
   await dylan.getByRole('button', { name: 'Close · ⌘J' }).click();
   await dylan.locator('.rail-strip').waitFor();
-  await dylan.locator('.who-chip.agent:has(.chip-lock)').click();
+  await row(dylan, "Dylan's agent").click();
   await dylan.locator('.agent-page').waitFor();
   assert.equal(await dylan.getByRole('button', { name: /^Talk to / }).count(), 0);
   // A routine set up on its page reads back as one sentence.
@@ -273,9 +280,9 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await maya.locator('.feed .msg.from-agent', { hasText: 'Launch' }).first().waitFor();
 
   // The graph shows Dylan's private page to Dylan only.
-  await dylan.getByRole('button', { name: 'Graph', exact: true }).click();
+  await dylan.getByRole('button', { name: 'See as a map' }).click();
   await dylan.locator('.graph-node.is-private', { hasText: 'Only for Dylan' }).waitFor();
-  await maya.getByRole('button', { name: 'Graph', exact: true }).click();
+  await maya.getByRole('button', { name: 'See as a map' }).click();
   await maya.locator('.graph-node', { hasText: 'Brief' }).waitFor();
   assert.equal(await maya.locator('.graph-node', { hasText: 'Only for Dylan' }).count(), 0);
 });
