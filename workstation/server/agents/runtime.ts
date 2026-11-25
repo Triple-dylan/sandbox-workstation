@@ -14,6 +14,8 @@ export type AgentTask = {
   spaceName: string;
   requester: string | null;
   request: string;
+  /** Set on a retry: what was wrong with the previous answer, to fix this time. */
+  feedback?: string;
   conversation: { kind: string; title: string };
   anchor: { title: string; quote: string } | null;
   context: {
@@ -54,6 +56,8 @@ export type AgentResult = {
   /** Pass part of the job to a colleague, by name. */
   handoff?: { to: string; request: string };
   tokens?: number;
+  /** The model's output could not be read as the required JSON. */
+  malformed?: boolean;
 };
 
 export interface AgentRuntime {

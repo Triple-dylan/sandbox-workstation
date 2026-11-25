@@ -73,6 +73,8 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-24
 
 - Every agent runs on `gpt-6-luna`; there is no model setting.
+- Answer checks: agents answer in a strict JSON shape (falls back to plain JSON mode if the model refuses it; gpt-6-luna accepts it). Each answer is checked against what the agent was given: cited pages must exist, a proposed edit must quote text that is really on the page, a handoff must name a real colleague, and a question must get a reply. A fixable problem gets one retry with the problem spelled out; anything still wrong is left out and the reply says so.
+- Live quality checks: `npm run eval` in `workstation/` runs six realistic cases against the real model and scores them (grounded numbers and sources, finding by meaning, admitting what is missing, exact edits, honouring decided messages, no private text in channels). Needs `OPENAI_API_KEY`; not part of CI. First run 2026-11-24: 6/6.
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
 - Meaning-based search: passages are embedded with `text-embedding-3-small` when an OpenAI key is set, stored until the page changes, and merged with keyword ranking. Search only; answers are gpt-6-luna.
 - Spend safety nets: one agent call is about 3-4k tokens. Daily limits of 10M for the server, 3M per space and 1M per person (about 300 questions), and at most 20 agent requests a minute per person. They exist to stop a runaway loop or a surprise bill, not to ration use. Background upkeep counts against its space. Set by `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
