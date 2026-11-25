@@ -2,7 +2,7 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { createApp } from '../server/app.ts';
+import { createApp, type GoogleAccount } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
 import type { AgentRuntime } from '../server/agents/runtime.ts';
@@ -919,6 +919,7 @@ test('hosting: a health check, an access code, and pages served with safe header
   assert.deepEqual(await (await fetch(`${base}/api/config`)).json(), {
     accessCode: true,
     mode: 'open',
+    googleClientId: null,
   });
   assert.equal((await post('/api/join', { name: 'Dylan' })).status, 403);
   const joined = await post(
@@ -1114,7 +1115,11 @@ test('hosted by invitation: invite links, sign-in links, and nobody visible outs
     return call;
   };
   const dylan = client();
-  assert.deepEqual((await dylan('/api/config')).data, { accessCode: true, mode: 'invite' });
+  assert.deepEqual((await dylan('/api/config')).data, {
+    accessCode: true,
+    mode: 'invite',
+    googleClientId: null,
+  });
   assert.equal((await dylan('/api/join', { name: 'Dylan' })).status, 403, 'no invite, no code');
   assert.equal((await dylan('/api/join', { name: 'Dylan', code: 'first-in' })).status, 200);
   const space = (await dylan('/api/projects', { name: 'Launch' })).data;
@@ -1161,6 +1166,99 @@ test('hosted by invitation: invite links, sign-in links, and nobody visible outs
   const samInvite = (await sam('/api/invites', { spaceId: other.id })).data;
   assert.equal((await maya('/api/invites/accept', { token: samInvite.token })).status, 200);
   assert.ok((await maya('/api/snapshot')).data.users.some((u: any) => u.name === 'Sam'));
+});
+
+test('google sign-in: verified accounts only, new people need an invite or the setup code, and the same account comes back as the same person', async () => {
+  // Stand-in for Google: the credential names the account.
+  const accounts: Record<string, GoogleAccount> = {
+    'dylan-cred': { subject: 'g-1', name: 'Dylan', email: 'd@example.com', verified: true },
+    'maya-cred': { subject: 'g-2', name: 'Maya', email: 'm@example.com', verified: true },
+    'other-dylan': { subject: 'g-3', name: 'Dylan', email: 'x@example.com', verified: true },
+    unverified: { subject: 'g-4', name: 'Nope', email: 'n@example.com', verified: false },
+  };
+  const audiences: string[] = [];
+  const app = createApp({
+    dbPath: ':memory:',
+    staticDir: null,
+    runtime: scriptedRuntime,
+    env: { SIGN_IN: 'invite', ACCESS_CODE: 'first-in', GOOGLE_CLIENT_ID: 'client-123' },
+    verifyGoogle: async (credential, clientId) => {
+      audiences.push(clientId);
+      const account = accounts[credential];
+      if (!account) throw new Error('bad token');
+      return account;
+    },
+  });
+  opened.push(app);
+  await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+  const client = () => {
+    let jar = '';
+    return async (path: string, body?: unknown) => {
+      const res = await fetch(base + path, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json', 'x-workstation': '1', cookie: jar },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const set = res.headers.get('set-cookie');
+      if (set) jar = set.split(';')[0];
+      return { status: res.status, data: (await res.json().catch(() => ({}))) as any };
+    };
+  };
+  const dylan = client();
+  assert.equal((await dylan('/api/config')).data.googleClientId, 'client-123');
+  assert.equal(
+    (await dylan('/api/join', { name: 'Dylan', code: 'first-in' })).status,
+    403,
+    'Google only',
+  );
+  assert.equal((await dylan('/api/auth/google', { credential: 'forged' })).status, 403);
+  assert.equal(
+    (await dylan('/api/auth/google', { credential: 'dylan-cred' })).status,
+    403,
+    'a new person needs the setup code or an invite',
+  );
+  assert.equal(
+    (await dylan('/api/auth/google', { credential: 'unverified', code: 'first-in' })).status,
+    403,
+  );
+  assert.equal(
+    (await dylan('/api/auth/google', { credential: 'dylan-cred', code: 'first-in' })).status,
+    200,
+  );
+  assert.ok(
+    audiences.every((a) => a === 'client-123'),
+    "checked against this server's client id",
+  );
+  const me = (await dylan('/api/snapshot')).data.me;
+  assert.equal(me.name, 'Dylan');
+  // The same Google account on another device is the same person, without any code.
+  const laptop = client();
+  assert.equal((await laptop('/api/auth/google', { credential: 'dylan-cred' })).status, 200);
+  assert.equal((await laptop('/api/snapshot')).data.me.id, me.id);
+  // Someone invited joins with Google and lands in the space.
+  const space = (await dylan('/api/projects', { name: 'Launch' })).data;
+  const invite = (await dylan('/api/invites', { spaceId: space.id })).data;
+  const maya = client();
+  assert.equal(
+    (await maya('/api/auth/google', { credential: 'maya-cred', invite: invite.token })).status,
+    200,
+  );
+  assert.ok((await maya('/api/snapshot')).data.spaces.some((x: any) => x.id === space.id));
+  // A second Google account with the same name gets its own person, not Dylan's.
+  const twin = client();
+  assert.equal(
+    (await twin('/api/auth/google', { credential: 'other-dylan', invite: invite.token })).status,
+    200,
+  );
+  const twinMe = (await twin('/api/snapshot')).data.me;
+  assert.notEqual(twinMe.id, me.id);
+  assert.equal(twinMe.name, 'Dylan 2');
+  // Device links still sign you in.
+  const link = (await maya('/api/signin-links', {})).data;
+  const phone = client();
+  assert.equal((await phone('/api/join', { signin: link.token })).status, 200);
+  assert.equal((await phone('/api/snapshot')).data.me.name, 'Maya');
 });
 
 test('sharing from your agent: it says whose agent said it, keeps only sources others can open, and can be taken back', async () => {

@@ -8,7 +8,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 | Branch | What | Status |
 |---|---|---|
-| `archive/local-codex-cursor-nov7` | Nov 6–7 local work: gpt-6-luna runtime, Google sign-in, MVP plan, product corrections, deployment notes. Also carries the history of the Nov 5–6 `cursor/*` branches. | Preserved, not merged. Conflicts with `main` on runtime and sign-in; see the open item in `DECISIONS.md`. |
+| `archive/local-codex-cursor-nov7` | Nov 6–7 local work: gpt-6-luna runtime, Google sign-in, MVP plan, product corrections, deployment notes. Also carries the history of the Nov 5–6 `cursor/*` branches. | Preserved, not merged. Its gpt-6-luna runtime and Google sign-in are now rebuilt on `main`; the rest (MVP plan, product corrections) is reference only. |
 | `cursor/agent-character-options` | Standalone page comparing four agent character directions. | Kept until the Orb choice is settled. |
 
 ## Open it
@@ -69,6 +69,12 @@ The list, the page and the bar are not boxed off from each other: no frames or s
 ## The bar, reworked 2026-11-13
 
 One bar with three jobs. **Who you ask:** your own agent by default, or any of the space's agents; whichever you pick answers only to you. **What it reads:** a button that says "reads This page" (or the selection, both pages, the whole space, or nothing but your words) and lets you change it; drag a page onto the bar to add it. **What it does:** one-click suggestions for what is on screen, the chosen agent's skills, and "/" for actions such as new page, bring in files or settings. The conversation so far opens from the history button.
+
+## Added 2026-11-24
+
+- Every agent runs on `gpt-6-luna`; there is no model setting.
+- Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
+- Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
 ## Known gaps
 
