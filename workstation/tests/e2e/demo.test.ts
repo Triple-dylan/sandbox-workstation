@@ -38,7 +38,8 @@ after(async () => {
   await app?.close();
 });
 
-async function join(name: string): Promise<Page> {
+/** Joins as a new person, then starts a workspace or looks around their private space first. */
+async function join(name: string, startWorkspace?: string): Promise<Page> {
   const page = await (
     await browser.newContext({ viewport: { width: 1440, height: 900 } })
   ).newPage();
@@ -47,6 +48,10 @@ async function join(name: string): Promise<Page> {
   await page.goto(base);
   await page.getByPlaceholder('Name').fill(name);
   await page.getByRole('button', { name: 'Join' }).click();
+  if (startWorkspace) {
+    await page.getByLabel('Workspace name').fill(startWorkspace);
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+  } else await page.getByRole('button', { name: 'Look around my private space first' }).click();
   await page.getByRole('navigation', { name: 'Space' }).waitFor();
   return page;
 }
@@ -62,14 +67,11 @@ const newPage = async (page: Page, kind: string, title: string, mine = false) =>
 };
 
 test('two people: shared pages, comments an agent resolves, a shared canvas, channels, and a private agent', async () => {
-  const dylan = await join('Dylan');
+  // Dylan starts a workspace on his way in; Maya looks around her private space first.
+  const dylan = await join('Dylan', 'Launch');
   const maya = await join('Maya');
 
-  // Dylan makes a shared space and adds Maya.
-  await dylan.locator('.space-name').click();
-  await dylan.getByRole('menuitem', { name: 'New shared space' }).click();
-  await dylan.getByLabel('Name the shared space').fill('Launch');
-  await dylan.getByLabel('Name the shared space').press('Enter');
+  // Dylan adds Maya to his workspace.
   await dylan.locator('.space-name', { hasText: 'Launch' }).waitFor();
   await dylan.getByRole('button', { name: 'Invite people' }).click();
   await dylan.getByRole('button', { name: 'Add Maya' }).click();

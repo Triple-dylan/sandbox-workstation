@@ -28,6 +28,7 @@ import {
   type Workspace,
 } from './workspace.tsx';
 import type { Snapshot } from '../../shared/types.ts';
+import { StartOrJoin } from './Welcome.tsx';
 
 const STORE = 'sw-view-v2';
 function remembered(): Partial<Ui> {
@@ -51,8 +52,19 @@ function remembered(): Partial<Ui> {
   }
 }
 
+/** Whether this person chose to look around their private space before joining a workspace. */
+const skipKey = (userId: string) => `sw-start-skipped:${userId}`;
+function skippedStart(userId: string) {
+  try {
+    return localStorage.getItem(skipKey(userId)) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function App() {
   const { session, refresh } = useSession();
+  const [skipped, setSkipped] = useState(false);
   if (session.status === 'loading') return <div className="boot" aria-busy="true" />;
   if (session.status === 'offline')
     return (
@@ -64,7 +76,30 @@ export function App() {
       </div>
     );
   if (session.status === 'signed-out') return <Join onJoined={() => void refresh()} />;
-  return <Shell s={session.snapshot} refresh={refresh} />;
+  const s = session.snapshot;
+  // Someone in no workspace yet chooses to start one or join one, unless an invite link is
+  // already taking them into one.
+  if (
+    !s.spaces.some((x) => x.kind === 'project') &&
+    !linkToken('invite') &&
+    !skipped &&
+    !skippedStart(s.me.id)
+  )
+    return (
+      <StartOrJoin
+        s={s}
+        onDone={refresh}
+        onSkip={() => {
+          try {
+            localStorage.setItem(skipKey(s.me.id), '1');
+          } catch {
+            // Private browsing: the choice lasts until reload.
+          }
+          setSkipped(true);
+        }}
+      />
+    );
+  return <Shell s={s} refresh={refresh} />;
 }
 
 /** Whether a pane can still be shown: the thing it points at exists and this person can see it. */

@@ -274,6 +274,8 @@ export type Snapshot = {
   runtime: { id: string; label: string; model?: string };
   /** How people get in: anyone picks a name (local), or by invitation (hosted). */
   signIn?: 'open' | 'invite';
+  /** Whether this person may start a new workspace here. */
+  mayStartWorkspace?: boolean;
 };
 
 /** What the composer sends. Exactly one destination; never inferred from a selection. */

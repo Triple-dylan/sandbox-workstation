@@ -83,14 +83,15 @@ export function createApp(options: AppOptions) {
   // With a Google client ID set, people sign in with Google; device links still work.
   const googleClientId = env.GOOGLE_CLIENT_ID?.trim() || '';
   const verifyGoogle = options.verifyGoogle ?? verifyWithGoogle;
-  /** Who may make a new account: anyone locally; by invite link or setup code when hosted. */
-  const mayCreate = (invite: string, code: unknown) => {
-    if (invite) return void store.inviteInfo(invite);
-    if (accessCode && String(code ?? '').trim() !== accessCode)
-      throw new AccessError(
-        mode === 'invite' ? 'That setup code is not right.' : 'That access code is not right.',
-      );
-    if (mode === 'invite' && !accessCode) throw new AccessError('You need an invite link to join.');
+  // Who may start a workspace: emails and/or @domains. Unset, anyone signed in may.
+  const creators = (env.WORKSPACE_CREATORS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const mayStartWorkspace = (userId: Id) => {
+    if (!creators.length) return true;
+    const email = store.emailOf(userId)?.toLowerCase();
+    return !!email && creators.some((c) => (c.startsWith('@') ? email.endsWith(c) : email === c));
   };
   // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
   const attempts = new Map<string, { n: number; at: number }>();
@@ -199,10 +200,9 @@ export function createApp(options: AppOptions) {
       if (!account.verified) throw new AccessError('Use a Google account with a verified email.');
       const invite = typeof input.invite === 'string' ? input.invite : '';
       let user = store.googleUser(account.subject);
-      if (!user) {
-        mayCreate(invite, input.code);
-        user = store.createGoogleUser(account.subject, account.name, account.email);
-      }
+      // Anyone with a verified Google account may sign up; what they can reach is still only
+      // their own space and the workspaces they start or are invited to.
+      if (!user) user = store.createGoogleUser(account.subject, account.name, account.email);
       if (invite) store.acceptInvite(user.id, invite);
       const token = store.createSession(user.id);
       return send(res, 200, { ok: true }, { 'set-cookie': cookieFor(req, token) });
@@ -265,6 +265,7 @@ export function createApp(options: AppOptions) {
       return send(res, 200, {
         ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
         signIn: mode,
+        mayStartWorkspace: mayStartWorkspace(me.id),
       });
     if (path === '/api/events' && method === 'GET') {
       res.writeHead(200, {
@@ -338,8 +339,13 @@ export function createApp(options: AppOptions) {
       return send(res, 200, store.acceptInvite(me.id, str('token')));
     if (path === '/api/signin-links' && method === 'POST')
       return send(res, 200, store.signInLink(me.id));
-    if (path === '/api/projects' && method === 'POST')
+    if (path === '/api/projects' && method === 'POST') {
+      if (!mayStartWorkspace(me.id))
+        throw new AccessError(
+          'Starting workspaces is limited on this workstation. Ask for an invite.',
+        );
       return send(res, 200, store.createProject(me.id, str('name')));
+    }
     if (segments[0] === 'projects' && segments[2] === 'members' && method === 'POST') {
       store.addMember(me.id, segments[1], str('userId'));
       return send(res, 200, { ok: true });

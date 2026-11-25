@@ -1476,10 +1476,12 @@ test('openai runtime asks for the strict answer schema, and falls back to plain 
   assert.equal(r.reply, 'Just text.');
 });
 
-test('google sign-in: verified accounts only, new people need an invite or the setup code, and the same account comes back as the same person', async () => {
+test('google sign-in: anyone with a verified Google account can sign up, the same account comes back as the same person, and starting workspaces can be limited', async () => {
   // Stand-in for Google: the credential names the account.
   const accounts: Record<string, GoogleAccount> = {
     'dylan-cred': { subject: 'g-1', name: 'Dylan', email: 'd@example.com', verified: true },
+    'pat-cred': { subject: 'g-5', name: 'Pat', email: 'pat@team.example', verified: true },
+    'lee-cred': { subject: 'g-6', name: 'Lee', email: 'lee@elsewhere.example', verified: true },
     'maya-cred': { subject: 'g-2', name: 'Maya', email: 'm@example.com', verified: true },
     'other-dylan': { subject: 'g-3', name: 'Dylan', email: 'x@example.com', verified: true },
     unverified: { subject: 'g-4', name: 'Nope', email: 'n@example.com', verified: false },
@@ -1489,7 +1491,11 @@ test('google sign-in: verified accounts only, new people need an invite or the s
     dbPath: ':memory:',
     staticDir: null,
     runtime: scriptedRuntime,
-    env: { SIGN_IN: 'invite', ACCESS_CODE: 'first-in', GOOGLE_CLIENT_ID: 'client-123' },
+    env: {
+      SIGN_IN: 'invite',
+      GOOGLE_CLIENT_ID: 'client-123',
+      WORKSPACE_CREATORS: 'd@example.com, @team.example',
+    },
     verifyGoogle: async (credential, clientId) => {
       audiences.push(clientId);
       const account = accounts[credential];
@@ -1521,19 +1527,13 @@ test('google sign-in: verified accounts only, new people need an invite or the s
     'Google only',
   );
   assert.equal((await dylan('/api/auth/google', { credential: 'forged' })).status, 403);
+  assert.equal((await dylan('/api/auth/google', { credential: 'unverified' })).status, 403);
   assert.equal(
     (await dylan('/api/auth/google', { credential: 'dylan-cred' })).status,
-    403,
-    'a new person needs the setup code or an invite',
-  );
-  assert.equal(
-    (await dylan('/api/auth/google', { credential: 'unverified', code: 'first-in' })).status,
-    403,
-  );
-  assert.equal(
-    (await dylan('/api/auth/google', { credential: 'dylan-cred', code: 'first-in' })).status,
     200,
+    'a new person signs up with Google alone',
   );
+  assert.equal((await dylan('/api/snapshot')).data.mayStartWorkspace, true);
   assert.ok(
     audiences.every((a) => a === 'client-123'),
     "checked against this server's client id",
@@ -1562,6 +1562,16 @@ test('google sign-in: verified accounts only, new people need an invite or the s
   const twinMe = (await twin('/api/snapshot')).data.me;
   assert.notEqual(twinMe.id, me.id);
   assert.equal(twinMe.name, 'Dylan 2');
+  // Only listed emails and domains may start workspaces; anyone may still join by invite.
+  const pat = client();
+  await pat('/api/auth/google', { credential: 'pat-cred' });
+  assert.equal((await pat('/api/projects', { name: 'Pat space' })).status, 200, 'listed domain');
+  const lee = client();
+  assert.equal((await lee('/api/auth/google', { credential: 'lee-cred' })).status, 200);
+  assert.equal((await lee('/api/snapshot')).data.mayStartWorkspace, false);
+  assert.equal((await lee('/api/projects', { name: 'Nope' })).status, 403);
+  assert.equal((await lee('/api/invites/accept', { token: invite.token })).status, 200);
+  assert.ok((await lee('/api/snapshot')).data.spaces.some((x: any) => x.id === space.id));
   // Device links still sign you in.
   const link = (await maya('/api/signin-links', {})).data;
   const phone = client();
