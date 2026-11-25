@@ -2,6 +2,12 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-24
+
+- **GitHub is the project's record, not any harness.** Work had drifted into a Claude cloud branch, a published preview page and 44 uncommitted local files, and the chat history behind it was not findable. From now on everything that matters is committed and pushed, `main` is the source of truth, and every harness (Claude Code, Codex, Cursor) follows the same `AGENTS.md`. Published pages are previews only.
+- **Never put a co-author tag or AI attribution on anything on GitHub.** Hard rule; see `AGENTS.md`.
+- *Open:* **Which agent runtime wins.** The Nov 6–7 local work (branch `archive/local-codex-cursor-nov7`) pins every agent to OpenAI gpt-6-luna with no overrides and adds Google sign-in. The Nov 11–18 line this branch is built on answers with Claude in the in-page preview, OpenAI on the local server, and uses invite and device links for sign-in on Railway. These conflict and need Dylan's call before the archive branch's runtime work is brought over.
+
 ## 2026-11-18
 
 - **Your agent lives on the right.** A rail, always reachable, private to you; » or ⌘J folds it to a slim strip with a dot when an answer is waiting, and ⌘J from anywhere puts you in its box. It replaces the floating bottom bar, so there is one place to talk to your agent. It offers the few things worth doing with what is on screen (by page kind, selection or channel), shows what it is working on, and its answers point at the text they are about. On narrow windows it lies over the page and starts folded. *Supersedes* "the person's own agent as a floating bar" (2026-11-12). The 2026-11-12 "no permanent chat rail on the right" still holds for team talk: the rail is only ever your own agent.
