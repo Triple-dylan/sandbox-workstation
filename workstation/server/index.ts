@@ -1,0 +1,32 @@
+import { fileURLToPath } from 'node:url';
+import { networkInterfaces } from 'node:os';
+import { loadEnv } from './env.ts';
+import { createApp } from './app.ts';
+
+loadEnv();
+const port = Number(process.env.PORT ?? 4174);
+const host = process.env.HOST ?? '127.0.0.1';
+const dbPath =
+  process.env.WORKSTATION_DB ?? fileURLToPath(new URL('../data/workstation.db', import.meta.url));
+const app = createApp({ dbPath, staticDir: process.env.STATIC === 'off' ? null : undefined });
+
+app.server.listen(port, host, () => {
+  const address = app.server.address();
+  const actual = typeof address === 'object' && address ? address.port : port;
+  console.log(
+    `Workstation listening on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}`,
+  );
+  if (host === '0.0.0.0')
+    for (const nets of Object.values(networkInterfaces()))
+      for (const net of nets ?? [])
+        if (net.family === 'IPv4' && !net.internal)
+          console.log(`  on your network: http://${net.address}:${actual}`);
+  console.log(
+    `Agents: ${app.runtime.label}${app.runtime.model ? ` (${app.runtime.model})` : ''}. Data: ${dbPath === ':memory:' ? 'in memory' : dbPath}`,
+  );
+});
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const)
+  process.on(signal, () => {
+    app.close().finally(() => process.exit(0));
+  });

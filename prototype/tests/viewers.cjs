@@ -1,6 +1,0 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const sandbox={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../viewers.js'),'utf8'),sandbox);const V=sandbox.window.ResourceViews;
-const sheet={cells:{A1:{value:10},A2:{value:4},A3:{formula:'SUM(A1:A2)'},B1:{formula:'A3*2+2'},B2:{formula:'1/0'},B3:{formula:'B4'},B4:{formula:'B3'},C1:{formula:'IF(A1,1,0)',cached:1},C2:{formula:'SUM(A1:XFD1048576)'},C3:{formula:'SUM(C3)'},C4:{formula:'1E3+2'},D1:{formula:'-(A1-A2)/2'},D2:{formula:'globalThis.alert(1)'}}};
-assert.equal(V.cellValue(sheet,'B1'),30);assert.equal(V.cellValue(sheet,'B2'),'#DIV/0!');assert.equal(V.cellValue(sheet,'B3'),'#CYCLE!');assert.equal(V.cellValue(sheet,'C1'),1);assert.equal(V.cellValue(sheet,'C2'),'#VALUE!');assert.equal(V.cellValue(sheet,'C3'),'#CYCLE!');assert.equal(V.cellValue(sheet,'C4'),1002);assert.equal(V.cellValue(sheet,'D1'),-3);assert.equal(V.cellValue(sheet,'D2'),'#NAME?');
-sheet.cells.A1.value=20;assert.equal(V.cellValue(sheet,'B1'),50);
-console.log('PASS: 10 formula cases covering dependency edits, cycles, errors, cached unsupported functions, bounded ranges, numeric syntax and non-executable input.');

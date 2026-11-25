@@ -1,16 +1,11 @@
 .DS_Store
-__pycache__/
-*.py[cod]
 node_modules/
+workstation/data/
+workstation/dist/
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
 *.log
 playwright-report/
 test-results/
-# Superseded/rejected or intermediate visual evidence; retained locally.
-prototype/canvas-preview.jpg
-prototype/graph-preview.jpg
-prototype/collaboration-preview.png
-prototype/graph-inspection-preview.png
-prototype/revision-shell.png

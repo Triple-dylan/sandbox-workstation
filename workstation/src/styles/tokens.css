@@ -1,0 +1,85 @@
+/* Monochrome glass. Colour is reserved for people, agents and content. */
+:root {
+  font-family:
+    'DM Sans Variable',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  font-size: 14px;
+  font-weight: 450;
+  color: var(--ink);
+  color-scheme: light;
+  --bg: #f1f1ef;
+  --bg-2: #e3e3e0;
+  --glow: rgba(255, 255, 255, 0.9);
+  --ink: #131414;
+  --ink-2: #55585a;
+  --ink-3: #6e7274;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-solid: rgba(252, 252, 251, 0.94);
+  --edge: rgba(255, 255, 255, 0.9);
+  --line: rgba(20, 22, 24, 0.1);
+  --wash: rgba(20, 22, 24, 0.055);
+  --wash-2: rgba(20, 22, 24, 0.09);
+  --paper: #fdfdfc;
+  --dot: rgba(20, 22, 24, 0.14);
+  --shadow: 0 1px 1px rgba(20, 22, 24, 0.05), 0 10px 30px -10px rgba(20, 22, 24, 0.2);
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 18px 44px -16px rgba(20, 22, 24, 0.3);
+  --focus: #131414;
+  --danger: #a33a3a;
+  --who-mix: 100%;
+  --grid: 24px;
+  --r-s: 9px;
+  --r-m: 14px;
+  --r-l: 22px;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1011;
+  --bg-2: #17191a;
+  --glow: rgba(255, 255, 255, 0.07);
+  --ink: #f1f2f2;
+  --ink-2: #a9adaf;
+  --ink-3: #8f9496;
+  --glass: rgba(255, 255, 255, 0.07);
+  --glass-solid: rgba(30, 32, 33, 0.94);
+  --edge: rgba(255, 255, 255, 0.13);
+  --line: rgba(255, 255, 255, 0.11);
+  --wash: rgba(255, 255, 255, 0.07);
+  --wash-2: rgba(255, 255, 255, 0.12);
+  --paper: #1b1d1e;
+  --dot: rgba(255, 255, 255, 0.13);
+  --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 30px -10px rgba(0, 0, 0, 0.65);
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 44px -16px rgba(0, 0, 0, 0.75);
+  --who-mix: 52%;
+  --focus: #f1f2f2;
+  --danger: #e08a8a;
+}
+
+/* Before the app has set a theme (first paint), follow the system. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg: #0f1011;
+    --bg-2: #17191a;
+    --glow: rgba(255, 255, 255, 0.07);
+    --ink: #f1f2f2;
+    --ink-2: #a9adaf;
+    --ink-3: #8f9496;
+    --glass: rgba(255, 255, 255, 0.07);
+    --glass-solid: rgba(30, 32, 33, 0.94);
+    --edge: rgba(255, 255, 255, 0.13);
+    --line: rgba(255, 255, 255, 0.11);
+    --wash: rgba(255, 255, 255, 0.07);
+    --wash-2: rgba(255, 255, 255, 0.12);
+    --paper: #1b1d1e;
+    --dot: rgba(255, 255, 255, 0.13);
+    --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 12px 30px -10px rgba(0, 0, 0, 0.65);
+    --lift: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 44px -16px rgba(0, 0, 0, 0.75);
+    --who-mix: 52%;
+    --focus: #f1f2f2;
+    --danger: #e08a8a;
+  }
+}
