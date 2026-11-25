@@ -13,7 +13,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 - **One access check** in `server/store.ts` governs every read by a person or an agent. Hosting does not change it.
 - **Agents:** passage retrieval, an answer cache and cache-friendly prompts are in the engine, independent of the model provider.
 - **Meaning-based search.** With an OpenAI key, page passages are turned into vectors with `text-embedding-3-small` (search only; every answer is still written by gpt-6-luna), stored in the database and redone only when a page changes. Each question is matched by keyword and by meaning, and the two rankings are merged. A page is embedded in the background the first time an agent could search it, so a brand-new page is found by keyword only until then. Embedding tokens are not counted against allowances (they cost about a fiftieth of an answer).
-- **Agent spend guardrails.** Besides the server-wide daily limit, each space and each person has a daily token allowance (defaults 100,000 and 50,000), and one person can ask agents at most 10 times a minute. Background upkeep counts against its space. Over an allowance, the agent says so and the labelled stand-in answers; asking too fast gets no answer.
+- **Spend safety nets.** One agent call is about 3-4k tokens. Daily limits default to 10M for the server, 3M per space and 1M per person (about 300 questions), and one person can ask agents at most 20 times a minute. They stop a runaway loop or a surprise bill; they are not meant to ration use. Background upkeep counts against its space. Over an allowance, the agent says so and the labelled stand-in answers; asking too fast gets no answer.
 - **Live window sharing** goes browser to browser; the server only relays set-up messages.
 
 ## Must be done before real teams use it
@@ -62,8 +62,8 @@ In the service, **Variables**, add:
 | `GOOGLE_CLIENT_ID` | the Client ID from step 2.5 |
 | `ACCESS_CODE` | a long random code; the first people in type it once |
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents answer with the labelled scripted stand-in |
-| `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 200000 per day for the whole server |
-| `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 100000, 50000 and 10 |
+| `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 10000000 per day for the whole server |
+| `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 3000000, 1000000 and 20 |
 
 Railway redeploys when variables change.
 
