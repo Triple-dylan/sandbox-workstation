@@ -109,7 +109,15 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     s.spaces.find((x) => x.id === ui.spaceId) ??
     s.spaces.find((x) => x.kind === 'project') ??
     s.spaces[0];
-  const panes = ui.panes.filter((t) => alive(t, s));
+  const myAgent = s.users.find(
+    (u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id && !u.retired,
+  );
+  const myChat = s.conversations.find(
+    (c) => c.kind === 'agent-private' && myAgent && c.participantIds.includes(myAgent.id),
+  );
+  // Your agent's conversation lives only in the rail, never as a page in the middle.
+  const isMyChat = (t: Target) => t.type === 'chat' && t.id === myChat?.id;
+  const panes = ui.panes.filter((t) => alive(t, s) && !isMyChat(t));
   const shownPanes: Target[] = panes.length ? panes : [firstTarget(s, space)];
   const active = Math.min(ui.active, shownPanes.length - 1);
   useEffect(() => {
@@ -196,6 +204,8 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const open = useCallback<Workspace['open']>(
     (target, beside = false) =>
       setUi((old) => {
+        if (target.type === 'chat' && target.id === myChat?.id)
+          return { railOpen: true, nav: false };
         const current = old.panes.filter((t) => alive(t, s));
         const at = current.findIndex((t) => sameTarget(t, target));
         // Something in another space takes the whole view to that space.
@@ -215,7 +225,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         next[Math.min(old.active, next.length - 1)] = target;
         return { panes: next, nav: false, selection: [], spaceId };
       }),
-    [s, setUi],
+    [s, setUi, myChat?.id],
   );
   const jump = useCallback<Workspace['jump']>(
     (spot, note) => {
@@ -246,12 +256,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     [setUi],
   );
 
-  const myAgent = s.users.find(
-    (u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id && !u.retired,
-  );
-  const myChat = s.conversations.find(
-    (c) => c.kind === 'agent-private' && myAgent && c.participantIds.includes(myAgent.id),
-  );
   const scope = scopeOf({ ...ui, panes: shownPanes, active }, s, columns);
   const ask = useCallback<Workspace['ask']>(
     async (text, extra) => {
