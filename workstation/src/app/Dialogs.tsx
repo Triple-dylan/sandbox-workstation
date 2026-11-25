@@ -1,32 +1,43 @@
 import { useState } from 'react';
 import { Copy, Link2 } from 'lucide-react';
-import { Lock, Plus, Users, X } from 'lucide-react';
+import { Lock, Plus, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character } from '../features/agents/Character.tsx';
 import { ORB_FORMS } from '../../shared/types.ts';
 import type { User } from '../../shared/types.ts';
 import { useWorkspace } from './workspace.tsx';
 
-function Dialog({
+/**
+ * Every popup shares this frame: a title with a close button, the content, and at most one primary
+ * action at the bottom right. Esc and a click outside close it.
+ */
+export function Dialog({
   title,
   children,
   wide,
+  bare,
+  onClose,
 }: {
   title: string;
   children: React.ReactNode;
   wide?: boolean;
+  /** No title row: the first field says what this is (a new page's title, say). */
+  bare?: boolean;
+  onClose?: () => void;
 }) {
   const { setUi } = useWorkspace();
-  const close = () => setUi({ dialog: null });
+  const close = onClose ?? (() => setUi({ dialog: null }));
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <section className={`dialog ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
-        <header>
-          <h2>{title}</h2>
-          <button aria-label="Close" onClick={close}>
-            <X size={15} />
-          </button>
-        </header>
+        {!bare && (
+          <header>
+            <h2>{title}</h2>
+            <button aria-label="Close" onClick={close}>
+              <X size={15} />
+            </button>
+          </header>
+        )}
         {children}
       </section>
     </div>
@@ -163,10 +174,6 @@ export function Settings() {
         ],
         (v) => set({ shareCursor: v === 'on' }),
       )}
-      <p className="dialog-note">
-        On canvases, documents, sheets and decks, teammates on the same page see where you are, and
-        you see them. Turning sharing off stops sending yours straight away.
-      </p>
       <DeviceLink />
       <div className="setting">
         <span>Shortcuts</span>
@@ -175,8 +182,7 @@ export function Settings() {
         </button>
       </div>
       <p className="dialog-note">
-        These are yours and stay in this browser. Agents answer with {s.runtime.label}
-        {s.runtime.model ? ` (${s.runtime.model})` : ''}.
+        Saved in this browser. Agents answer with {s.runtime.model || s.runtime.label}.
       </p>
     </Dialog>
   );
@@ -207,10 +213,10 @@ export function PasteText() {
     }
   };
   return (
-    <Dialog title="Paste text in" wide>
+    <Dialog title="Paste text" wide>
       <input
         value={title}
-        placeholder="What is it? e.g. Customer call, May 20"
+        placeholder="Title, like Customer call, May 20"
         aria-label="Title"
         onChange={(e) => setTitle(e.target.value)}
       />
@@ -218,34 +224,28 @@ export function PasteText() {
         autoFocus
         rows={10}
         value={text}
-        placeholder={
-          'Paste a transcript, an email thread or notes.\nLines like "Maya: we ship June 10" are kept as a transcript.'
-        }
+        placeholder="A transcript, an email thread or notes"
         aria-label="Text"
         onChange={(e) => setText(e.target.value)}
       />
-      <div className="dialog-actions">
+      <div className="dialog-foot">
+        <span />
         <button className="primary" disabled={!text.trim()} onClick={() => void save()}>
-          Add to {space.kind === 'personal' ? 'your space' : space.name}
+          Add page
         </button>
       </div>
     </Dialog>
   );
 }
 
-/** Making an agent on purpose: who can use it is the first choice, and it says what that means. */
+/** A new agent: a name, what it is for, and who can use it. The rest is set up on its page. */
 export function AgentBuilder() {
   const { s, space, setUi, run, open } = useWorkspace();
   const canShare = space.kind === 'project';
   const [shared, setShared] = useState(canShare);
   const [name, setName] = useState('');
   const [purpose, setPurpose] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [form, setForm] = useState<(typeof ORB_FORMS)[number]>(ORB_FORMS[1]);
-  const [picked, setPicked] = useState<string[]>([]);
-  const personal = s.spaces.find((x) => x.kind === 'personal')!;
-  const home = shared ? space.id : personal.id;
-  const skills = s.skills.filter((k) => k.spaceId === home);
+  const form = ORB_FORMS[s.users.filter((u) => u.kind === 'agent').length % ORB_FORMS.length];
   const preview = {
     id: 'preview',
     name,
@@ -256,11 +256,9 @@ export function AgentBuilder() {
   const create = async () => {
     const made = await run(async () => {
       const agent = await api<User>('/agents', {
-        body: { name, purpose, instructions, spaceId: shared ? space.id : null },
+        body: { name: name.trim(), purpose, instructions: '', spaceId: shared ? space.id : null },
       });
       await api(`/agents/${agent.id}`, { method: 'PATCH', body: { form } });
-      for (const skillId of picked)
-        await api(`/agents/${agent.id}/skills`, { body: { skillId, on: true } });
       return agent;
     });
     if (made) {
@@ -269,103 +267,52 @@ export function AgentBuilder() {
     }
   };
   return (
-    <Dialog title="New agent" wide>
-      <div className="who-choice" role="radiogroup" aria-label="Who can use it">
-        <button
-          role="radio"
-          aria-checked={shared}
-          disabled={!canShare}
-          onClick={() => setShared(true)}
-        >
-          <Users size={16} />
-          <strong>Shared with {canShare ? space.name : 'a space'}</strong>
-          <small>
-            {canShare
-              ? 'Everyone in the space can ask it, in channels and on pages. It sees what is shared with the space.'
-              : 'Open a shared space to make one there.'}
-          </small>
-        </button>
-        <button role="radio" aria-checked={!shared} onClick={() => setShared(false)}>
-          <Lock size={16} />
-          <strong>Private to you</strong>
-          <small>
-            Only you can talk to it and only you see what it says. It sees what you can see.
-          </small>
-        </button>
-      </div>
-      <div className="builder-row">
-        <Character agent={preview} size={64} />
-        <label>
-          <span>Name</span>
+    <Dialog title="New agent">
+      <form
+        className="dialog-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) void create();
+        }}
+      >
+        <div className="builder-row">
+          <Character agent={preview} size={44} />
           <input
             autoFocus
             value={name}
             maxLength={40}
-            placeholder="e.g. Editor"
+            placeholder="Name, like Editor"
+            aria-label="Name"
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
-      </div>
-      <div className="agent-forms" role="radiogroup" aria-label="Look">
-        {ORB_FORMS.map((f) => (
-          <button
-            key={f}
-            role="radio"
-            aria-checked={form === f}
-            aria-label={`Look: ${f}`}
-            onClick={() => setForm(f)}
-          >
-            <Character agent={preview} size={32} form={f} />
-          </button>
-        ))}
-      </div>
-      <label>
-        <span>What it is for</span>
+        </div>
         <input
           value={purpose}
           maxLength={300}
-          placeholder="One line. e.g. Messaging and copy in our voice"
+          placeholder="What it's for, like messaging in our voice"
+          aria-label="What it's for"
           onChange={(e) => setPurpose(e.target.value)}
         />
-      </label>
-      <label>
-        <span>Standing instructions</span>
-        <textarea
-          rows={3}
-          value={instructions}
-          placeholder="How it should work, what to watch for, what to leave alone."
-          onChange={(e) => setInstructions(e.target.value)}
-        />
-      </label>
-      <div>
-        <span className="label">Skills</span>
-        {skills.length === 0 ? (
-          <p className="dialog-note">
-            No {shared ? 'shared' : 'private'} skills yet. You can write some on the agent’s page
-            once it exists.
-          </p>
-        ) : (
-          <div className="chips">
-            {skills.map((k) => (
-              <button
-                key={k.id}
-                aria-pressed={picked.includes(k.id)}
-                title={k.description}
-                onClick={() =>
-                  setPicked((p) => (p.includes(k.id) ? p.filter((x) => x !== k.id) : [...p, k.id]))
-                }
-              >
-                {k.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="dialog-actions">
-        <button className="primary" disabled={!name.trim()} onClick={() => void create()}>
-          Create {shared ? 'shared' : 'private'} agent
-        </button>
-      </div>
+        <div className="dialog-foot">
+          {canShare ? (
+            <select
+              aria-label="Who can use it"
+              value={shared ? 'space' : 'mine'}
+              onChange={(e) => setShared(e.target.value === 'space')}
+            >
+              <option value="space">Everyone in {space.name}</option>
+              <option value="mine">Only you</option>
+            </select>
+          ) : (
+            <small>
+              <Lock size={11} /> Only you
+            </small>
+          )}
+          <button className="primary" type="submit" disabled={!name.trim()}>
+            Create
+          </button>
+        </div>
+      </form>
     </Dialog>
   );
 }
@@ -409,10 +356,7 @@ function DeviceLink() {
           <Link2 size={13} /> Make a sign-in link
         </button>
       )}
-      <small>
-        Open it on the other device within 15 minutes. It works once. Anyone holding it can sign in
-        as you, so send it only to yourself.
-      </small>
+      <small>Works once, for 15 minutes. Anyone with it can sign in as you.</small>
     </div>
   );
 }
