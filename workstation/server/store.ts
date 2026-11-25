@@ -1826,6 +1826,29 @@ export class Store {
     );
   }
 
+  /** Tokens agents used today for one space or on behalf of one person. */
+  agentUsageToday(scope: 'space' | 'person', key: Id) {
+    const row = this.get(
+      'select tokens from agent_usage where day = ? and scope = ? and key = ?',
+      now().slice(0, 10),
+      scope,
+      key,
+    );
+    return Number(row?.tokens ?? 0);
+  }
+  addAgentUsage(spaceId: Id, personId: Id | null, tokens: number) {
+    const add = (scope: string, key: Id) =>
+      this.run(
+        'insert into agent_usage values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = tokens + excluded.tokens',
+        now().slice(0, 10),
+        scope,
+        key,
+        Math.max(0, Math.round(tokens)),
+      );
+    add('space', spaceId);
+    if (personId) add('person', personId);
+  }
+
   // ---------- snapshot ----------
 
   snapshot(userId: Id, presence: Presence[], runtime: Snapshot['runtime']): Snapshot {

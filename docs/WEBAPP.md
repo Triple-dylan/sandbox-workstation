@@ -4,7 +4,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 
 ## Ready now
 
-- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`.
+- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`, `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
 - **Health check** at `/healthz`.
 - **Sign-in by invitation** (`SIGN_IN=invite`, set in the container). New people join only through a space's invite link (good for 14 days, replaceable) or, for the first people in, the setup code in `ACCESS_CODE`. Someone signs in on another device with a one-time link they make in Settings (15 minutes). Session and sign-in tokens are stored only as hashes. People outside your spaces are not visible and cannot be messaged. The doors in are rate limited.
 - **Google sign-in** (set `GOOGLE_CLIENT_ID`). People continue with their Google account; only verified Google emails are accepted, and the same Google account always comes back as the same person. Google proves who someone is; an invite link or the setup code still decides who may make a new account. With it set, joining by name alone is turned off. Device sign-in links still work.
@@ -12,6 +12,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 - **Installable:** a web manifest and icon, so it can be added to a dock or home screen.
 - **One access check** in `server/store.ts` governs every read by a person or an agent. Hosting does not change it.
 - **Agents:** passage retrieval, an answer cache and cache-friendly prompts are in the engine, independent of the model provider.
+- **Agent spend guardrails.** Besides the server-wide daily limit, each space and each person has a daily token allowance (defaults 100,000 and 50,000), and one person can ask agents at most 10 times a minute. Background upkeep counts against its space. Over an allowance, the agent says so and the labelled stand-in answers; asking too fast gets no answer.
 - **Live window sharing** goes browser to browser; the server only relays set-up messages.
 
 ## Must be done before real teams use it
@@ -23,7 +24,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 5. **Live updates at scale.** Each change tells every browser to refetch everything it can see. Send changes, not snapshots, and move to WebSockets.
 6. **Relay for window sharing.** Across office networks, direct browser-to-browser connections often fail; a TURN relay is needed.
 7. **Retrieval at scale.** Ranking is lexical and in memory. A large corpus wants a stored index and meaning-based search alongside it; PDF import is not built.
-8. **Limits and abuse.** Per-person rate limits, upload size policy, and per-space agent spend limits (there is one daily limit for the whole server).
+8. **Limits and abuse.** Upload size policy. (Agent spend limits per space and per person, and a per-person rate, are done.)
 9. **Operations.** Backups, error reporting, and a way to delete a person's data.
 
 ## Suggested order
@@ -61,6 +62,7 @@ In the service, **Variables**, add:
 | `ACCESS_CODE` | a long random code; the first people in type it once |
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents answer with the labelled scripted stand-in |
 | `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 200000 per day for the whole server |
+| `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 100000, 50000 and 10 |
 
 Railway redeploys when variables change.
 

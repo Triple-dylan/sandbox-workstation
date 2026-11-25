@@ -1,6 +1,12 @@
 import type { ChangeEvent, Store } from '../store.ts';
 import type { Conversation, Id, Job, JobKind, Message, User } from '../../shared/types.ts';
-import { BudgetExceeded, type AgentRuntime, type AgentTask } from './runtime.ts';
+import {
+  BudgetExceeded,
+  TooManyRequests,
+  type AgentLimits,
+  type AgentRuntime,
+  type AgentTask,
+} from './runtime.ts';
 import { scriptedRuntime } from './scripted.ts';
 import { AnswerCache, Retriever } from './retrieve.ts';
 import type { AgentResult } from './runtime.ts';
@@ -20,12 +26,43 @@ export class AgentEngine {
   readonly answers = new AnswerCache<AgentResult>();
   private store: Store;
   readonly runtime: AgentRuntime;
-  private options: { maintenanceDelayMs?: number };
-  constructor(store: Store, runtime: AgentRuntime, options: { maintenanceDelayMs?: number } = {}) {
+  private options: { maintenanceDelayMs?: number; limits?: AgentLimits };
+  /** When each person last had a model answer, for the per-minute limit. */
+  private recentAsks = new Map<Id, number[]>();
+  constructor(
+    store: Store,
+    runtime: AgentRuntime,
+    options: { maintenanceDelayMs?: number; limits?: AgentLimits } = {},
+  ) {
     this.store = store;
     this.runtime = runtime;
     this.options = options;
     store.onChange((event) => this.onChange(event));
+  }
+
+  /**
+   * Checks the spend guardrails before a model is called. Over a daily allowance, the agent says so
+   * and the labelled stand-in answers; asking too fast gets no answer at all.
+   */
+  private guard(spaceName: string, spaceId: Id, personId: Id | null) {
+    const limits = this.options.limits;
+    if (!limits || this.runtime === scriptedRuntime) return;
+    if (personId) {
+      const cutoff = Date.now() - 60_000;
+      const times = (this.recentAsks.get(personId) ?? []).filter((t) => t > cutoff);
+      if (times.length >= limits.requestsPerMinute)
+        throw new TooManyRequests(
+          `you've asked agents ${times.length} times in the last minute. Try again in a moment.`,
+        );
+      times.push(Date.now());
+      this.recentAsks.set(personId, times);
+      if (this.store.agentUsageToday('person', personId) >= limits.personTokensPerDay)
+        throw new BudgetExceeded("You've used today's agent allowance. It resets at 00:00 UTC.");
+    }
+    if (this.store.agentUsageToday('space', spaceId) >= limits.spaceTokensPerDay)
+      throw new BudgetExceeded(
+        `${spaceName} has used today's agent allowance. It resets at 00:00 UTC.`,
+      );
   }
 
   /** Resolves once queued agent work has finished (tests, shutdown). */
@@ -405,8 +442,13 @@ export class AgentEngine {
         recent.filter((m) => m.text.startsWith('[decided]')).map((m) => m.at),
       ]);
       const remembered = cacheable ? this.answers.get(key) : undefined;
+      const requester =
+        trigger && this.store.user(trigger.authorId)?.kind === 'human' ? trigger.authorId : null;
       try {
+        if (!remembered) this.guard(task.spaceName, spaceId, requester);
         result = remembered ?? (await this.runtime.run(task));
+        if (!remembered && result.tokens)
+          this.store.addAgentUsage(spaceId, requester, result.tokens);
         if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
           this.answers.set(key, result);
       } catch (error) {

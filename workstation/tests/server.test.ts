@@ -14,8 +14,14 @@ after(async () => {
   for (const app of opened) await app.close();
 });
 
-function setup(runtime: AgentRuntime = scriptedRuntime) {
-  const app = createApp({ dbPath: ':memory:', staticDir: null, runtime, maintenanceDelayMs: 5 });
+function setup(runtime: AgentRuntime = scriptedRuntime, env: NodeJS.ProcessEnv = {}) {
+  const app = createApp({
+    dbPath: ':memory:',
+    staticDir: null,
+    runtime,
+    maintenanceDelayMs: 5,
+    env,
+  });
   opened.push(app);
   const { store, engine } = app;
   const dylan = store.createHuman('Dylan');
@@ -1166,6 +1172,63 @@ test('hosted by invitation: invite links, sign-in links, and nobody visible outs
   const samInvite = (await sam('/api/invites', { spaceId: other.id })).data;
   assert.equal((await maya('/api/invites/accept', { token: samInvite.token })).status, 200);
   assert.ok((await maya('/api/snapshot')).data.users.some((u: any) => u.name === 'Sam'));
+});
+
+test('agent guardrails: daily allowances per person and per space, and a per-minute rate', async () => {
+  const model: AgentRuntime = {
+    id: 'fake-model',
+    label: 'Fake model',
+    run: async () => ({ reply: 'Model answer', tokens: 100 }),
+  };
+  const ask = async (
+    s: ReturnType<typeof setup>,
+    who: string,
+    conversationId: string,
+    text: string,
+    addressedTo?: string,
+  ) => {
+    s.store.postMessage(who, { conversationId, text, ...(addressedTo ? { addressedTo } : {}) });
+    await s.engine.idle();
+    return s
+      .snap(who)
+      .messages.filter((m) => m.conversationId === conversationId)
+      .at(-1)!;
+  };
+  const privateChat = (s: ReturnType<typeof setup>, who: string) =>
+    s.snap(who).conversations.find((c) => c.kind === 'agent-private')!.id;
+
+  // One person's allowance: after it is used, the agent says so and the labelled stand-in answers.
+  const a = setup(model, { AGENT_PERSON_DAILY_TOKENS: '150', AGENT_SPACE_DAILY_TOKENS: '10000' });
+  const mine = privateChat(a, a.dylan.id);
+  assert.equal((await ask(a, a.dylan.id, mine, 'first question')).runtime, 'fake-model');
+  assert.equal((await ask(a, a.dylan.id, mine, 'second question')).runtime, 'fake-model');
+  const over = await ask(a, a.dylan.id, mine, 'third question');
+  assert.equal(over.runtime, 'scripted');
+  assert.match(over.text, /used today's agent allowance/);
+  // Someone else is unaffected.
+  assert.equal((await ask(a, a.maya.id, privateChat(a, a.maya.id), 'hello')).runtime, 'fake-model');
+
+  // A space's allowance is shared by everyone in it, including the agent's own background upkeep.
+  const b = setup(model, { AGENT_PERSON_DAILY_TOKENS: '10000', AGENT_SPACE_DAILY_TOKENS: '150' });
+  const to = b.agent.id;
+  assert.equal(
+    (await ask(b, b.dylan.id, b.general.id, 'what is the plan', to)).runtime,
+    'fake-model',
+  );
+  assert.ok(b.store.agentUsageToday('space', b.project.id) >= 150, 'answer plus upkeep counted');
+  assert.equal(b.store.agentUsageToday('person', b.maya.id), 0, 'Maya has spent nothing');
+  const spaceOver = await ask(b, b.maya.id, b.general.id, 'anything else', to);
+  assert.equal(spaceOver.runtime, 'scripted');
+  assert.match(spaceOver.text, /Launch has used today's agent allowance/);
+
+  // Asking too fast gets no answer at all, scripted or otherwise.
+  const c = setup(model, { AGENT_REQUESTS_PER_MINUTE: '2' });
+  const fast = privateChat(c, c.dylan.id);
+  await ask(c, c.dylan.id, fast, 'one');
+  await ask(c, c.dylan.id, fast, 'two');
+  const tooFast = await ask(c, c.dylan.id, fast, 'three');
+  assert.match(tooFast.text, /asked agents 2 times in the last minute/);
+  assert.notEqual(tooFast.runtime, 'scripted');
 });
 
 test('google sign-in: verified accounts only, new people need an invite or the setup code, and the same account comes back as the same person', async () => {
