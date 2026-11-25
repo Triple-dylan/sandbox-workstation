@@ -7,6 +7,7 @@ import { KindIcon, kindName } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
 import { inviteFrom } from './invite.ts';
 import { Choice } from './Choice.tsx';
+import { talkTo } from './agentChat.ts';
 
 /**
  * Everything made from the list is made in the list, in the section where it will appear: one
@@ -271,7 +272,8 @@ export function NewChannel() {
 
 /** A new agent: a name and what it is for. Its instructions, look and skills are on its page. */
 export function NewAgent() {
-  const { s, space, setUi, run, open } = useWorkspace();
+  const ws = useWorkspace();
+  const { s, space, setUi, run, open } = ws;
   const [name, setName] = useState('');
   const [purpose, setPurpose] = useState('');
   const [mine, setMine] = useState(space.kind !== 'project');
@@ -299,7 +301,9 @@ export function NewAgent() {
     });
     if (made) {
       close();
-      open({ type: 'who', id: made.id });
+      // A new agent opens on a chat with it; its settings are one click away there.
+      if (made.spaceId) void talkTo(ws, made);
+      else open({ type: 'who', id: made.id });
     }
   };
   return (

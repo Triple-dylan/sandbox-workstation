@@ -12,7 +12,7 @@ after(async () => {
   for (const close of closing) await close();
 });
 
-test('shared browser: private addresses are refused, and the address bar searches DuckDuckGo', async () => {
+test('shared browser: private addresses are refused, and the address bar searches the chosen engine', async () => {
   for (const a of [
     '127.0.0.1',
     '10.1.2.3',
@@ -29,10 +29,22 @@ test('shared browser: private addresses are refused, and the address bar searche
   assert.equal(await mayVisit('http://localhost:4174/api/snapshot'), false);
   assert.equal(await mayVisit('http://169.254.169.254/latest/meta-data'), false);
   assert.equal(await mayVisit('data:text/html,hi'), true);
-  assert.equal(addressFor(''), 'https://duckduckgo.com/');
-  assert.equal(addressFor('q1 travel budget'), 'https://duckduckgo.com/?q=q1%20travel%20budget');
+  assert.equal(addressFor(''), 'https://www.google.com/');
+  assert.equal(
+    addressFor('q1 travel budget'),
+    'https://www.google.com/search?q=q1%20travel%20budget',
+  );
+  assert.equal(
+    addressFor('q1 travel budget', 'duckduckgo'),
+    'https://duckduckgo.com/?q=q1%20travel%20budget',
+  );
   assert.equal(addressFor('example.com/pricing'), 'https://example.com/pricing');
   assert.equal(addressFor('https://a.b/c'), 'https://a.b/c');
+  assert.equal(
+    addressFor('https://www.google.com/ navan pricing'),
+    'https://www.google.com/search?q=https%3A%2F%2Fwww.google.com%2F%20navan%20pricing',
+    'words with spaces are a search, never a broken address',
+  );
 
   // The proxy every connection goes through refuses this machine, by name or number.
   const inside = createServer((_req, res) => res.end('secret'));
@@ -91,7 +103,7 @@ test('shared browser: the team watches one real Chrome, one drives, and agents c
   store.addMember(priya.id, project.id, sam.id);
   const page = store.createResource(priya.id, { spaceId: project.id, kind: 'browser', body: '' });
   assert.equal(page.title, 'Browser');
-  assert.match(page.body, /duckduckgo\.com/);
+  assert.match(page.body, /google\.com/, 'opens on Google unless the team picks another');
 
   // Two people watching: each gets the same frames and state.
   const viewer = () => {

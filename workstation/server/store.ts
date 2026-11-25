@@ -1015,11 +1015,12 @@ export class Store {
         body = json({ rows: Array.from({ length: 8 }, () => ['', '', '', '']) })!;
       title = title || 'Untitled sheet';
     } else if (input.kind === 'browser') {
-      // Opens on DuckDuckGo. What it shows afterwards is set only by the browser itself.
+      // Opens on Google. What it shows afterwards is set only by the browser itself.
       body = json({
-        tabs: [{ url: 'https://duckduckgo.com/', title: 'DuckDuckGo' }],
+        tabs: [{ url: 'https://www.google.com/', title: 'Google' }],
         active: 0,
         text: '',
+        engine: 'google',
       })!;
       title = title || 'Browser';
     } else if (input.kind === 'deck') {
@@ -1506,7 +1507,14 @@ export class Store {
   }
   openDm(actorId: Id, otherId: Id) {
     const other = this.user(otherId);
-    if (!other || other.kind !== 'human' || otherId === actorId)
+    // A workspace agent can be talked to one to one, like a person; your own agent lives in the rail.
+    const agent =
+      other?.kind === 'agent' &&
+      other.role === 'project' &&
+      !other.retired &&
+      !!other.spaceId &&
+      this.isMember(actorId, other.spaceId);
+    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&

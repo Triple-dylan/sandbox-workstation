@@ -4,6 +4,9 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-25
 
+- **Clicking an agent opens a chat with it; its settings are secondary.** Dylan: "clicking agents should bring you to a chat with them!! ... the god damn agent edit settings hsouldnt be the prime focus." Your own agent opens the rail; a workspace agent opens a one-to-one chat of yours with it (it answers without a tag, only you see it). Settings are the sliders button in that chat's header, or right-click in the list. A new agent opens on its chat.
+- **The shared browser searches Google by default**, with DuckDuckGo and Bing as a choice per Browser page. Dylan: "lets not always force a redirect to duck duck." Google may show its "I'm not a robot" check to a browser run on a server; a person on the team ticks it, the app never does.
+
 - **A shared browser in the workspace, on our own Chrome.** Dylan asked for "a duckduckgo implementation so teams can use one shared browser within the harness", rejected a reader-copy version ("not even relatively close to what I was suggesting"), and chose our own Chrome over Hyperbeam. A Browser page runs a real Chrome on the server, streamed live to everyone on the page; one person drives at a time and anyone can take control; teammates' pointers show on the screen; DuckDuckGo is the home page and the address bar's search. Sign-ins are kept per workspace and shared with everyone in it, and the page says so. Agents read the open tab. It is a normal, visible Chrome (on a virtual screen on the server), because DuckDuckGo and many other sites refuse headless Chrome. Every connection goes through a guard that refuses this machine and private networks; downloads are off.
 
 - **Build the rest of the audit plan** (`docs/AUDIT-2026-11-25.md`, sections G, H, B3, C2–C4, E). Dylan: "go implement everything I said".

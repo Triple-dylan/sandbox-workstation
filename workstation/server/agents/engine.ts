@@ -237,8 +237,9 @@ export class AgentEngine {
 
   private async handleMessage(message: Message) {
     const conversation = this.store.conversation(message.conversationId)!;
+    // Your own agent's chat, or a one-to-one chat with a workspace agent: it answers without a tag.
     const agentInPrivate =
-      conversation.kind === 'agent-private'
+      conversation.kind === 'agent-private' || conversation.kind === 'dm'
         ? conversation.participantIds
             .map((id) => this.store.user(id))
             .find((u) => u?.kind === 'agent')
@@ -953,7 +954,9 @@ export class AgentEngine {
         conversationId: conversation.id,
         text,
         replyTo:
-          trigger && conversation.kind !== 'agent-private' ? (trigger.replyTo ?? trigger.id) : null,
+          trigger && conversation.kind !== 'agent-private' && conversation.kind !== 'dm'
+            ? (trigger.replyTo ?? trigger.id)
+            : null,
       },
       {
         jobId: job.id,

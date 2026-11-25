@@ -3,7 +3,8 @@ import { ArrowLeft, ArrowRight, Hand, Plus, RotateCw, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { Avatar } from '../features/agents/Character.tsx';
-import type { Id, Resource } from '../../shared/types.ts';
+import { Choice } from '../app/Choice.tsx';
+import { SEARCH_ENGINES, type Id, type Resource, type SearchEngine } from '../../shared/types.ts';
 
 type Live = {
   tabs: { id: string; url: string }[];
@@ -45,6 +46,7 @@ export function BrowserPage({ page }: { page: Resource }) {
     error: null,
   });
   const [address, setAddress] = useState<string | null>(null);
+  const selectOnUp = useRef(false);
   const screen = useRef<HTMLDivElement>(null);
   const image = useRef<HTMLImageElement>(null);
   const [ready, setReady] = useState(false);
@@ -112,6 +114,13 @@ export function BrowserPage({ page }: { page: Resource }) {
   }, [page.id]);
 
   const activeTab = live.tabs.find((t) => t.id === live.active);
+  let engine: SearchEngine = 'google';
+  try {
+    const chosen = JSON.parse(page.body).engine;
+    if (chosen in SEARCH_ENGINES) engine = chosen;
+  } catch {
+    // Google until the team picks another.
+  }
   const shownAddress = address ?? activeTab?.url ?? '';
   return (
     <div className="browser-page">
@@ -164,14 +173,31 @@ export function BrowserPage({ page }: { page: Resource }) {
         <input
           value={shownAddress}
           aria-label="Address or search"
-          placeholder="Search DuckDuckGo or type an address"
+          placeholder={`Search ${SEARCH_ENGINES[engine].name} or type an address`}
           onFocus={(e) => {
             setAddress(shownAddress);
-            requestAnimationFrame(() => e.target.select());
+            selectOnUp.current = true;
+            e.target.select();
+          }}
+          // The click that focused the bar would otherwise undo the selection, so a search
+          // typed next would be added onto the old address.
+          onMouseUp={(e) => {
+            if (!selectOnUp.current) return;
+            selectOnUp.current = false;
+            e.preventDefault();
+            e.currentTarget.select();
           }}
           onBlur={() => setAddress(null)}
           onChange={(e) => setAddress(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && (setAddress(null), e.currentTarget.blur())}
+        />
+        <Choice
+          label="Search with"
+          value={engine}
+          options={Object.entries(SEARCH_ENGINES).map(
+            ([id, e]) => [id as SearchEngine, e.name] as const,
+          )}
+          onChange={(next) => void send({ t: 'engine', engine: next })}
         />
         <span className="browser-who">
           {live.watching

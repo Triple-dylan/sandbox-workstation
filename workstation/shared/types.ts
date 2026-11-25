@@ -145,7 +145,28 @@ export type SheetBody = {
  * A shared browser page: the tabs it had open, which was in front, and the readable text of that
  * tab, so agents can read what the team is looking at. The live screen is never stored.
  */
-export type BrowserBody = { tabs: { url: string; title: string }[]; active: number; text: string };
+export type BrowserBody = {
+  tabs: { url: string; title: string }[];
+  active: number;
+  text: string;
+  /** Where words typed in the address bar are searched. Google unless the team picks another. */
+  engine?: SearchEngine;
+};
+export type SearchEngine = 'google' | 'duckduckgo' | 'bing';
+export const SEARCH_ENGINES: Record<SearchEngine, { name: string; home: string; search: string }> =
+  {
+    google: {
+      name: 'Google',
+      home: 'https://www.google.com/',
+      search: 'https://www.google.com/search?q=',
+    },
+    duckduckgo: {
+      name: 'DuckDuckGo',
+      home: 'https://duckduckgo.com/',
+      search: 'https://duckduckgo.com/?q=',
+    },
+    bing: { name: 'Bing', home: 'https://www.bing.com/', search: 'https://www.bing.com/search?q=' },
+  };
 /** A deck's stored form. */
 export type DeckBody = { slides: { title: string; body: string }[] };
 /** What an embed on a canvas points at. */

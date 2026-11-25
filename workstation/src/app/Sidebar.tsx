@@ -8,6 +8,7 @@ import { KindIcon, chatTitle, mentionsIn, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type MenuItem, type Target } from './workspace.tsx';
 import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
+import { agentChat, talkTo } from './agentChat.ts';
 import {
   JoinWorkspace,
   NewAgent,
@@ -25,7 +26,8 @@ const RECENT = 8;
  * from the one "New" button at the top; people live behind the workspace's member count.
  */
 export function Sidebar() {
-  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu } = useWorkspace();
+  const ws = useWorkspace();
+  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu } = ws;
   const [joining, setJoining] = useState<'space' | 'join' | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [all, setAll] = useState(false);
@@ -192,9 +194,20 @@ export function Sidebar() {
       <button
         key={a.id}
         className="list-row agent"
-        aria-current={isOpen({ type: 'who', id: a.id }) ? 'page' : undefined}
+        aria-current={
+          isOpen({ type: 'who', id: a.id }) ||
+          (agentChat(s, a) && isOpen({ type: 'chat', id: agentChat(s, a)!.id }))
+            ? 'page'
+            : undefined
+        }
         title={`${a.name} · ${a.id === space.agentId ? `${space.name}'s own agent: ask it anything here` : a.role === 'personal' ? 'private to you' : `shared with ${space.name}`}`}
-        onClick={(e) => open({ type: 'who', id: a.id }, beside(e))}
+        onClick={(e) => void talkTo(ws, a, beside(e))}
+        onContextMenu={(e) =>
+          menu(e, [
+            { label: `Chat with ${a.name}`, run: () => void talkTo(ws, a) },
+            { label: 'Settings', run: () => open({ type: 'who', id: a.id }, true) },
+          ])
+        }
       >
         <Character
           agent={a}

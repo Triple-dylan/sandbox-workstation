@@ -1,5 +1,6 @@
 import { BlockList, isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
+import { SEARCH_ENGINES, type SearchEngine } from '../../shared/types.ts';
 
 /**
  * Addresses the shared browser must never reach: this machine, the private network it sits on,
@@ -62,13 +63,14 @@ export async function mayVisit(raw: string, allow: (host: string) => boolean = (
   }
 }
 
-/** What was typed in the address bar: a web address, or words to search DuckDuckGo for. */
-export function addressFor(typed: string) {
+/** What was typed in the address bar: a web address, or words to search for. */
+export function addressFor(typed: string, engine: SearchEngine = 'google') {
+  const { home, search } = SEARCH_ENGINES[engine] ?? SEARCH_ENGINES.google;
   const text = typed.trim();
-  if (!text) return 'https://duckduckgo.com/';
-  if (/^https?:\/\//i.test(text)) return text;
+  if (!text) return home;
+  if (/^https?:\/\/\S+$/i.test(text)) return text;
   if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/.test(text) && !/\s/.test(text)) return `https://${text}`;
-  return `https://duckduckgo.com/?q=${encodeURIComponent(text)}`;
+  return `${search}${encodeURIComponent(text)}`;
 }
 
 /** The address to connect to for a host, or null if any of its addresses is private. */

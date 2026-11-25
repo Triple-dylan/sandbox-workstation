@@ -4,7 +4,12 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import type { ServerResponse } from 'node:http';
 import type { BrowserContext, CDPSession, Page } from 'playwright';
 import { InputError, type Store } from '../store.ts';
-import type { BrowserBody, Id } from '../../shared/types.ts';
+import {
+  SEARCH_ENGINES,
+  type BrowserBody,
+  type Id,
+  type SearchEngine,
+} from '../../shared/types.ts';
 import { addressFor, guardProxy, mayVisit } from './guard.ts';
 
 const WIDTH = 1280;
@@ -43,6 +48,7 @@ export type BrowserInput =
   | { t: 'go'; url: string }
   | { t: 'back' | 'forward' | 'reload' | 'take' | 'release' }
   | { t: 'newTab'; url?: string }
+  | { t: 'engine'; engine: SearchEngine }
   | { t: 'closeTab' | 'showTab'; id: string };
 
 /**
@@ -201,7 +207,7 @@ export class SharedBrowsers {
     this.rooms.set(resourceId, room);
     ws.rooms.add(resourceId);
     const body = readBrowser(resource.body);
-    const urls = body.tabs.length ? body.tabs.map((t) => t.url) : ['https://duckduckgo.com/'];
+    const urls = body.tabs.length ? body.tabs.map((t) => t.url) : [addressFor('', body.engine)];
     for (const url of urls.slice(0, 8)) {
       const tab = this.track(room, await ws.context.newPage());
       void tab.page.goto(url).catch(() => {});
@@ -289,6 +295,7 @@ export class SharedBrowsers {
       ? await active.page.evaluate(() => document.body?.innerText ?? '').catch(() => '')
       : '';
     const body: BrowserBody = {
+      engine: this.engine(room),
       tabs: tabs.filter((t) => t.url && t.url !== 'about:blank'),
       active: Math.max(
         0,
@@ -327,6 +334,16 @@ export class SharedBrowsers {
     const now = Date.now();
     if (input.t === 'move')
       room.pointers.set(userId, { x: clamp(input.x), y: clamp(input.y), at: now });
+    // Which search engine to use is the page's setting, not driving.
+    if (input.t === 'engine') {
+      const resource = this.store.resource(room.resourceId);
+      if (resource && input.engine in SEARCH_ENGINES)
+        this.store.setBrowserBody(room.resourceId, {
+          ...readBrowser(resource.body),
+          engine: input.engine,
+        });
+      return;
+    }
     const driving = room.driver && room.driver !== userId && now - room.driverAt < DRIVER_IDLE_MS;
     if (input.t === 'release') {
       if (room.driver === userId) room.driver = null;
@@ -375,7 +392,7 @@ export class SharedBrowsers {
         await page?.keyboard.insertText(String(input.text).slice(0, 5000));
         break;
       case 'go':
-        await page?.goto(addressFor(input.url)).catch(() => {});
+        await page?.goto(addressFor(input.url, this.engine(room))).catch(() => {});
         break;
       case 'back':
         await page?.goBack().catch(() => {});
@@ -391,7 +408,7 @@ export class SharedBrowsers {
         const ws = await this.workspace(room.spaceId);
         const fresh = this.track(room, await ws.context.newPage());
         await this.show(room, fresh.id);
-        void fresh.page.goto(addressFor(input.url ?? '')).catch(() => {});
+        void fresh.page.goto(addressFor(input.url ?? '', this.engine(room))).catch(() => {});
         break;
       }
       case 'showTab':
@@ -405,6 +422,11 @@ export class SharedBrowsers {
     }
     if (changed || input.t !== 'move') this.state(room);
     else this.pointers(room);
+  }
+
+  /** The search engine this page uses: Google unless the team chose another. */
+  private engine(room: Room): SearchEngine {
+    return readBrowser(this.store.resource(room.resourceId)?.body ?? '').engine ?? 'google';
   }
 
   private async close(resourceId: Id) {
@@ -451,6 +473,7 @@ export function readBrowser(body: string): BrowserBody {
         : [],
       active: Number(parsed.active) || 0,
       text: String(parsed.text ?? ''),
+      engine: parsed.engine && parsed.engine in SEARCH_ENGINES ? parsed.engine : 'google',
     };
   } catch {
     return { tabs: [], active: 0, text: '' };

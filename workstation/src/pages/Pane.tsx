@@ -8,6 +8,7 @@ import {
   Menu,
   MessagesSquare,
   MoreHorizontal,
+  SlidersHorizontal,
   Trash2,
   Users,
   X,
@@ -239,6 +240,11 @@ export function Pane({
     if (chatFor) open({ type: 'chat', id: chatFor.id }, true);
   };
   const locked = page?.role === 'orientation';
+  // A one-to-one chat with a workspace agent: the agent is who you are talking to.
+  const chatAgent =
+    chat?.kind === 'dm'
+      ? chat.participantIds.map((id) => user(id)).find((u) => u?.kind === 'agent')
+      : undefined;
   const title = page
     ? page.title
     : chat
@@ -267,7 +273,9 @@ export function Pane({
         : chat.kind === 'agent-private'
           ? 'Private to you'
           : chat.kind === 'dm'
-            ? 'Direct messages · only the two of you'
+            ? chatAgent
+              ? `${chatAgent.purpose || `Shared with ${space.name}`} · only you see this chat`
+              : 'Direct messages · only the two of you'
             : 'Page feed'
       : target.type === 'graph'
         ? space.name
@@ -302,6 +310,8 @@ export function Pane({
             <KindIcon kind="channel" size={16} />
           ) : who?.kind === 'agent' ? (
             <Character agent={who} size={20} state={agentState(who.id, s.jobs)} />
+          ) : chatAgent ? (
+            <Character agent={chatAgent} size={20} state={agentState(chatAgent.id, s.jobs)} />
           ) : null}
         </span>
         <div className="pane-title">
@@ -385,6 +395,15 @@ export function Pane({
           ))}
         </span>
         <span className="pane-actions">
+          {chatAgent && (
+            <button
+              aria-label={`${chatAgent.name}'s settings`}
+              title={`${chatAgent.name}'s settings: what it is for, what it looks after, how it makes changes`}
+              onClick={() => open({ type: 'who', id: chatAgent.id }, true)}
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+          )}
           {page && page.kind === 'doc' && said > 0 && (
             <button
               className="talk-chip"
