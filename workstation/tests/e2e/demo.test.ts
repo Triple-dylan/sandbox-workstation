@@ -63,7 +63,10 @@ const newPage = async (page: Page, kind: string, title: string, mine = false) =>
   const form = page.getByRole('form', { name: 'New page' });
   await form.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await form.getByLabel('Title').fill(title);
-  if (mine) await form.getByLabel('Who can open it').selectOption('mine');
+  if (mine) {
+    await form.getByRole('button', { name: /^Who can open it/ }).click();
+    await page.getByRole('menuitemradio', { name: 'Only you' }).click();
+  }
   await form.getByRole('button', { name: 'Create', exact: true }).click();
   await form.waitFor({ state: 'detached' });
   await page.locator('.pane-title input').waitFor();
@@ -119,7 +122,8 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.select-tools').waitFor({ state: 'detached' });
   await dylan.locator('.tiptap p', { hasText: 'Boxes cost' }).click({ clickCount: 3 });
   await dylan.getByRole('button', { name: 'Comment' }).click();
-  await dylan.getByLabel('Ask an agent to answer here').selectOption({ index: 1 });
+  await dylan.getByRole('button', { name: /^Ask an agent to answer here/ }).click();
+  await dylan.getByRole('menuitemradio', { name: /^Ask .* to answer here/ }).click();
   await dylan
     .getByLabel('Comment', { exact: true })
     .fill('replace this with: Boxes cost $61 for 60.');

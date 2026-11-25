@@ -620,7 +620,7 @@ button.danger {
   margin-left: 23px;
   width: 100%;
 }
-.plan-meta select,
+.plan-meta .choice,
 .plan-meta input[type='date'] {
   border: 0;
   background: var(--wash);
@@ -661,7 +661,7 @@ button.danger {
   font-size: 13.5px;
   padding: 2px 0;
 }
-.plan-meta select {
+.plan-meta .choice {
   max-width: 86px;
 }
 .plan-meta input[type='date'] {
@@ -725,7 +725,7 @@ button.danger {
 .plan-meta .plan-move {
   margin-left: auto;
 }
-.plan-meta select {
+.plan-meta .choice {
   max-width: 72px;
 }
 .plan-meta input[type='date'] {
@@ -822,7 +822,7 @@ button.danger {
   color: var(--ink);
   background: var(--paper);
 }
-.plan-meta select,
+.plan-meta .choice,
 .plan-meta input[type='date'] {
   color: var(--ink-2);
   background: var(--wash);
@@ -1166,7 +1166,7 @@ body.resizing .pane {
 .popover.menu > button.danger {
   color: var(--danger);
 }
-.popover.menu select {
+.popover.menu .choice {
   flex: 1;
   padding: 3px 6px;
 }
@@ -2112,7 +2112,7 @@ body.resizing .pane {
   border-color: var(--mark-edge);
 }
 .comment.drafting textarea,
-.comment.drafting select {
+.comment.drafting .choice {
   width: 100%;
   font-size: 13px;
 }
@@ -5602,7 +5602,7 @@ button.chat-pin.add:hover {
 .agent-setup input,
 .agent-setup textarea,
 .routine-form input,
-.routine-form select {
+.routine-form .choice {
   border: 1px solid var(--line);
   background: var(--paper);
   color: inherit;
@@ -5860,7 +5860,7 @@ select:focus-visible {
   display: inline-flex;
   gap: 4px;
 }
-.list-new-foot select {
+.list-new-foot .choice {
   height: 28px;
   padding: 0 6px;
   font-size: 12.5px;
@@ -5932,4 +5932,74 @@ select:focus-visible {
 .list-people-add:hover {
   background: var(--wash);
   color: var(--ink);
+}
+
+/* ---------- the app's own dropdown ---------- */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.choice:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.choice svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.context button[role='menuitemradio'] {
+  padding-left: 28px;
+  position: relative;
+}
+.context button.checked {
+  color: var(--ink);
+}
+.context button.checked::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-70%) rotate(-45deg);
+}
+.choice > span {
+  flex: 0 1 auto;
+}
+.list-new-foot .choice {
+  flex: none;
+}
+.list-new {
+  position: relative;
+}
+.list-new-close {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.list-new-close:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.list-new > .list-new-name,
+.list-new-agent {
+  padding-right: 24px;
 }

@@ -118,6 +118,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const [picker, setPicker] = useState<Picker | null>(null);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [dropping, setDropping] = useState(false);
+  // A drag over the window fires dragover again and again; when those stop (dropped, cancelled,
+  // or carried out of the window) the hint goes. Leave events alone are not reliable for this.
+  const dragGone = useRef<ReturnType<typeof setTimeout>>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const [width, setWidth] = useState(() => window.innerWidth);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -499,9 +502,11 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           if (!types.includes('Files')) return;
           e.preventDefault();
           setDropping(true);
+          clearTimeout(dragGone.current);
+          dragGone.current = setTimeout(() => setDropping(false), 250);
         }}
-        onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
         onDrop={(e) => {
+          clearTimeout(dragGone.current);
           setDropping(false);
           if (e.defaultPrevented) return;
           const dragged = e.dataTransfer.getData(DRAG);
@@ -610,7 +615,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           }}
         />
         {dropping && (
-          <div className="drop-hint" onDragLeave={() => setDropping(false)}>
+          <div className="drop-hint">
             Drop to add to {space.kind === 'personal' ? 'your space' : space.name}
           </div>
         )}
@@ -635,8 +640,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
                 ) : (
                   <button
                     key={i}
-                    role="menuitem"
-                    className={item.danger ? 'danger' : ''}
+                    role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+                    aria-checked={item.checked}
+                    className={`${item.danger ? 'danger' : ''} ${item.checked ? 'checked' : ''}`}
                     onClick={() => {
                       setMenuAt(null);
                       item.run();

@@ -6,6 +6,7 @@ import { ORB_FORMS, PAGE_KINDS, type PageKind, type User } from '../../shared/ty
 import { KindIcon, kindName } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
 import { inviteFrom } from './invite.ts';
+import { Choice } from './Choice.tsx';
 
 /**
  * Everything made from the list is made in the list, in the section where it will appear: one
@@ -45,17 +46,21 @@ function ListForm({
       }}
       onKeyDown={(e) => e.key === 'Escape' && (e.stopPropagation(), onClose())}
     >
+      <button
+        type="button"
+        className="list-new-close"
+        aria-label="Cancel"
+        title="Cancel (Esc)"
+        onClick={onClose}
+      >
+        <X size={13} />
+      </button>
       {children}
       <div className="list-new-foot">
         {foot ?? <span />}
-        <span>
-          <button type="button" className="list-new-cancel" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary" type="submit" disabled={!ready}>
-            {submit}
-          </button>
-        </span>
+        <button className="primary" type="submit" disabled={!ready}>
+          {submit}
+        </button>
       </div>
     </form>
   );
@@ -79,14 +84,15 @@ function Who({
       </small>
     );
   return (
-    <select
-      aria-label={label}
+    <Choice
+      label={label}
       value={mine ? 'mine' : 'space'}
-      onChange={(e) => setMine(e.target.value === 'mine')}
-    >
-      <option value="space">Everyone</option>
-      <option value="mine">Only you</option>
-    </select>
+      options={[
+        ['space', 'Everyone'],
+        ['mine', 'Only you'],
+      ]}
+      onChange={(v) => setMine(v === 'mine')}
+    />
   );
 }
 

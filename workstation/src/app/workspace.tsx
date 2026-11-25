@@ -113,7 +113,14 @@ export type Picker = {
   onPick: (target: Target) => void;
 };
 
-export type MenuItem = { label: string; run: () => void; danger?: boolean } | 'line';
+export type MenuItem =
+  | {
+      label: string;
+      run: () => void;
+      danger?: boolean;
+      /** A choice: ticked when current. */ checked?: boolean;
+    }
+  | 'line';
 
 export type Workspace = {
   s: Snapshot;

@@ -1,3 +1,4 @@
+import { Choice } from '../app/Choice.tsx';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Square } from 'lucide-react';
@@ -278,27 +279,23 @@ function Routines({ who, editable }: { who: User; editable: boolean }) {
           }}
         >
           <div className="routine-when">
-            <select
-              aria-label="How often"
+            <Choice
+              label="How often"
               value={cadence}
-              onChange={(e) => setCadence(e.target.value as RoutineCadence)}
-            >
-              <option value="weekdays">Weekdays</option>
-              <option value="daily">Every day</option>
-              <option value="weekly">Weekly</option>
-            </select>
+              options={[
+                ['weekdays', 'Weekdays'],
+                ['daily', 'Every day'],
+                ['weekly', 'Weekly'],
+              ]}
+              onChange={setCadence}
+            />
             {cadence === 'weekly' && (
-              <select
-                aria-label="Day"
-                value={weekday}
-                onChange={(e) => setWeekday(Number(e.target.value))}
-              >
-                {DAYS.map((d, i) => (
-                  <option key={d} value={i}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <Choice
+                label="Day"
+                value={String(weekday)}
+                options={DAYS.map((d, i) => [String(i), d] as const)}
+                onChange={(v) => setWeekday(Number(v))}
+              />
             )}
             <input
               type="time"
@@ -307,17 +304,12 @@ function Routines({ who, editable }: { who: User; editable: boolean }) {
               onChange={(e) => setTime(e.target.value)}
             />
             {!personal && (
-              <select
-                aria-label="Post in"
+              <Choice
+                label="Post in"
                 value={channel}
-                onChange={(e) => setChannel(e.target.value)}
-              >
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    #{c.title}
-                  </option>
-                ))}
-              </select>
+                options={channels.map((c) => [c.id, `#${c.title}`] as const)}
+                onChange={setChannel}
+              />
             )}
           </div>
           <input
