@@ -1,5 +1,13 @@
 import { createContext, useContext } from 'react';
-import type { Conversation, Id, Resource, Snapshot, Space, User } from '../../shared/types.ts';
+import type {
+  Conversation,
+  Id,
+  PageKind,
+  Resource,
+  Snapshot,
+  Space,
+  User,
+} from '../../shared/types.ts';
 
 /** What a pane in the middle shows. */
 export type Target =
@@ -39,7 +47,8 @@ export type Ui = {
   drafts: Record<string, string>;
   /** The left list as a drawer, on narrow windows. */
   nav: boolean;
-  creating: boolean;
+  /** The new-page popup is open; a kind preselects that kind. */
+  creating: boolean | PageKind;
   graphScope: 'space' | 'everything';
   /** What your agent reads: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';

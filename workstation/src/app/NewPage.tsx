@@ -1,21 +1,18 @@
 import { useState } from 'react';
-import { Lock, Users } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { PAGE_KINDS, type PageKind } from '../../shared/types.ts';
 import { KindIcon, kindName } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
+import { Dialog } from './Dialogs.tsx';
 
-const blurb: Record<PageKind, string> = {
-  doc: 'Writing, notes, briefs',
-  sheet: 'Rows, numbers, simple sums',
-  deck: 'Slides to present',
-  canvas: 'A board to lay things out and connect them',
-  asset: 'Something brought in from elsewhere',
-};
+/** Kinds you make here. A file from your computer comes in through "New → File" instead. */
+const MADE = PAGE_KINDS.filter((k) => k !== 'asset');
 
+/** A new page: name it, pick its kind, say who can open it, Enter. */
 export function NewPage() {
-  const { space, setUi, run, open } = useWorkspace();
-  const [kind, setKind] = useState<PageKind>('doc');
+  const { ui, space, setUi, run, open } = useWorkspace();
+  const [kind, setKind] = useState<PageKind>(typeof ui.creating === 'string' ? ui.creating : 'doc');
   const [title, setTitle] = useState('');
   const [mine, setMine] = useState(false);
   const shared = space.kind === 'project';
@@ -38,19 +35,25 @@ export function NewPage() {
     }
   };
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <Dialog title="New page" bare onClose={close}>
       <form
         className="new-page"
-        role="dialog"
-        aria-label="New page"
         onSubmit={(e) => {
           e.preventDefault();
           void create();
         }}
       >
-        <h2>New page</h2>
-        <div className="kinds" role="radiogroup" aria-label="Kind of page">
-          {PAGE_KINDS.map((k) => (
+        <input
+          className="new-title"
+          autoFocus
+          value={title}
+          maxLength={120}
+          placeholder={`Untitled ${kindName[kind].toLowerCase()}`}
+          aria-label="Title"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <div className="kind-row" role="radiogroup" aria-label="Kind of page">
+          {MADE.map((k) => (
             <button
               type="button"
               key={k}
@@ -58,50 +61,30 @@ export function NewPage() {
               aria-checked={kind === k}
               onClick={() => setKind(k)}
             >
-              <KindIcon kind={k} size={18} />
-              <strong>{kindName[k]}</strong>
-              <small>{blurb[k]}</small>
+              <KindIcon kind={k} size={14} /> {kindName[k]}
             </button>
           ))}
         </div>
-        <input
-          autoFocus
-          value={title}
-          maxLength={120}
-          placeholder="Title"
-          aria-label="Title"
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <div className="new-row">
+        <div className="dialog-foot">
           {shared ? (
-            <span className="seg" role="radiogroup" aria-label="Who can open it">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={!mine}
-                onClick={() => setMine(false)}
-              >
-                <Users size={12} /> Everyone in {space.name}
-              </button>
-              <button type="button" role="radio" aria-checked={mine} onClick={() => setMine(true)}>
-                <Lock size={12} /> Only you
-              </button>
-            </span>
+            <select
+              aria-label="Who can open it"
+              value={mine ? 'mine' : 'space'}
+              onChange={(e) => setMine(e.target.value === 'mine')}
+            >
+              <option value="space">Everyone in {space.name}</option>
+              <option value="mine">Only you</option>
+            </select>
           ) : (
             <small>
-              <Lock size={11} /> Only you can see pages in your own space.
+              <Lock size={11} /> Only you
             </small>
           )}
-        </div>
-        <div className="new-actions">
-          <button type="button" onClick={close}>
-            Cancel
-          </button>
           <button className="primary" type="submit">
-            Create
+            Create <kbd>↵</kbd>
           </button>
         </div>
       </form>
-    </div>
+    </Dialog>
   );
 }

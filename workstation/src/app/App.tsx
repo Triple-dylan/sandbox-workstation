@@ -397,7 +397,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     actions: [
       ...PAGE_KINDS.filter((k) => k !== 'asset').map((kind) => ({
         label: `New ${kind === 'doc' ? 'document' : kind}`,
-        run: () => setUi({ creating: true }),
+        run: () => setUi({ creating: kind }),
       })),
       {
         label: 'Bring in files',
