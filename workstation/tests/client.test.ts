@@ -6,6 +6,7 @@ import { graphOf, noFilter, relationsOf } from '../src/features/graph/tree.ts';
 import { colName, evaluate, toNumber } from '../src/features/sheet/formula.ts';
 import { scopeOf } from '../src/app/scope.ts';
 import { proposalText } from '../src/features/agents/proposal.ts';
+import { inviteFrom } from '../src/app/invite.ts';
 
 function world() {
   const store = new Store(openDb(':memory:'));
@@ -193,4 +194,11 @@ test('bringing things in: transcripts, tables, documents and slides become the r
   assert.deepEqual(JSON.parse(deck.body).slides, [
     { title: 'Relay 2.0', body: '- Faster\n- Cheaper' },
   ]);
+});
+
+test('joining by pasted invite: a full link, a bare token, or nothing usable', () => {
+  assert.equal(inviteFrom('https://ws.example.app/?invite=abc123DEF_-x'), 'abc123DEF_-x');
+  assert.equal(inviteFrom('  abc123DEF_-x  '), 'abc123DEF_-x');
+  assert.equal(inviteFrom('https://ws.example.app/'), '');
+  assert.equal(inviteFrom('not a link'), '');
 });

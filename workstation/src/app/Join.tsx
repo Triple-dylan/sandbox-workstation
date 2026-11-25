@@ -1,63 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { SignIn } from './Welcome.tsx';
 import { api } from '../data/client.ts';
 
 type Profile = { id: string; name: string; color: string };
 type Config = { accessCode: boolean; mode: 'open' | 'invite'; googleClientId?: string | null };
-
-type GoogleId = {
-  accounts: {
-    id: {
-      initialize(options: {
-        client_id: string;
-        callback: (r: { credential: string }) => void;
-      }): void;
-      renderButton(el: HTMLElement, options: Record<string, unknown>): void;
-    };
-  };
-};
-
-/** Google's sign-in button, loaded from Google only when this server uses it. */
-function GoogleButton({
-  clientId,
-  onCredential,
-}: {
-  clientId: string;
-  onCredential: (c: string) => void;
-}) {
-  const slot = useRef<HTMLDivElement>(null);
-  const latest = useRef(onCredential);
-  latest.current = onCredential;
-  useEffect(() => {
-    const draw = () => {
-      const google = (window as unknown as { google?: GoogleId }).google;
-      if (!google || !slot.current) return;
-      google.accounts.id.initialize({
-        client_id: clientId,
-        callback: (r) => latest.current(r.credential),
-      });
-      google.accounts.id.renderButton(slot.current, {
-        theme: 'outline',
-        size: 'large',
-        text: 'continue_with',
-        width: 280,
-      });
-    };
-    const src = 'https://accounts.google.com/gsi/client';
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (existing) {
-      if ((window as unknown as { google?: GoogleId }).google) draw();
-      else existing.addEventListener('load', draw);
-      return () => existing.removeEventListener('load', draw);
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.addEventListener('load', draw);
-    document.head.appendChild(script);
-    return () => script.removeEventListener('load', draw);
-  }, [clientId]);
-  return <div className="join-google" ref={slot} />;
-}
 
 /** Reads a sign-in or invite token from the address, then takes it out so it is not left behind. */
 export function linkToken(name: 'invite' | 'signin') {
@@ -129,41 +75,13 @@ export function Join({ onJoined }: { onJoined: () => void }) {
   const closedDoor = byInvite && !invite && !config.accessCode;
   if (google)
     return (
-      <main className="join">
-        <div className="join-card">
-          <header className="join-invite">
-            <h1>{invited ? `Join ${invited.spaceName}` : 'Sandbox Workstation'}</h1>
-            <p>
-              {invited
-                ? `${invited.invitedBy} invited you.`
-                : closedDoor
-                  ? 'Already here? Continue with Google. New people need an invite link from someone in it.'
-                  : 'Continue with your Google account.'}
-            </p>
-          </header>
-          {config.accessCode && !invite && (
-            <label>
-              <span>Setup code</span>
-              <input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Only for the first people in"
-                autoComplete="off"
-              />
-            </label>
-          )}
-          <GoogleButton
-            clientId={google}
-            onCredential={(credential) => void join({ credential }, '/auth/google')}
-          />
-          {busy && <p className="join-note">Signing you in…</p>}
-          {error && (
-            <p className="join-error" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-      </main>
+      <SignIn
+        clientId={google}
+        invited={invited}
+        busy={busy}
+        error={error}
+        onCredential={(credential) => void join({ credential }, '/auth/google')}
+      />
     );
   return (
     <main className="join">

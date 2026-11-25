@@ -228,6 +228,11 @@ export class Store {
     const row = this.get('select * from users where id = ?', userId);
     return row ? toUser(row) : null;
   }
+  /** The Google email a person signed in with, if they used Google. */
+  emailOf(userId: Id) {
+    const row = this.get('select email from identities where user_id = ?', userId);
+    return row?.email ? String(row.email) : null;
+  }
   /** The person who signed in with this Google account before, if any. */
   googleUser(subject: string) {
     const row = this.get('select user_id from identities where subject = ?', subject);

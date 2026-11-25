@@ -78,6 +78,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
 - Meaning-based search: passages are embedded with `text-embedding-3-small` when an OpenAI key is set, stored until the page changes, and merged with keyword ranking. Search only; answers are gpt-6-luna.
 - Spend safety nets: one agent call is about 3-4k tokens. Daily limits of 10M for the server, 3M per space and 1M per person (about 300 questions), and at most 20 agent requests a minute per person. They exist to stop a runaway loop or a surprise bill, not to ration use. Background upkeep counts against its space. Set by `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
+- Welcome and workspaces: a sign-in page that says what the product is, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The space switcher offers both at any time ("New workspace", "Join with an invite link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
 ## Known gaps

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { inviteFrom } from './invite.ts';
 import {
   ChevronDown,
   ChevronRight,
+  Link2,
   Lock,
   LogOut,
   Plus,
@@ -25,9 +27,9 @@ export function Sidebar() {
   const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, chooseFiles } =
     useWorkspace();
   const [switching, setSwitching] = useState(false);
-  const [adding, setAdding] = useState<'space' | 'channel' | 'agent' | 'person' | 'folder' | null>(
-    null,
-  );
+  const [adding, setAdding] = useState<
+    'space' | 'join' | 'channel' | 'agent' | 'person' | 'folder' | null
+  >(null);
   const [draft, setDraft] = useState('');
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const isOpen = (t: Target) => ui.panes.some((p) => sameTarget(p, t));
@@ -87,6 +89,16 @@ export function Sidebar() {
     if (kind === 'space') {
       const made = await run(() => api<{ id: string }>('/projects', { body: { name } }));
       if (made) setUi({ spaceId: made.id, panes: [], active: 0 });
+    } else if (kind === 'join') {
+      const token = inviteFrom(name);
+      if (!token) return notify('That does not look like an invite link.');
+      const joined = await run(() =>
+        api<{ id: string; name: string }>('/invites/accept', { body: { token } }),
+      );
+      if (joined) {
+        setUi({ spaceId: joined.id, panes: [], active: 0 });
+        notify(`You joined ${joined.name}.`);
+      }
     } else if (kind === 'channel') {
       const made = await run(() =>
         api<{ id: string }>('/channels', { body: { spaceId: space.id, title: name } }),
@@ -255,18 +267,30 @@ export function Sidebar() {
                 <span className="truncate">{x.kind === 'personal' ? 'Your space' : x.name}</span>
               </button>
             ))}
+            {s.mayStartWorkspace !== false && (
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setSwitching(false);
+                  setAdding('space');
+                }}
+              >
+                <Plus size={12} /> New workspace
+              </button>
+            )}
             <button
               role="menuitem"
               onClick={() => {
                 setSwitching(false);
-                setAdding('space');
+                setAdding('join');
               }}
             >
-              <Plus size={12} /> New shared space
+              <Link2 size={12} /> Join with an invite link
             </button>
           </div>
         )}
-        {form('space', 'Name the shared space')}
+        {form('space', 'Name the workspace')}
+        {form('join', 'Paste an invite link')}
         <div className="space-tools">
           <button
             className="find"

@@ -4,10 +4,10 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 
 ## Ready now
 
-- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`, `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
+- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `WORKSPACE_CREATORS`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`, `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
 - **Health check** at `/healthz`.
 - **Sign-in by invitation** (`SIGN_IN=invite`, set in the container). New people join only through a space's invite link (good for 14 days, replaceable) or, for the first people in, the setup code in `ACCESS_CODE`. Someone signs in on another device with a one-time link they make in Settings (15 minutes). Session and sign-in tokens are stored only as hashes. People outside your spaces are not visible and cannot be messaged. The doors in are rate limited.
-- **Google sign-in** (set `GOOGLE_CLIENT_ID`). People continue with their Google account; only verified Google emails are accepted, and the same Google account always comes back as the same person. Google proves who someone is; an invite link or the setup code still decides who may make a new account. With it set, joining by name alone is turned off. Device sign-in links still work.
+- **Google sign-in** (set `GOOGLE_CLIENT_ID`). Anyone with a verified Google account can sign up; the same Google account always comes back as the same person. Someone in no workspace yet chooses to start one they own or join one with an invite link; both stay in the space switcher, and a person can be in any number of workspaces. `WORKSPACE_CREATORS` (emails and/or `@domain`s, comma-separated) limits who may start workspaces; unset, anyone signed in may. What anyone can see is still only their private space and the workspaces they start or are invited to. With Google on, joining by name alone is turned off and no setup code is needed. Device sign-in links still work.
 - **Safe defaults for a public address:** a content security policy, no framing, session cookies that are `HttpOnly`, `SameSite=Strict` and `Secure` behind HTTPS, a request header check on every write, fingerprinted files cached for a year and the page itself never cached.
 - **Installable:** a web manifest and icon, so it can be added to a dock or home screen.
 - **One access check** in `server/store.ts` governs every read by a person or an agent. Hosting does not change it.
@@ -60,7 +60,7 @@ In the service, **Variables**, add:
 | Variable | Value |
 |---|---|
 | `GOOGLE_CLIENT_ID` | the Client ID from step 2.5 |
-| `ACCESS_CODE` | a long random code; the first people in type it once |
+| `WORKSPACE_CREATORS` | optional; emails and/or `@domain`s allowed to start workspaces. Unset, anyone signed in may |
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents answer with the labelled scripted stand-in |
 | `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 10000000 per day for the whole server |
 | `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 3000000, 1000000 and 20 |
@@ -69,6 +69,6 @@ Railway redeploys when variables change.
 
 ### 4. First sign-in and inviting people
 
-1. Open the Railway address, type the setup code, and **Continue with Google**.
-2. Create a project, then share its invite link (good for 14 days). Invited people only need **Continue with Google**; they don't need the setup code.
+1. Open the Railway address and **Continue with Google**.
+2. Start a workspace, then share its invite link (good for 14 days). Invited people only need **Continue with Google**.
 3. Check `https://<your address>/healthz` returns `{"ok":true,...}` if anything looks wrong, and read the service's **Deploy Logs** in Railway.
