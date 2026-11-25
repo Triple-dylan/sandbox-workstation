@@ -9,7 +9,7 @@ These instructions apply to every harness (Claude Code, Codex, Cursor and any ot
 - **Start from an up-to-date `main`** (`git fetch && git switch -c <harness>/<topic> origin/main`). Name branches by harness and topic: `claude/…`, `codex/…`, `cursor/…`.
 - **Never end a session with uncommitted or unpushed work.** Commit in small, coherent steps and push the branch before you stop, even if the work is unfinished (say so in the PR).
 - **One pull request per change, kept small.** The PR body says what changed, why, and what was and was not verified. Update `docs/STATE.md` and `docs/DECISIONS.md` in the same PR when behaviour or direction changes.
-- **Merge only with green CI and Dylan's go-ahead.** Squash-merge so `main` gets one clean commit per change, then delete the branch.
+- **Merge only with green CI and Dylan's go-ahead.** Squash-merge so `main` gets one clean commit per change, then delete the branch. Always give the squash commit its own message (`gh pr merge N --squash --delete-branch --subject "<title> (#N)" --body "<what changed>"`): GitHub's default message adds a `Co-authored-by:` line whenever a commit's email differs from the merger's. CI fails on any co-author or "Generated with" line in a PR or on `main`.
 - **Never force-push `main`** or rewrite history on a branch someone else may have pulled, unless Dylan asks for it.
 - **Before starting, check for open branches and PRs** touching the same area (`git fetch --prune`, `gh pr list`). Continue or rebase onto that work rather than starting a parallel line.
 - Nothing secret or generated goes in git: `.env`, databases under `workstation/data/`, build output, logs.

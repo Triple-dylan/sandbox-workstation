@@ -11,6 +11,18 @@ jobs:
         working-directory: workstation
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No co-author lines
+        env:
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          git rev-parse -q --verify "${RANGE%%..*}^{commit}" >/dev/null || RANGE="-1 ${GITHUB_SHA}"
+          found=$(git log --format=%B $RANGE | grep -iE '^co-authored-by:|^(🤖 )?generated with' || true)
+          found="$found$(printf '%s\n%s' "$TITLE" "$BODY" | grep -iE '^co-authored-by:|^(🤖 )?generated with' || true)"
+          if [ -n "$found" ]; then echo "Co-author or attribution line found (AGENTS.md forbids these):"; echo "$found"; exit 1; fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22
