@@ -143,6 +143,7 @@ export function Rail({ docked }: { docked: boolean }) {
   } = ws;
   const [text, setText] = useState('');
   const [earlier, setEarlier] = useState(false);
+  const attach = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<'sees' | null>(null);
   const [sharing, setSharing] = useState<{ id: Id; text: string } | null>(null);
   const [picked, setPicked] = useState<{ id: Id; text: string; top: number; left: number } | null>(
@@ -249,7 +250,6 @@ export function Rail({ docked }: { docked: boolean }) {
   const scope = scopeOf(ui, s, columns);
   const onScreen = scopeOf({ ...ui, barSees: 'screen' }, s, columns).label;
   const wholeSpace = scopeOf({ ...ui, barSees: 'space' }, s, columns).label;
-  const attach = useRef<HTMLInputElement>(null);
   const shown = columns === 1 ? [ui.panes[ui.active]] : ui.panes;
   const lookingAt = shown.find((x) => x && (x.type === 'page' || x.type === 'chat'));
   const page = lookingAt?.type === 'page' ? resource(lookingAt.id) : undefined;
