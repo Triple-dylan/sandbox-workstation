@@ -26,6 +26,7 @@ export class AgentEngine {
   private lastProactive = new Map<Id, number>();
   readonly retriever = new Retriever();
   readonly answers = new AnswerCache<AgentResult>();
+  private clock: ReturnType<typeof setInterval>;
   /** How many answers needed a second try; reported for tests and tuning. */
   retries = 0;
   private store: Store;
@@ -46,6 +47,9 @@ export class AgentEngine {
     options: { maintenanceDelayMs?: number; limits?: AgentLimits; embedder?: Embedder } = {},
   ) {
     this.vectors = options.embedder ? new VectorIndex(store, options.embedder) : null;
+    // Routines are checked twice a minute; the clock never keeps the process alive on its own.
+    this.clock = setInterval(() => this.runDueRoutines(), 30_000);
+    this.clock.unref?.();
     this.store = store;
     this.runtime = runtime;
     this.options = options;
@@ -84,7 +88,28 @@ export class AgentEngine {
       else await new Promise((r) => setTimeout(r, 20));
     }
   }
+  /** Starts every routine whose time has come. Marked as run first, so a slow answer never repeats. */
+  runDueRoutines(at = new Date()) {
+    for (const routine of this.store.dueRoutines(at)) {
+      this.store.touchRoutine(routine.id, at);
+      const agent = this.store.user(routine.agentId);
+      const conversation = this.store.conversation(routine.conversationId);
+      if (!agent || !conversation) continue;
+      this.track(
+        this.runJob(
+          agent,
+          conversation,
+          'instruction',
+          routine.instruction,
+          null,
+          null,
+          routine.spaceId,
+        ).catch((error) => console.error('routine failed', error)),
+      );
+    }
+  }
   stop() {
+    clearInterval(this.clock);
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
   }

@@ -2963,22 +2963,53 @@ body.resizing .pane {
   position: relative;
   overflow: hidden;
 }
+.graph-filter-bar {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 7;
+  display: flex;
+  gap: 4px;
+}
+.graph-filter-bar .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass-solid);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.graph-filter-bar .chip[aria-expanded='true'] {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.graph-filter-bar .chip.ghost {
+  padding: 5px 7px;
+}
+.graph-filter-panel {
+  position: absolute;
+  top: 46px;
+  left: 12px;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  border-radius: var(--r-m);
+  border: 1px solid var(--line);
+  background: var(--glass-solid);
+  box-shadow: var(--shadow);
+}
 .graph-filters,
 .graph-saved {
-  position: absolute;
-  left: 12px;
-  z-index: 6;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  max-width: calc(100% - 24px);
-}
-.graph-filters {
-  top: 10px;
-}
-.graph-saved {
-  top: 48px;
 }
 .graph-filters > button,
 .graph-saved > button,
@@ -5736,4 +5767,170 @@ button.chat-pin.add:hover {
   .welcome-points {
     margin-top: 24px;
   }
+}
+
+/* ---------- an agent's page: one screen, setup on the left, what it does on the right ---------- */
+.agent-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px clamp(16px, 3vw, 40px);
+  overflow: hidden;
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.agent-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.agent-name {
+  font-size: 22px;
+  font-weight: 700;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-s);
+  padding: 2px 6px;
+  margin-left: -7px;
+  color: inherit;
+  min-width: 0;
+}
+.agent-name:hover:not(:disabled),
+.agent-name:focus {
+  border-color: var(--line);
+}
+.agent-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.agent-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 40px);
+  min-height: 0;
+}
+.agent-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.agent-setup label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agent-setup label.grow {
+  flex: 1;
+  min-height: 120px;
+}
+.agent-setup label > span,
+.agent-look > span,
+.agent-side h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.agent-setup input,
+.agent-setup textarea,
+.routine-form input,
+.routine-form select {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: inherit;
+  border-radius: var(--r-s);
+  padding: 8px 10px;
+  font: inherit;
+}
+.agent-setup textarea {
+  flex: 1;
+  resize: none;
+  line-height: 1.5;
+}
+.agent-look {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-look .agent-forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.agent-look .agent-forms button {
+  width: 34px;
+  height: 34px;
+}
+.agent-retire {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.agent-retire:hover {
+  color: var(--danger);
+}
+.agent-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.agent-side h3:not(:first-child) {
+  margin-top: 14px;
+}
+.routines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.routines .who-line small {
+  color: var(--ink-3);
+}
+.routine-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.routine-when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.routine-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+@media (max-width: 900px) {
+  .agent-page {
+    overflow-y: auto;
+  }
+  .agent-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.list-row.folder.dropping {
+  background: var(--wash-2);
+  outline: 1px dashed var(--ink-3);
+  outline-offset: -1px;
+}
+.list-hint {
+  margin: 2px 0 6px 28px;
+  font-size: 12px;
+  color: var(--ink-3);
 }

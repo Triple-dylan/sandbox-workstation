@@ -598,6 +598,24 @@ export function createApp(options: AppOptions) {
       store.stopJob(me.id, segments[1]);
       return send(res, 200, { ok: true });
     }
+    if (path === '/api/routines' && method === 'POST')
+      return send(
+        res,
+        200,
+        store.createRoutine(me.id, {
+          agentId: str('agentId'),
+          instruction: str('instruction'),
+          cadence: str('cadence'),
+          weekday: input.weekday === undefined ? null : Number(input.weekday),
+          time: str('time'),
+          tzOffset: Number(input.tzOffset),
+          conversationId: str('conversationId') || null,
+        }),
+      );
+    if (segments[0] === 'routines' && segments[1] && method === 'DELETE') {
+      store.deleteRoutine(me.id, segments[1]);
+      return send(res, 200, { ok: true });
+    }
     if (segments[0] === 'assignments' && segments[2] === 'stop' && method === 'POST') {
       store.stopAssignment(me.id, segments[1]);
       return send(res, 200, { ok: true });

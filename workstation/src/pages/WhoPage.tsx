@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Lock, MessageSquareText, Square, Users } from 'lucide-react';
+import { Square } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, ago } from '../app/util.tsx';
 import { Avatar, Character, agentState, orbForm } from '../features/agents/Character.tsx';
 import { ApprovalCard } from '../features/feed/Feed.tsx';
 import { ORB_FORMS, isPage } from '../../shared/types.ts';
-import type { Job, User } from '../../shared/types.ts';
+import type { Job, RoutineCadence, User } from '../../shared/types.ts';
 
 const verb: Record<Job['kind'], string> = {
   instruction: 'Asked',
@@ -25,7 +25,7 @@ const stateLine = {
 
 /** A person, or an agent: what it is doing, who can see it, and how it should behave. */
 export function WhoPage({ who }: { who: User }) {
-  const { s, setUi, run, open, resource, closePane, ui, notify } = useWorkspace();
+  const { s, run, open, resource, closePane, ui, notify } = useWorkspace();
   const [name, setName] = useState(who.name);
   const [purpose, setPurpose] = useState(who.purpose ?? '');
   const [instructions, setInstructions] = useState(who.instructions ?? '');
@@ -57,183 +57,294 @@ export function WhoPage({ who }: { who: User }) {
   const editable = personal
     ? who.ownerId === s.me.id
     : s.members.some((m) => m.spaceId === who.spaceId && m.userId === s.me.id);
-  const space = s.spaces.find((x) => x.id === who.spaceId);
   const state = agentState(who.id, s.jobs);
-  const jobs = s.jobs.filter((j) => j.agentId === who.id).slice(0, 8);
+  const jobs = s.jobs.filter((j) => j.agentId === who.id).slice(0, 4);
   const approvals = s.approvals.filter((a) => a.agentId === who.id && a.status === 'pending');
   const assignments = s.assignments.filter((a) => a.agentId === who.id && a.active);
-  const chat = personal
-    ? s.conversations.find((c) => c.kind === 'agent-private' && c.participantIds.includes(who.id))
-    : s.conversations.find((c) => c.kind === 'channel' && c.spaceId === who.spaceId);
-  const dirty =
-    name !== who.name ||
-    purpose !== (who.purpose ?? '') ||
-    instructions !== (who.instructions ?? '');
   const patch = (body: Record<string, unknown>) =>
     run(() => api(`/agents/${who.id}`, { method: 'PATCH', body }));
-  const talk = () => {
-    if (!chat) return;
-    if (!personal)
-      setUi((old) => ({ drafts: { ...old.drafts, [`chat:${chat.id}`]: `@${who.name} ` } }));
-    open({ type: 'chat', id: chat.id }, true);
+  // Settings save when you leave the field; what it is for and how it works go into every request.
+  const save = (field: 'name' | 'purpose' | 'instructions', value: string, was: string) => {
+    if (value.trim() === was.trim() || (field === 'name' && !value.trim())) return;
+    void patch({ [field]: value.trim() }).then((ok) => ok && notify('Saved.'));
   };
   return (
-    <div className="who">
-      <header>
+    <div className="agent-page">
+      <header className="agent-head">
         <Character agent={who} size={64} state={state} />
         <div>
-          <h2>{who.name}</h2>
-          <span className={`reach-badge ${personal ? 'private' : 'shared'}`}>
-            {personal ? <Lock size={12} /> : <Users size={12} />}
-            {personal ? 'Private to you' : `Shared with ${space?.name ?? 'the space'}`}
-          </span>
-          <small>
-            {personal
-              ? 'Only you can talk to it, and only you see what it says and does.'
-              : 'Everyone in the space can ask it, in channels and on pages.'}
-          </small>
-          <small>{stateLine[state]}</small>
+          <input
+            className="agent-name"
+            aria-label="Name"
+            value={name}
+            maxLength={40}
+            disabled={!editable}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => save('name', name, who.name)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          />
+          <span className="agent-sub">{stateLine[state]}</span>
         </div>
-        <button className="primary" onClick={talk} disabled={!chat}>
-          <MessageSquareText size={14} />{' '}
-          {personal ? `Talk to ${who.name}` : `Ask in #${chat?.title ?? 'a channel'}`}
-        </button>
       </header>
 
-      <h3>Work</h3>
-      {approvals.map((a) => (
-        <ApprovalCard key={a.id} approvalId={a.id} />
-      ))}
-      {assignments.map((a) => (
-        <p key={a.id} className="who-line">
-          <span>Ongoing: {a.instruction}</span>
-          <button onClick={() => void run(() => api(`/assignments/${a.id}/stop`, { body: {} }))}>
-            <Square size={11} /> Stop
-          </button>
-        </p>
-      ))}
-      {jobs.length + approvals.length + assignments.length === 0 && (
-        <p className="feed-empty">Nothing yet. Ask it something and its work shows up here.</p>
-      )}
-      {jobs.map((j) => {
-        const target = resource(j.targetResourceId);
-        return (
-          <button
-            key={j.id}
-            className="need row"
-            disabled={!target && !j.conversationId}
-            title={j.error ?? j.request}
-            onClick={() =>
-              target
-                ? open({ type: 'page', id: target.id }, true)
-                : j.conversationId && open({ type: 'chat', id: j.conversationId }, true)
-            }
-          >
-            <span className={`status status-${j.status}`}>
-              {j.status === 'awaiting_approval' ? 'needs a yes' : j.status}
-            </span>
-            <span>
-              <strong>{verb[j.kind]}</strong>
-              <small>{target ? target.title : j.request.slice(0, 140)}</small>
-            </span>
-            <time>{ago(j.updatedAt)}</time>
-          </button>
-        );
-      })}
-
-      <h3>
-        Skills <small>ways of working it has been given</small>
-      </h3>
-      <Skills who={who} editable={editable} />
-
-      <h3>About this agent</h3>
-      <fieldset disabled={!editable} className="who-form">
-        <label>
-          <span>Name</span>
-          <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <div className="agent-forms" role="radiogroup" aria-label="Look">
-          {ORB_FORMS.map((form) => (
-            <button
-              type="button"
-              key={form}
-              role="radio"
-              aria-checked={orbForm(who) === form}
-              aria-label={`Look: ${form}`}
-              title={form}
-              onClick={() => void patch({ form })}
-            >
-              <Character agent={who} size={32} form={form} />
-            </button>
-          ))}
-        </div>
-        <div className="agent-hues" role="radiogroup" aria-label="Colour">
-          {[20, 60, 110, 160, 200, 240, 280, 330].map((hue) => (
-            <button
-              type="button"
-              key={hue}
-              role="radio"
-              aria-checked={Math.abs((who.character?.hue ?? -99) - hue) < 20}
-              aria-label={`Colour ${hue}`}
-              style={{ background: `hsl(${hue} 42% 52%)` }}
-              onClick={() => void patch({ hue })}
+      <div className="agent-cols">
+        <section className="agent-setup" aria-label="How it works">
+          <label>
+            <span>What it is for</span>
+            <input
+              value={purpose}
+              maxLength={300}
+              disabled={!editable}
+              placeholder={personal ? 'Help me with my own work' : 'Keep this workspace organised'}
+              onChange={(e) => setPurpose(e.target.value)}
+              onBlur={() => save('purpose', purpose, who.purpose ?? '')}
             />
+          </label>
+          <label className="grow">
+            <span>How it should work</span>
+            <textarea
+              value={instructions}
+              disabled={!editable}
+              placeholder="What to watch for, how to answer, what to leave alone."
+              onChange={(e) => setInstructions(e.target.value)}
+              onBlur={() => save('instructions', instructions, who.instructions ?? '')}
+            />
+          </label>
+          <div className="agent-look">
+            <span>Look</span>
+            <div className="agent-forms" role="radiogroup" aria-label="Look">
+              {ORB_FORMS.map((form) => (
+                <button
+                  type="button"
+                  key={form}
+                  role="radio"
+                  disabled={!editable}
+                  aria-checked={orbForm(who) === form}
+                  aria-label={`Look: ${form}`}
+                  title={form}
+                  onClick={() => void patch({ form })}
+                >
+                  <Character agent={who} size={20} form={form} />
+                </button>
+              ))}
+            </div>
+            <div className="agent-hues" role="radiogroup" aria-label="Colour">
+              {[20, 60, 110, 160, 200, 240, 280, 330].map((hue) => (
+                <button
+                  type="button"
+                  key={hue}
+                  role="radio"
+                  disabled={!editable}
+                  aria-checked={Math.abs((who.character?.hue ?? -99) - hue) < 20}
+                  aria-label={`Colour ${hue}`}
+                  style={{ background: `hsl(${hue} 42% 52%)` }}
+                  onClick={() => void patch({ hue })}
+                />
+              ))}
+            </div>
+          </div>
+          {editable && !personal && (
+            <button
+              type="button"
+              className="agent-retire"
+              onBlur={() => setRetiring(false)}
+              onClick={() => {
+                if (!retiring) return setRetiring(true);
+                void run(() => api(`/agents/${who.id}/retire`, { body: {} })).then((ok) => {
+                  if (!ok) return;
+                  const index = ui.panes.findIndex((t) => t.type === 'who' && t.id === who.id);
+                  if (index >= 0) closePane(index);
+                  notify(`${who.name} is retired. Its history stays.`);
+                });
+              }}
+            >
+              {retiring ? 'Click again to retire' : 'Retire this agent'}
+            </button>
+          )}
+        </section>
+
+        <section className="agent-side">
+          <h3>Routines</h3>
+          <Routines who={who} editable={editable} />
+          {assignments.map((a) => (
+            <p key={a.id} className="who-line">
+              <span>Keeps up: {a.instruction}</span>
+              <button
+                onClick={() => void run(() => api(`/assignments/${a.id}/stop`, { body: {} }))}
+              >
+                <Square size={11} /> Stop
+              </button>
+            </p>
           ))}
-        </div>
-        <label>
-          <span>What it is for</span>
-          <input
-            value={purpose}
-            maxLength={300}
-            placeholder={personal ? 'Help me with my own work' : 'Keep this space organised'}
-            onChange={(e) => setPurpose(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>Standing instructions</span>
-          <textarea
-            value={instructions}
-            rows={5}
-            placeholder="How it should work, what to watch for, what to leave alone."
-            onChange={(e) => setInstructions(e.target.value)}
-          />
-        </label>
-        <p className="who-note">
-          {personal
-            ? `It sees what you can see (${s.spaces.map((x) => (x.kind === 'personal' ? 'your space' : x.name)).join(', ')}).`
-            : 'It sees what is shared with the space, and private pages only when their owner adds it.'}{' '}
-          Changes it suggests need a person to accept them. Answers come from {s.runtime.label}
-          {s.runtime.model ? ` (${s.runtime.model})` : ''}.
+
+          <h3>Skills</h3>
+          <Skills who={who} editable={editable} />
+
+          <h3>Recent work</h3>
+          {approvals.map((a) => (
+            <ApprovalCard key={a.id} approvalId={a.id} />
+          ))}
+          {jobs.length + approvals.length === 0 && <p className="feed-empty">Nothing yet.</p>}
+          {jobs.map((j) => {
+            const target = resource(j.targetResourceId);
+            return (
+              <button
+                key={j.id}
+                className="need row"
+                disabled={!target && !j.conversationId}
+                title={j.error ?? j.request}
+                onClick={() =>
+                  target
+                    ? open({ type: 'page', id: target.id }, true)
+                    : j.conversationId && open({ type: 'chat', id: j.conversationId }, true)
+                }
+              >
+                <span className={`status status-${j.status}`}>
+                  {j.status === 'awaiting_approval' ? 'needs a yes' : j.status}
+                </span>
+                <span>
+                  <strong>{verb[j.kind]}</strong>
+                  <small>{target ? target.title : j.request.slice(0, 140)}</small>
+                </span>
+                <time>{ago(j.updatedAt)}</time>
+              </button>
+            );
+          })}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const when = (r: { cadence: RoutineCadence; weekday: number | null; time: string }) =>
+  `${r.cadence === 'daily' ? 'Every day' : r.cadence === 'weekdays' ? 'Weekdays' : `${DAYS[r.weekday ?? 1]}s`} at ${r.time}`;
+
+/** Jobs the agent does on a schedule, written as one sentence each. */
+function Routines({ who, editable }: { who: User; editable: boolean }) {
+  const { s, run } = useWorkspace();
+  const personal = who.role === 'personal';
+  const routines = s.routines.filter((r) => r.agentId === who.id);
+  const channels = s.conversations.filter((c) => c.kind === 'channel' && c.spaceId === who.spaceId);
+  const [adding, setAdding] = useState(false);
+  const [cadence, setCadence] = useState<RoutineCadence>('weekdays');
+  const [weekday, setWeekday] = useState(1);
+  const [time, setTime] = useState('09:00');
+  const [instruction, setInstruction] = useState('');
+  const [channel, setChannel] = useState(channels[0]?.id ?? '');
+  const where = (id: string) =>
+    personal ? 'to you' : `in #${s.conversations.find((c) => c.id === id)?.title ?? 'channel'}`;
+  return (
+    <div className="routines">
+      {routines.length === 0 && !adding && <p className="feed-empty">None yet.</p>}
+      {routines.map((r) => (
+        <p key={r.id} className="who-line">
+          <span>
+            <b>{when(r)}</b> {r.instruction} <small>{where(r.conversationId)}</small>
+          </span>
+          {editable && (
+            <button
+              aria-label="Delete routine"
+              onClick={() => void run(() => api(`/routines/${r.id}`, { method: 'DELETE' }))}
+            >
+              <Trash2 size={11} />
+            </button>
+          )}
         </p>
-        <div className="who-save">
-          <button
-            type="button"
-            className="primary"
-            disabled={!dirty || !name.trim()}
-            onClick={() =>
-              void patch({ name, purpose, instructions }).then((ok) => ok && notify('Saved.'))
-            }
-          >
-            Save changes
+      ))}
+      {adding ? (
+        <form
+          className="routine-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!instruction.trim()) return;
+            void run(() =>
+              api('/routines', {
+                body: {
+                  agentId: who.id,
+                  instruction,
+                  cadence,
+                  weekday,
+                  time,
+                  tzOffset: new Date().getTimezoneOffset(),
+                  conversationId: personal ? null : channel,
+                },
+              }),
+            ).then((ok) => {
+              if (!ok) return;
+              setInstruction('');
+              setAdding(false);
+            });
+          }}
+        >
+          <div className="routine-when">
+            <select
+              aria-label="How often"
+              value={cadence}
+              onChange={(e) => setCadence(e.target.value as RoutineCadence)}
+            >
+              <option value="weekdays">Weekdays</option>
+              <option value="daily">Every day</option>
+              <option value="weekly">Weekly</option>
+            </select>
+            {cadence === 'weekly' && (
+              <select
+                aria-label="Day"
+                value={weekday}
+                onChange={(e) => setWeekday(Number(e.target.value))}
+              >
+                {DAYS.map((d, i) => (
+                  <option key={d} value={i}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            )}
+            <input
+              type="time"
+              aria-label="Time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+            {!personal && (
+              <select
+                aria-label="Post in"
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+              >
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    #{c.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <input
+            autoFocus
+            aria-label="What to do"
+            value={instruction}
+            maxLength={1000}
+            placeholder="e.g. Summarise what changed and what needs a decision"
+            onChange={(e) => setInstruction(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setAdding(false)}
+          />
+          <div className="routine-actions">
+            <button type="button" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+            <button className="primary" type="submit" disabled={!instruction.trim()}>
+              Add routine
+            </button>
+          </div>
+        </form>
+      ) : (
+        editable && (
+          <button className="skill-add" onClick={() => setAdding(true)}>
+            <Plus size={13} /> New routine
           </button>
-          <button
-            type="button"
-            className="danger"
-            onBlur={() => setRetiring(false)}
-            onClick={() => {
-              if (!retiring) return setRetiring(true);
-              void run(() => api(`/agents/${who.id}/retire`, { body: {} })).then((ok) => {
-                if (!ok) return;
-                const index = ui.panes.findIndex((t) => t.type === 'who' && t.id === who.id);
-                if (index >= 0) closePane(index);
-                notify(`${who.name} is retired. Its history stays.`);
-              });
-            }}
-          >
-            {retiring ? 'Retire now? Click again' : 'Retire'}
-          </button>
-        </div>
-      </fieldset>
+        )
+      )}
     </div>
   );
 }
@@ -270,10 +381,7 @@ function Skills({ who, editable }: { who: User; editable: boolean }) {
   return (
     <div className="skills">
       {available.length === 0 && editing !== 'new' && (
-        <p className="feed-empty">
-          No skills yet. A skill is a way of doing one kind of job, written once: when to use it and
-          the steps. You can also ask the agent to “remember how to …” and approve what it writes.
-        </p>
+        <p className="feed-empty">None yet. A skill is the steps for one kind of job.</p>
       )}
       {available.map((k) =>
         editing === k.id ? null : (

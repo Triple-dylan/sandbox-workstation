@@ -204,6 +204,26 @@ export type Assignment = {
   createdAt: string;
 };
 
+export type RoutineCadence = 'daily' | 'weekdays' | 'weekly';
+/** A job an agent does on a schedule, answered where it was set up to post. */
+export type Routine = {
+  id: Id;
+  agentId: Id;
+  spaceId: Id;
+  conversationId: Id;
+  instruction: string;
+  cadence: RoutineCadence;
+  /** 0 = Sunday. Only for weekly routines. */
+  weekday: number | null;
+  /** Local time of day, HH:MM, in the timezone of whoever set it up. */
+  time: string;
+  /** That person's Date.getTimezoneOffset(), in minutes. */
+  tzOffset: number;
+  createdBy: Id;
+  lastRunAt: string | null;
+  createdAt: string;
+};
+
 /** create-doc: title and body of the document. create-agent: title is its name, body is what it is for. add-step: title is a new step for the plan. */
 export type Proposal = {
   /** edit-doc: title is the exact text to replace in the page, body is what replaces it. */
@@ -264,6 +284,7 @@ export type Snapshot = {
   messages: Message[];
   jobs: Job[];
   assignments: Assignment[];
+  routines: Routine[];
   approvals: Approval[];
   goals: Goal[];
   skills: Skill[];

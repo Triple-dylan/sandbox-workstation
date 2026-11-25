@@ -58,7 +58,8 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
 const row = (page: Page, name: string) =>
   page.locator('.sidebar .list-row', { hasText: name }).first();
 const newPage = async (page: Page, kind: string, title: string, mine = false) => {
-  await page.getByRole('button', { name: 'New page' }).last().click();
+  await page.getByRole('button', { name: 'Add a page', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'New page' }).click();
   await page.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
   await page.getByLabel('Title').last().fill(title);
   if (mine) await page.getByRole('radio', { name: 'Only you' }).click();
@@ -188,15 +189,20 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.rail-strip').waitFor();
   await dylan.locator('.rail-strip').click();
   await dylan.locator('.rail .rail-top').waitFor();
-  // Your agent has one home, the rail: talking to it from its profile opens the rail, never a
-  // second copy of the same conversation in the middle.
+  // Your agent has one home, the rail. Its page is for setting it up: no second way to talk to it,
+  // and nothing opens its conversation in the middle.
   await dylan.getByRole('button', { name: 'Close · ⌘J' }).click();
   await dylan.locator('.rail-strip').waitFor();
   await dylan.locator('.who-chip.agent:has(.chip-lock)').click();
-  await dylan.getByRole('button', { name: /^Talk to / }).click();
+  await dylan.locator('.agent-page').waitFor();
+  assert.equal(await dylan.getByRole('button', { name: /^Talk to / }).count(), 0);
+  // A routine set up on its page reads back as one sentence.
+  await dylan.getByRole('button', { name: 'New routine' }).click();
+  await dylan.getByLabel('What to do').fill('Summarise what changed');
+  await dylan.getByRole('button', { name: 'Add routine' }).click();
+  await dylan.locator('.routines', { hasText: 'Weekdays at 09:00' }).waitFor();
+  await dylan.locator('.rail-strip').click();
   await dylan.locator('.rail .rail-top').waitFor();
-  // The profile stays in the middle; no pane holds a conversation.
-  await dylan.locator('.pane-who').waitFor();
   assert.equal(await dylan.locator('.pane-chat').count(), 0);
 
   // A canvas arranged together: Dylan places a sticky, Maya moves it, Dylan sees it move.
