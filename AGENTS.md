@@ -32,3 +32,4 @@ Rules:
 - Ask Dylan only consequential, decision-shaped questions. Don't re-ask anything settled in `DECISIONS.md`.
 - Keep `main` working: typecheck, format and tests green. Add tests for new behaviour.
 - Secrets (`OPENAI_API_KEY`) live only in the gitignored root `.env` and are read server-side.
+- Agents answer only with OpenAI `gpt-6-luna`, fixed in code with no setting to change it. The one other model allowed is `text-embedding-3-small`, for search vectors only.

@@ -1826,6 +1826,54 @@ export class Store {
     );
   }
 
+  /** When the stored search vectors of a page were made (its updatedAt then), if any. */
+  vectorStamp(resourceId: Id) {
+    const row = this.get(
+      'select stamp from passage_vectors where resource_id = ? limit 1',
+      resourceId,
+    );
+    return row ? String(row.stamp) : null;
+  }
+  replaceVectors(resourceId: Id, stamp: string, rows: { text: string; vector: Float32Array }[]) {
+    this.db.exec('begin immediate');
+    try {
+      this.run('delete from passage_vectors where resource_id = ?', resourceId);
+      rows.forEach((row, i) =>
+        this.run(
+          'insert into passage_vectors values (?, ?, ?, ?, ?)',
+          resourceId,
+          i,
+          stamp,
+          row.text,
+          new Uint8Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength),
+        ),
+      );
+      this.db.exec('commit');
+    } catch (error) {
+      this.db.exec('rollback');
+      throw error;
+    }
+  }
+  /** Stored search vectors for these pages. Callers pass only pages the asker may read. */
+  vectorsFor(resourceIds: Id[]) {
+    if (!resourceIds.length) return [];
+    const rows = this.db
+      .prepare(
+        `select * from passage_vectors where resource_id in (${resourceIds.map(() => '?').join(',')})`,
+      )
+      .all(...resourceIds) as Record<string, unknown>[];
+    return rows.map((row) => {
+      const bytes = row.vector as Uint8Array;
+      return {
+        resourceId: String(row.resource_id),
+        stamp: String(row.stamp),
+        text: String(row.text),
+        vector: new Float32Array(
+          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+        ),
+      };
+    });
+  }
   /** Tokens agents used today for one space or on behalf of one person. */
   agentUsageToday(scope: 'space' | 'person', key: Id) {
     const row = this.get(

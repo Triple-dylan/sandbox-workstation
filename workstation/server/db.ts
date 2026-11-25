@@ -84,6 +84,10 @@ create table if not exists goals (
   created_at text not null
 );
 create table if not exists usage (day text primary key, tokens integer not null);
+create table if not exists passage_vectors (
+  resource_id text not null, idx integer not null, stamp text not null, text text not null, vector blob not null,
+  primary key (resource_id, idx)
+);
 create table if not exists agent_usage (
   day text not null, scope text not null, key text not null, tokens integer not null,
   primary key (day, scope, key)

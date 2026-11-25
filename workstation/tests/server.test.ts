@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp, type GoogleAccount } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
-import type { AgentRuntime } from '../server/agents/runtime.ts';
+import type { AgentRuntime, AgentTask } from '../server/agents/runtime.ts';
 
 const PLACEHOLDER_KEY = 'placeholder-key-for-tests';
 
@@ -1229,6 +1229,93 @@ test('agent guardrails: daily allowances per person and per space, and a per-min
   const tooFast = await ask(c, c.dylan.id, fast, 'three');
   assert.match(tooFast.text, /asked agents 2 times in the last minute/);
   assert.notEqual(tooFast.runtime, 'scripted');
+});
+
+test("meaning search: finds a page by what it means, embeds each page once until it changes, and never shows another person's private page", async () => {
+  // Stand-in embedder: words map to a few concepts, so "price" and "cost" land together.
+  const concepts: Record<string, number> = {
+    price: 0,
+    cost: 0,
+    pricing: 0,
+    vehicle: 1,
+    van: 1,
+    truck: 1,
+    driver: 2,
+    drivers: 2,
+    hiring: 2,
+  };
+  const embedded: string[] = [];
+  const embedder = {
+    id: 'fake-embed',
+    async embed(texts: string[]) {
+      embedded.push(...texts);
+      return texts.map((t) => {
+        const v = new Float32Array(4);
+        for (const w of t.toLowerCase().split(/[^a-z]+/)) v[concepts[w] ?? 3] += 1;
+        const n = Math.hypot(...v) || 1;
+        return v.map((x) => x / n);
+      });
+    },
+  };
+  const seen: AgentTask[] = [];
+  const model: AgentRuntime = {
+    id: 'fake-model',
+    label: 'Fake model',
+    run: async (task) => {
+      seen.push(task);
+      return { reply: 'ok', tokens: 1 };
+    },
+  };
+  const app = createApp({ dbPath: ':memory:', staticDir: null, runtime: model, embedder, env: {} });
+  opened.push(app);
+  const { store, engine } = app;
+  const dylan = store.createHuman('Dylan');
+  const maya = store.createHuman('Maya');
+  const project = store.createProject(dylan.id, 'Launch');
+  store.addMember(dylan.id, project.id, maya.id);
+  const budget = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Budget',
+    body: 'The van rental cost is $400 per day.',
+    visibility: 'space',
+  });
+  store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Team',
+    body: 'We still need two drivers.',
+    visibility: 'space',
+  });
+  store.createResource(maya.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Maya private',
+    body: 'Vehicle price notes, only for Maya.',
+    visibility: 'private',
+  });
+  const mine = store
+    .snapshot(dylan.id, [], { id: 'fake-model', label: 'Fake model' })
+    .conversations.find((c) => c.kind === 'agent-private')!;
+  const ask = async (text: string) => {
+    store.postMessage(dylan.id, { conversationId: mine.id, text });
+    await engine.idle();
+    return seen.at(-1)!.context.passages.map((p) => p.title);
+  };
+  // The first question embeds the pages in the background; keywords alone find nothing here.
+  assert.deepEqual(await ask('what is the price of the vehicle'), []);
+  const once = embedded.length;
+  assert.ok(once > 0);
+  // Asked again in other words: found by meaning, and nothing re-embedded but the question.
+  const found = await ask('how much does the vehicle price come to');
+  assert.equal(found[0], 'Budget');
+  assert.ok(!found.includes('Maya private'), "never another person's private page");
+  assert.equal(embedded.length, once + 1, 'only the question was embedded');
+  // Changing the page embeds it again.
+  store.updateResource(dylan.id, budget.id, { body: 'The truck rental cost is $450 per day.' });
+  await ask('vehicle price today');
+  await engine.idle();
+  assert.ok(embedded.some((t) => t.includes('$450')));
 });
 
 test('google sign-in: verified accounts only, new people need an invite or the setup code, and the same account comes back as the same person', async () => {

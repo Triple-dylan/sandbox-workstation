@@ -12,6 +12,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 - **Installable:** a web manifest and icon, so it can be added to a dock or home screen.
 - **One access check** in `server/store.ts` governs every read by a person or an agent. Hosting does not change it.
 - **Agents:** passage retrieval, an answer cache and cache-friendly prompts are in the engine, independent of the model provider.
+- **Meaning-based search.** With an OpenAI key, page passages are turned into vectors with `text-embedding-3-small` (search only; every answer is still written by gpt-6-luna), stored in the database and redone only when a page changes. Each question is matched by keyword and by meaning, and the two rankings are merged. A page is embedded in the background the first time an agent could search it, so a brand-new page is found by keyword only until then. Embedding tokens are not counted against allowances (they cost about a fiftieth of an answer).
 - **Agent spend guardrails.** Besides the server-wide daily limit, each space and each person has a daily token allowance (defaults 100,000 and 50,000), and one person can ask agents at most 10 times a minute. Background upkeep counts against its space. Over an allowance, the agent says so and the labelled stand-in answers; asking too fast gets no answer.
 - **Live window sharing** goes browser to browser; the server only relays set-up messages.
 
@@ -23,7 +24,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 4. **Two people in one document.** Sheets save per cell. Documents and slides are last-save-wins; they need merging edits (a CRDT such as Yjs fits the editor already in use).
 5. **Live updates at scale.** Each change tells every browser to refetch everything it can see. Send changes, not snapshots, and move to WebSockets.
 6. **Relay for window sharing.** Across office networks, direct browser-to-browser connections often fail; a TURN relay is needed.
-7. **Retrieval at scale.** Ranking is lexical and in memory. A large corpus wants a stored index and meaning-based search alongside it; PDF import is not built.
+7. **Retrieval at scale.** Keyword ranking is still rebuilt in memory and vectors are compared by brute force, which is fine for thousands of passages; a large corpus wants a vector index (pgvector with Postgres). PDF import is not built.
 8. **Limits and abuse.** Upload size policy. (Agent spend limits per space and per person, and a per-person rate, are done.)
 9. **Operations.** Backups, error reporting, and a way to delete a person's data.
 
