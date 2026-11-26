@@ -1,8 +1,5 @@
-import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { spawn, type ChildProcess } from 'node:child_process';
 import type { ServerResponse } from 'node:http';
-import type { BrowserContext, CDPSession, Page } from 'playwright';
+import type { Browser, BrowserContext, CDPSession, Page } from 'playwright-core';
 import { InputError, type Store } from '../store.ts';
 import {
   SEARCH_ENGINES,
@@ -10,7 +7,8 @@ import {
   type Id,
   type SearchEngine,
 } from '../../shared/types.ts';
-import { addressFor, guardProxy, mayVisit } from './guard.ts';
+import { mayVisit } from './guard.ts';
+import { addressFor } from './address.ts';
 
 const WIDTH = 1280;
 const HEIGHT = 800;
@@ -59,38 +57,57 @@ export type BrowserInput =
  */
 export class SharedBrowsers {
   private store: Store;
-  private dataDir: string | null;
+  private endpoint: string | null;
   private allow: (host: string) => boolean;
   private maxWorkspaces: number;
   private idleMs: number;
   private rooms = new Map<Id, Room>();
   private workspaces = new Map<Id, Promise<Workspace>>();
-  private proxy: Promise<{ url: string; close: () => void }> | null = null;
-  private launcher: Promise<typeof import('playwright')> | null = null;
+  private remote: Promise<Browser> | null = null;
   private tabCount = 0;
-  private headless: boolean;
-  private display: ChildProcess | null = null;
 
   constructor(
     store: Store,
     options: {
-      dataDir: string | null;
+      /**
+       * The browser service's address (BROWSER_SERVICE_URL). Chrome runs there, on its own
+       * server, never on the machine running this app. Unset, Browser pages say it is not set up.
+       */
+      endpoint: string | null;
       allowHosts?: string[];
       maxWorkspaces?: number;
       idleMs?: number;
-      /** Tests only. People use a normal, visible Chrome: many sites refuse headless ones. */
-      headless?: boolean;
     },
   ) {
-    // Visible Chrome only where it can be kept off any real screen: a server, on a virtual one.
-    // On a desktop it would open windows in front of the person, so it runs headless there.
-    this.headless = options.headless ?? process.platform !== 'linux';
     this.store = store;
-    this.dataDir = options.dataDir;
+    this.endpoint = options.endpoint;
     const allowed = new Set(options.allowHosts ?? []);
     this.allow = (host) => allowed.has(host);
     this.maxWorkspaces = options.maxWorkspaces ?? 4;
     this.idleMs = options.idleMs ?? 5 * 60_000;
+  }
+
+  /** The connection to the browser service, made once and remade if it drops. */
+  private browser(): Promise<Browser> {
+    if (!this.endpoint)
+      throw new InputError(
+        'The shared browser is not set up on this server yet: it needs the browser service (BROWSER_SERVICE_URL).',
+      );
+    this.remote ??= import('playwright-core').then(async ({ chromium }) => {
+      const browser = await chromium.connect(this.endpoint!, { timeout: 15_000 });
+      browser.on('disconnected', () => {
+        this.remote = null;
+        for (const id of [...this.rooms.keys()]) this.dropRoom(id);
+        this.workspaces.clear();
+      });
+      return browser;
+    });
+    this.remote.catch(() => (this.remote = null));
+    return this.remote.catch((error) => {
+      throw new InputError(
+        `Couldn't reach the shared browser service: ${(error as Error).message.split('\n')[0]}`,
+      );
+    });
   }
 
   private async workspace(spaceId: Id): Promise<Workspace> {
@@ -101,37 +118,16 @@ export class SharedBrowsers {
         'The shared browser is busy in other workspaces. Try again in a few minutes.',
       );
     const starting = (async () => {
-      this.launcher ??= import('playwright');
-      this.proxy ??= guardProxy(this.allow);
-      const [{ chromium }, proxy] = await Promise.all([this.launcher, this.proxy]);
-      const options = {
-        headless: this.headless,
-        env: { ...process.env, ...this.screen() },
+      const browser = await this.browser();
+      // Sign-ins are kept in this app's database per workspace, and brought back each time.
+      const saved = this.store.browserState(spaceId);
+      const context = await browser.newContext({
         viewport: { width: WIDTH, height: HEIGHT },
         acceptDownloads: false,
-        // Every connection, even to this machine, goes through the guard.
-        proxy: { server: proxy.url, bypass: '<-loopback>' },
-        args: [
-          '--disable-dev-shm-usage',
-          '--no-first-run',
-          '--disable-features=Translate',
-          `--window-size=${WIDTH},${HEIGHT + 120}`,
-        ],
-      };
-      let context: BrowserContext;
-      if (this.dataDir) {
-        // Kept on disk per workspace, so sign-ins survive a restart.
-        const dir = join(this.dataDir, spaceId.replace(/[^\w-]/g, ''));
-        mkdirSync(dir, { recursive: true });
-        context = await chromium.launchPersistentContext(dir, options);
-        // It opens with an empty window of its own; tabs belong to Browser pages instead.
-        for (const blank of context.pages()) await blank.close().catch(() => {});
-      } else {
-        const browser = await chromium.launch(options);
-        context = await browser.newContext(options);
-        context.on('close', () => void browser.close().catch(() => {}));
-      }
+        ...(saved ? { storageState: JSON.parse(saved) } : {}),
+      });
       // A first, cheap check for addresses that are plainly not allowed (file:, chrome:, localhost).
+      // The service's own proxy checks every connection again where Chrome runs.
       await context.route('**/*', async (route) =>
         (await mayVisit(route.request().url(), this.allow))
           ? route.continue()
@@ -154,19 +150,20 @@ export class SharedBrowsers {
     return starting;
   }
 
-  /**
-   * A server has no screen: a virtual one (Xvfb) is started once for the visible Chrome. On a
-   * desktop the real screen is used.
-   */
-  private screen(): Record<string, string> {
-    if (this.headless || process.platform !== 'linux' || process.env.DISPLAY) return {};
-    if (!this.display) {
-      this.display = spawn('Xvfb', [':99', '-screen', '0', '1920x1080x24', '-nolisten', 'tcp'], {
-        stdio: 'ignore',
-      });
-      this.display.on('error', (error) => console.error('virtual screen failed', error));
-    }
-    return { DISPLAY: ':99' };
+  /** Keeps the workspace's sign-ins, so they survive the browser closing. */
+  private async saveSignIns(spaceId: Id) {
+    const ws = await this.workspaces.get(spaceId)?.catch(() => null);
+    if (!ws) return;
+    const state = await ws.context.storageState().catch(() => null);
+    if (state) this.store.setBrowserState(spaceId, JSON.stringify(state));
+  }
+
+  private dropRoom(resourceId: Id) {
+    const room = this.rooms.get(resourceId);
+    if (!room) return;
+    this.rooms.delete(resourceId);
+    room.frame = null;
+    this.send(room, { t: 'error', text: 'The shared browser restarted. Reopen the page.' });
   }
 
   private track(room: Room, page: Page): Tab {
@@ -307,6 +304,7 @@ export class SharedBrowsers {
     };
     this.store.setBrowserBody(room.resourceId, body);
     this.state(room);
+    void this.saveSignIns(room.spaceId);
   }
 
   /** Someone opens the page: they start watching. */
@@ -439,6 +437,7 @@ export class SharedBrowsers {
     if (!ws) return;
     ws.rooms.delete(resourceId);
     if (!ws.rooms.size) {
+      await this.saveSignIns(room.spaceId);
       this.workspaces.delete(room.spaceId);
       await ws.context.close().catch(() => {});
     }
@@ -451,10 +450,10 @@ export class SharedBrowsers {
       room.viewers.clear();
       await this.close(id);
     }
-    for (const ws of this.workspaces.values()) await (await ws.catch(() => null))?.context.close();
-    this.workspaces.clear();
-    (await this.proxy?.catch(() => null))?.close();
-    this.display?.kill();
+    // Only the connection is closed: the browser service keeps running for other apps' restarts.
+    const browser = await this.remote?.catch(() => null);
+    this.remote = null;
+    await browser?.close().catch(() => {});
   }
 }
 

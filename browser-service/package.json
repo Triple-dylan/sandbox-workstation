@@ -1,0 +1,16 @@
+{
+  "name": "sandbox-browser-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The workstation's shared browser: Chrome on its own server, driven by the app.",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning service.ts"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

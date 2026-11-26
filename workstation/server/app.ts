@@ -8,7 +8,6 @@ import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
-import { dirname } from 'node:path';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
@@ -39,8 +38,8 @@ export type AppOptions = {
   env?: NodeJS.ProcessEnv;
   /** Hosts the shared browser may reach although they are private (tests use a local page). */
   browserHosts?: string[];
-  /** Tests run the shared browser headless; people get a normal, visible one. */
-  browserHeadless?: boolean;
+  /** The browser service to use instead of BROWSER_SERVICE_URL (tests start their own). */
+  browserService?: string;
   /** Where linked spreadsheets live. Tests pass stand-ins; by default Google Sheets and Excel. */
   providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
@@ -86,10 +85,10 @@ export function createApp(options: AppOptions) {
         : (options.embedder ?? undefined),
   });
   const connectors = new Connectors(store, env, options.providers);
+  // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
-    dataDir: options.dbPath === ':memory:' ? null : join(dirname(options.dbPath), 'browsers'),
+    endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
     allowHosts: options.browserHosts,
-    headless: options.browserHeadless,
   });
   // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
   const callback = (req: IncomingMessage, provider: string) => {

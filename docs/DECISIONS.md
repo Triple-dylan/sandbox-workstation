@@ -4,6 +4,8 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-25
 
+- **The shared browser runs as its own hosted service, never on the app's machine or anyone's computer.** Dylan, after Chrome had been installed and run on his Mac for the local copy: "wasnt aware we had local dependencies. not acceptable". Chrome now runs in `browser-service/` (its own Railway service, private network, secret in the address, with the connection guard). The app only connects to it (`BROWSER_SERVICE_URL`) and keeps each workspace's sign-ins in its own database. Without the service set up, Browser pages say so; nothing is launched locally.
+
 - **Clicking an agent opens a chat with it; its settings are secondary.** Dylan: "clicking agents should bring you to a chat with them!! ... the god damn agent edit settings hsouldnt be the prime focus." Your own agent opens the rail; a workspace agent opens a one-to-one chat of yours with it (it answers without a tag, only you see it). Settings are the sliders button in that chat's header, or right-click in the list. A new agent opens on its chat.
 - **The shared browser searches Google by default**, with DuckDuckGo and Bing as a choice per Browser page. Dylan: "lets not always force a redirect to duck duck." Google may show its "I'm not a robot" check to a browser run on a server; a person on the team ticks it, the app never does.
 

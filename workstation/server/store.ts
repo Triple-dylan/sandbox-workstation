@@ -1344,6 +1344,21 @@ export class Store {
     this.run('update resources set body = ? where id = ?', next, resourceId);
     this.changed();
   }
+  /** A workspace's shared-browser sign-ins (cookies and site storage), kept between sessions. */
+  browserState(spaceId: Id) {
+    const row = this.get('select state from browser_states where space_id = ?', spaceId);
+    return row ? String(row.state) : null;
+  }
+  setBrowserState(spaceId: Id, state: string) {
+    if (state.length > 2_000_000) return;
+    this.run(
+      `insert into browser_states values (?, ?, ?)
+       on conflict (space_id) do update set state = excluded.state, updated_at = excluded.updated_at`,
+      spaceId,
+      state,
+      now(),
+    );
+  }
   linkedSheets() {
     return this.all(
       `select id from resources where kind = 'sheet' and deleted = 0 and body like '%"link":{%'`,

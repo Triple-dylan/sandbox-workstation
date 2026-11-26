@@ -87,6 +87,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-25
 
 - Agents open as chats: clicking one in the list opens your chat with it (your own agent: the rail); settings are the sliders button in its chat header or right-click.
+- Shared browser: runs in the separate browser service (`browser-service/`), which the app connects to; sign-ins are kept in the app's database. Not deployed yet.
 - Shared browser: New page → Browser. Searches Google by default (DuckDuckGo or Bing per page). Live screen, tabs, address bar (DuckDuckGo search), one driver with Take control, teammates' pointers, sign-ins kept per workspace. Agents read the open tab's text. Checked in the browser locally: DuckDuckGo results for a search, and clicking through on the stream. Tested: two viewers get the same frames, the driver rule, pointers, the private-address guard and proxy, and that a page body sent from outside is ignored. Each open workspace browser uses roughly 300–500 MB on the server and closes five minutes after the last person leaves; at most four workspaces at once.
 
 - Sheets: Excel keys and clipboard, fill, undo, number formats, column widths, sort, keep row 1 in view, `.xlsx` in and out, CSV out. Checked in the browser: typing, Enter, Shift-select, paste of tab-separated text with a formula, undo, currency format, the column menu.

@@ -5,7 +5,8 @@ import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
-import { addressFor, guardProxy, isPrivateAddress, mayVisit } from '../server/browser/guard.ts';
+import { guardProxy, isPrivateAddress, mayVisit } from '../server/browser/guard.ts';
+import { addressFor } from '../server/browser/address.ts';
 
 const closing: (() => unknown)[] = [];
 after(async () => {
@@ -65,20 +66,30 @@ test('shared browser: private addresses are refused, and the address bar searche
   assert.equal(await through(`http://localhost:${port}/`), 403);
 });
 
-/** Whether a Chromium is installed here to run the real thing. */
-async function haveChromium() {
+/**
+ * A browser service for the test, like the one on its own server in production. Only where a
+ * Chromium is installed (CI); a person's own machine never needs one.
+ */
+async function browserService() {
   try {
-    const { chromium } = await import('playwright');
-    const b = await chromium.launch();
-    await b.close();
-    return true;
+    const { startService } = await import('../server/browser/service.ts');
+    const service = await startService({
+      token: 'test-token-that-is-long-enough-123',
+      port: 0,
+      host: '127.0.0.1',
+      allowHosts: ['127.0.0.1'],
+      headless: true,
+    });
+    closing.push(() => service.close());
+    return service.endpoint;
   } catch {
-    return false;
+    return null;
   }
 }
 
 test('shared browser: the team watches one real Chrome, one drives, and agents can read the open tab', async (t) => {
-  if (!(await haveChromium())) return t.skip('No Chromium here; CI installs one.');
+  const endpoint = await browserService();
+  if (!endpoint) return t.skip('No Chromium here; CI runs the browser service.');
   const site = createServer((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });
     res.end(
@@ -93,7 +104,7 @@ test('shared browser: the team watches one real Chrome, one drives, and agents c
     staticDir: null,
     runtime: scriptedRuntime,
     browserHosts: ['127.0.0.1'],
-    browserHeadless: true,
+    browserService: endpoint,
   });
   closing.push(() => app.close());
   const { store } = app;
