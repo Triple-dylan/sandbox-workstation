@@ -1,6 +1,6 @@
 # Current state
 
-_Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
+_Updated 2026-11-26._ What is being built and why is in `docs/PLAN.md`.
 
 ## Repository status (2026-11-24)
 
@@ -84,19 +84,6 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: one sign-in page for every way in (Google, a name on a local server, a sign-in link) that says what the product is and names both kinds of agent, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The + in the thin rail offers both at any time ("New workspace", "Join with a link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
-## Added 2026-11-26
-
-- Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
-- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
-- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
-- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
-- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
-- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
-- Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
-- A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
-- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
-- Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
-
 ## Added 2026-11-25
 
 - Agents open as chats: clicking one in the list opens your chat with it (your own agent: the rail); settings are the sliders button in its chat header or right-click.
@@ -111,6 +98,19 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Agents look after pages: exact cell lines and model-judged lines; header "Ask Finance"; list and channel headers show what agents watch and where they listen. Checked in the browser: Finance said "Heads up on Q1 Budget: Total (B4) is now 5200, above 5,000." in the page feed.
 - Approval levels per agent: ask first, small fixes with Undo, plan first.
 - Not run against the live model yet: the evals need the OpenAI key's daily limit to reset.
+
+## Added 2026-11-26
+
+- Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
+- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
+- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
+- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
+- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
+- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
+- Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
+- A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
+- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
+- Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
 
 ## Known gaps
 
