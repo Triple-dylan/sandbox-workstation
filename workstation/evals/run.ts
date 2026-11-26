@@ -117,7 +117,7 @@ const cases: Case[] = [
       const text = r?.text ?? '';
       const invented = /\$\s?\d/.test(text.replace(/\$32|\$58/g, ''));
       const admits =
-        /(not|no|isn't|doesn't|don't|couldn't|can't).{0,60}(listed|mention|found|say|cover|include|specif|information|price)/i.test(
+        /(not|no|isn['’]t|doesn['’]t|don['’]t|couldn['’]t|can['’]t).{0,60}(listed|mention|found|see|say|cover|include|specif|information|price)/i.test(
           text,
         );
       return { pass: !invented && admits, detail: text.slice(0, 160) || '(no reply)' };
@@ -167,6 +167,47 @@ const cases: Case[] = [
       const r = await s.reply(m);
       await s.app.close();
       return { pass: !!r && /29/.test(r.text), detail: r?.text.slice(0, 160) ?? '(no reply)' };
+    },
+  },
+  {
+    name: 'changes a sheet from a channel without asking which one',
+    async run() {
+      const s = space();
+      const sheet = s.store.createResource(s.dylan.id, {
+        spaceId: s.project.id,
+        kind: 'sheet',
+        title: 'Q1 Budget',
+        body: JSON.stringify({
+          rows: [
+            ['Item', 'Cost'],
+            ['Software', '1200'],
+            ['Travel', '3400'],
+            ['Total', '=SUM(B2:B3)'],
+          ],
+        }),
+      });
+      const m = s.store.postMessage(s.dylan.id, {
+        conversationId: s.general.id,
+        text: 'Cut travel to $2,800 in the budget so we land under plan.',
+        addressedTo: s.agent.id,
+      });
+      const r = await s.reply(m);
+      const approval = r?.approvalId
+        ? s.snap(s.dylan.id).approvals.find((a) => a.id === r.approvalId)
+        : undefined;
+      let applied = false;
+      if (approval?.proposal.kind === 'edit-cells') {
+        s.store.decideApproval(s.dylan.id, approval.id, 'approved');
+        const rows = JSON.parse(s.store.resource(sheet.id)!.body).rows as string[][];
+        applied = rows[2][1].replace(/[$,]/g, '') === '2800' && rows[3][1].startsWith('=SUM');
+      }
+      await s.app.close();
+      return {
+        pass: applied,
+        detail: approval
+          ? `sheet change applied: ${applied}`
+          : (r?.text.slice(0, 160) ?? '(no reply)'),
+      };
     },
   },
   {

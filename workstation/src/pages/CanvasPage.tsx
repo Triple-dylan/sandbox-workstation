@@ -23,7 +23,7 @@ import { useSpot } from '../app/spot.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, Md, deckSlides, sheetRows } from '../app/util.tsx';
 import { DRAG } from '../app/scope.ts';
-import { evaluate } from '../features/sheet/formula.ts';
+import { evaluate } from '../../shared/formula.ts';
 import { readImage } from '../features/canvas/image.ts';
 import { stopSharing, useShared } from '../features/canvas/share.ts';
 import { Actor, nameStyle } from '../features/agents/Character.tsx';

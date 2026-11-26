@@ -5,7 +5,7 @@ export const colName = (index: number) => {
     name = String.fromCharCode(65 + (n % 26)) + name;
   return name;
 };
-const colIndex = (name: string) =>
+export const colIndex = (name: string) =>
   [...name.toUpperCase()].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
 /** Reads "$1,200.50" or "12%" as a number; anything else is not a number. */
@@ -145,4 +145,44 @@ export function evaluate(
     const message = (error as Error).message;
     return message.startsWith('#') ? message : '#ERR';
   }
+}
+
+/**
+ * A sheet change an agent proposes, written one cell per line: "B3 = 2800" or "B5 = =SUM(B2:B4)".
+ * Null when any line is not a cell and a value, so a malformed change is never half applied.
+ */
+export function cellEdits(text: string): { row: number; col: number; value: string }[] | null {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length || lines.length > 60) return null;
+  const edits = [];
+  for (const line of lines) {
+    const m = /^([A-Za-z]{1,2})([0-9]{1,3})\s*=\s?(.*)$/.exec(line);
+    if (!m) return null;
+    const row = Number(m[2]) - 1;
+    const col = colIndex(m[1]);
+    if (row < 0 || row > 499 || col < 0 || col > 51) return null;
+    edits.push({ row, col, value: m[3] });
+  }
+  return edits;
+}
+
+/** A sheet as an agent reads it: column letters, row numbers, and each formula with its result. */
+export function sheetText(rows: string[][]): string {
+  const width = Math.max(0, ...rows.map((r) => r.length));
+  const head = ['', ...Array.from({ length: width }, (_, c) => colName(c))].join(' | ');
+  const body = rows
+    .map((row, r) =>
+      [
+        String(r + 1),
+        ...Array.from({ length: width }, (_, c) => {
+          const raw = row[c] ?? '';
+          return raw.startsWith('=') ? `${raw} → ${evaluate(rows, r, c)}` : raw;
+        }),
+      ].join(' | '),
+    )
+    .filter((line) => line.replace(/[\d| ]/g, '').length > 0);
+  return [head, ...body].join('\n');
 }

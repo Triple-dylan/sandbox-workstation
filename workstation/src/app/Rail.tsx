@@ -730,7 +730,7 @@ export function Rail({ docked }: { docked: boolean }) {
           ref={box}
           rows={1}
           value={text}
-          placeholder={asking ? 'Ask about the selected text' : 'Ask your agent'}
+          placeholder={asking ? 'Ask about your selection' : 'Ask your agent'}
           aria-label="Ask your agent"
           onChange={(e) => {
             setText(e.target.value);

@@ -32,7 +32,14 @@ export const answerSchema = {
       properties: {
         kind: {
           type: 'string',
-          enum: ['create-doc', 'edit-doc', 'create-agent', 'add-step', 'create-skill'],
+          enum: [
+            'create-doc',
+            'edit-doc',
+            'edit-cells',
+            'create-agent',
+            'add-step',
+            'create-skill',
+          ],
         },
         title: { type: 'string' },
         body: { type: 'string' },

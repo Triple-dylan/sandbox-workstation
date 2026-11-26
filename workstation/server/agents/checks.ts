@@ -1,3 +1,4 @@
+import { cellEdits } from '../../shared/formula.ts';
 import type { JobKind } from '../../shared/types.ts';
 import type { AgentResult } from './runtime.ts';
 
@@ -9,6 +10,8 @@ export type CheckContext = {
   /** The page an edit would change, if there is one in question. */
   editTarget: { title: string; body: string } | null;
   colleagues: string[];
+  /** Titles of the sheets the agent may change, lower-cased. */
+  sheets: Set<string>;
 };
 
 /**
@@ -38,6 +41,16 @@ export function problemsWith(result: AgentResult, ctx: CheckContext): string[] {
     else if (!ctx.editTarget.body.includes(p.title))
       problems.push(
         `The text to replace ("title" of your edit-doc) does not appear on "${ctx.editTarget.title}" exactly. Copy it character for character from the page, including punctuation and line breaks.`,
+      );
+  }
+  if (p?.kind === 'edit-cells') {
+    if (!ctx.sheets.has(p.title.trim().toLowerCase()))
+      problems.push(
+        `"${p.title}" is not a sheet you were given. For "edit-cells", "title" is a sheet's exact title.`,
+      );
+    if (!cellEdits(p.body))
+      problems.push(
+        'The "body" of your edit-cells is not one change per line like "B3 = 2800". Write only lines of a cell and its value.',
       );
   }
   if (result.handoff) {
@@ -70,6 +83,13 @@ export function keepOnlyValid(result: AgentResult, ctx: CheckContext): AgentResu
         ? `I couldn't match the text to change on "${ctx.editTarget.title}", so I haven't suggested an edit.`
         : "I couldn't tell which page to change, so I haven't suggested an edit. Open the page or select the text and ask again.",
     );
+  }
+  if (
+    out.proposal?.kind === 'edit-cells' &&
+    (!ctx.sheets.has(out.proposal.title.trim().toLowerCase()) || !cellEdits(out.proposal.body))
+  ) {
+    delete out.proposal;
+    notes.push("I couldn't put that change to the sheet together, so I haven't suggested it.");
   }
   if (
     out.handoff &&

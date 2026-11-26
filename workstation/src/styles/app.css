@@ -6048,3 +6048,58 @@ select:focus-visible {
   background: var(--wash);
   color: var(--ink);
 }
+.cell-changes {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 4px 0;
+}
+.cell-changes th {
+  text-align: left;
+  color: var(--ink-3);
+  font-weight: 550;
+  padding: 2px 10px 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.cell-changes td {
+  padding: 2px 8px 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.cell-changes del {
+  color: var(--ink-3);
+}
+.cell-changes ins {
+  text-decoration: none;
+  background: var(--mark);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.cell-changes .empty {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* Cells chosen together, and the Ask at their corner. */
+.sheet td.in-range {
+  background: color-mix(in oklab, var(--focus) 14%, transparent);
+}
+.sheet td {
+  position: relative;
+}
+.range-ask {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--lift);
+  white-space: nowrap;
+}

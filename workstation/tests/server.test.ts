@@ -1,3 +1,5 @@
+import { keepOnlyValid, problemsWith } from '../server/agents/checks.ts';
+import { cellEdits } from '../shared/formula.ts';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
@@ -1818,4 +1820,59 @@ test('pinned pages: every agent in the space reads them in full, and unpinning t
   store.postMessage(dylan.id, { conversationId: general.id, text: 'again', addressedTo: agent.id });
   await engine.idle();
   assert.deepEqual(seen.at(-1).context.pinned, []);
+});
+
+test('sheet changes: an agent proposes cells by sheet title, a person applies them, and bad ones are dropped', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      return {
+        reply: 'Travel down to 2,800.',
+        proposal: { kind: 'edit-cells', title: 'Q1 Budget', body: 'B3 = 2800\nA5 = Note' },
+      };
+    },
+  };
+  const { store, engine, dylan, general, agent, project, snap } = setup(runtime);
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Q1 Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Software', '1200'],
+        ['Travel', '3400'],
+      ],
+    }),
+  });
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'cut travel to 2800',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  const approval = snap(dylan.id).approvals.find((a) => a.proposal.kind === 'edit-cells')!;
+  assert.equal(approval.proposal.resourceId, sheet.id);
+  store.decideApproval(dylan.id, approval.id, 'approved');
+  const rows = JSON.parse(store.resource(sheet.id)!.body).rows;
+  assert.equal(rows[2][1], '2800');
+  assert.equal(rows[4][0], 'Note');
+
+  // The checks: a sheet that does not exist, or a body that is not cells, never becomes a proposal.
+  const ctx = {
+    kind: 'ask' as const,
+    titles: new Set(['q1 budget']),
+    editTarget: null,
+    colleagues: [],
+    sheets: new Set(['q1 budget']),
+  };
+  const bad = {
+    reply: 'ok',
+    proposal: { kind: 'edit-cells' as const, title: 'Nope', body: 'travel is 2800' },
+  };
+  assert.equal(problemsWith(bad, ctx).length, 2);
+  assert.equal(keepOnlyValid(bad, ctx).proposal, undefined);
+  assert.deepEqual(cellEdits('B5 = =SUM(B2:B4)'), [{ row: 4, col: 1, value: '=SUM(B2:B4)' }]);
 });

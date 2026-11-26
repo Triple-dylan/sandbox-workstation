@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { openDb } from '../server/db.ts';
 import { Store } from '../server/store.ts';
 import { graphOf, noFilter, relationsOf } from '../src/features/graph/tree.ts';
-import { colName, evaluate, toNumber } from '../src/features/sheet/formula.ts';
+import { colName, evaluate, toNumber } from '../shared/formula.ts';
 import { scopeOf } from '../src/app/scope.ts';
 import { proposalText } from '../src/features/agents/proposal.ts';
 import { inviteFrom } from '../src/app/invite.ts';

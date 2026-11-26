@@ -6,6 +6,12 @@ export function proposalText(p: Proposal, pageTitle?: string) {
     return { title: `Add an agent called “${p.title}”`, yes: 'Add', no: 'Decline' };
   if (p.kind === 'add-step')
     return { title: `Add “${p.title}” to the plan`, yes: 'Add', no: 'Decline' };
+  if (p.kind === 'edit-cells')
+    return {
+      title: `Suggested change${pageTitle ? ` to ${pageTitle}` : ''}`,
+      yes: 'Apply',
+      no: 'Decline',
+    };
   if (p.kind === 'edit-doc')
     return {
       title: `Suggested edit${pageTitle ? ` to ${pageTitle}` : ''}`,
