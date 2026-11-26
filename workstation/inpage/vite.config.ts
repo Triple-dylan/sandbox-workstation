@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const node = fileURLToPath(new URL('./shims/node.ts', import.meta.url));
 const sqlite = fileURLToPath(new URL('./shims/sqlite.ts', import.meta.url));
+const serverOnly = fileURLToPath(new URL('./shims/server-only.ts', import.meta.url));
 
 /** Bundles the client and the real server into one self-contained page. */
 export default defineConfig({
@@ -16,6 +17,11 @@ export default defineConfig({
       'node:path': node,
       'node:url': node,
       'node:http': node,
+      // Hosted-only: Google sign-in, the shared browser and its address guard.
+      'google-auth-library': serverOnly,
+      'playwright-core': serverOnly,
+      'node:net': serverOnly,
+      'node:dns/promises': serverOnly,
     },
   },
   build: {

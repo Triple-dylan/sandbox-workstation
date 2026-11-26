@@ -402,6 +402,21 @@ export function createApp(options: AppOptions) {
       store.addMember(me.id, segments[1], str('userId'));
       return send(res, 200, { ok: true });
     }
+    if (
+      segments[0] === 'projects' &&
+      segments[2] === 'members' &&
+      segments[3] &&
+      method === 'DELETE'
+    ) {
+      store.removeMember(me.id, segments[1], segments[3]);
+      return send(res, 200, { ok: true });
+    }
+    if (segments[0] === 'projects' && segments[1] && !segments[2] && method === 'PATCH')
+      return send(res, 200, store.renameProject(me.id, segments[1], str('name')));
+    if (segments[0] === 'projects' && segments[1] && !segments[2] && method === 'DELETE') {
+      store.deleteProject(me.id, segments[1], str('confirm'));
+      return send(res, 200, { ok: true });
+    }
     if (path === '/api/channels' && method === 'POST')
       return send(res, 200, store.createChannel(me.id, str('spaceId'), str('title')));
     if (path === '/api/dms' && method === 'POST')

@@ -176,7 +176,7 @@ test('situation 4: discussing selected work anchors to the resource and respects
 });
 
 test('situation 5: delegating ongoing work creates an assignment that keeps context current', async () => {
-  const { app, store, engine, dylan, maya, general, agent, snap } = setup();
+  const { app, store, engine, dylan, maya, project, general, agent, snap } = setup();
   store.postMessage(dylan.id, {
     conversationId: general.id,
     text: 'Keep the orientation up to date',
@@ -188,10 +188,37 @@ test('situation 5: delegating ongoing work creates an assignment that keeps cont
   const assignment = view.assignments.find((a) => a.agentId === agent.id)!;
   assert.ok(assignment.active);
   assert.ok(view.messages.some((m) => m.authorId === agent.id && /On it/.test(m.text)));
-  store.postMessage(maya.id, { conversationId: general.id, text: 'We decided to launch in March' });
+  const decision = store.postMessage(maya.id, {
+    conversationId: general.id,
+    text: 'Launch in March',
+  });
+  store.postMessage(maya.id, { conversationId: general.id, text: 'We decided on blue, I think' });
+  store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Travel', '3400'],
+      ],
+    }),
+  });
+  await engine.idle();
+  // Marking a message Decided is enough on its own to bring the summary up to date.
+  store.resolveMessage(dylan.id, decision.id, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
   await engine.idle();
   const orientation = snap(dylan.id).resources.find((r) => r.role === 'orientation')!;
-  assert.match(orientation.body, /We decided to launch in March — Maya/);
+  // Only a message someone marked Decided counts as decided; saying "decided" does not.
+  const decided = orientation.body.split('## Decided')[1].split('##')[0];
+  assert.match(decided, /Launch in March · Maya/);
+  assert.doesNotMatch(decided, /blue/);
+  assert.match(orientation.body, /Maya: We decided on blue/);
+  // A sheet is named, not dumped as a grid.
+  assert.match(orientation.body, /\*\*Budget\*\* · sheet/);
+  assert.doesNotMatch(orientation.body, /Travel|\| A \|/);
+  assert.doesNotMatch(orientation.body, /project/i);
   assert.equal(orientation.updatedBy, agent.id);
   store.stopAssignment(dylan.id, assignment.id);
   assert.equal(snap(dylan.id).assignments[0].active, false);
@@ -2172,4 +2199,50 @@ test('a workspace agent can be talked to one to one: it answers in that chat wit
   assert.throws(() => store.openDm(sam.id, agent.id), /Choose another person/);
   // Your own agent stays in the rail.
   assert.throws(() => store.openDm(dylan.id, store.personalAgent(dylan.id)!.id));
+});
+
+test('workspaces: the owner renames, removes people and deletes; anyone else can only leave', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  store.addMember(dylan.id, project.id, sam.id);
+  const budget = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Budget notes',
+    body: 'Travel is capped.',
+  });
+
+  // Only the owner manages the workspace.
+  assert.throws(() => store.renameProject(maya.id, project.id, 'Mine now'), /Only the person/);
+  assert.throws(() => store.removeMember(maya.id, project.id, sam.id), /Only the person/);
+  assert.throws(() => store.deleteProject(maya.id, project.id, 'Launch'), /Only the person/);
+
+  // Renaming carries the names made from the old one.
+  store.renameProject(dylan.id, project.id, 'Spring launch');
+  const renamed = snap(maya.id);
+  assert.equal(renamed.spaces.find((x) => x.id === project.id)?.name, 'Spring launch');
+  assert.ok(renamed.users.some((u) => u.name === 'Spring launch agent'));
+  assert.ok(renamed.resources.some((r) => r.title === 'About Spring launch'));
+
+  // Removed: nothing in the workspace is readable any more.
+  store.removeMember(dylan.id, project.id, sam.id);
+  const gone = snap(sam.id);
+  assert.ok(!gone.spaces.some((x) => x.id === project.id));
+  assert.ok(!gone.resources.some((r) => r.id === budget.id));
+  assert.ok(!gone.conversations.some((c) => c.id === general.id));
+  assert.throws(() =>
+    store.postMessage(sam.id, { conversationId: general.id, text: 'still here?' }),
+  );
+
+  // Leaving is open to members; the owner deletes instead.
+  assert.throws(() => store.removeMember(dylan.id, project.id, dylan.id), /Delete it instead/);
+  store.removeMember(maya.id, project.id, maya.id);
+  assert.ok(!snap(maya.id).spaces.some((x) => x.id === project.id));
+
+  // Deleting needs the exact name, then closes it to everyone and stops its invite link.
+  const { token } = store.invite(dylan.id, project.id);
+  assert.throws(() => store.deleteProject(dylan.id, project.id, 'spring'), /Type Spring launch/);
+  store.deleteProject(dylan.id, project.id, 'Spring launch');
+  assert.ok(!snap(dylan.id).spaces.some((x) => x.id === project.id));
+  assert.equal(store.projectAgent(project.id), null);
+  assert.throws(() => store.acceptInvite(sam.id, token));
 });

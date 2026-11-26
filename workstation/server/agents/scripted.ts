@@ -30,36 +30,89 @@ function search(task: AgentTask, query: string) {
     .map((x) => x.r);
 }
 
+const KIND_NAMES: Record<string, string> = {
+  doc: 'Document',
+  sheet: 'Sheet',
+  deck: 'Deck',
+  canvas: 'Canvas',
+  asset: 'File',
+};
+
+/** Cut text at a word boundary, with an ellipsis when something was left out. */
+function clip(text: string, max: number) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  return `${cut
+    .slice(0, Math.max(cut.lastIndexOf(' '), max * 0.6))
+    .replace(/[\s,;:.\-–—]+$/, '')}…`;
+}
+
+/** Markdown read as one plain line: no heading marks, emphasis, table bars or list bullets. */
+function plain(text: string) {
+  return text
+    .replace(/[#*_`>|]/g, ' ')
+    .replace(/^\s*[-+]\s+/gm, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** What a page is, in a line someone can read. Grids (sheets, decks, canvases) are named, not dumped. */
+function pageLine(r: { title: string; kind: string; excerpt: string }) {
+  const kind = KIND_NAMES[r.kind] ?? 'Page';
+  if (r.kind !== 'doc') return `- **${r.title}** · ${kind.toLowerCase()}`;
+  const text = plain(r.excerpt);
+  const body = text.toLowerCase().startsWith(r.title.toLowerCase())
+    ? text.slice(r.title.length).trim()
+    : text;
+  return `- **${r.title}**${body ? ` · ${clip(body, 90)}` : ''}`;
+}
+
+const DECIDED = '[decided] ';
+
+/**
+ * The workspace summary page, built without a model: what is here, what has been decided (messages
+ * someone marked Decided), what is still asked, and what people said last.
+ */
 export function orientationFor(task: AgentTask) {
-  const { resources, recent } = task.context;
-  const decisions = recent.filter((m) => /\b(decided|decision|agreed|we will)\b/i.test(m.text));
-  const questions = recent.filter((m) => m.text.trim().endsWith('?'));
+  const { resources, recent, plan } = task.context;
+  const decided = recent.filter((m) => m.text.startsWith(DECIDED));
+  const said = recent.filter((m) => !m.text.startsWith(DECIDED));
+  const questions = said.filter((m) => m.text.trim().endsWith('?'));
+  const steps = plan.filter((s) => !s.done);
   const lines = [
     `# ${task.spaceName}`,
     '',
-    '_Maintained automatically by the project agent from shared work in this project._',
+    `_Kept current by ${task.agent.name} from the pages and chats everyone here can see._`,
     '',
-    '## Shared resources',
+    '## Pages',
     ...(resources.length
-      ? resources.map(
-          (r) => `- **${r.title}** (${r.kind})${r.excerpt ? ` — ${r.excerpt.slice(0, 80)}` : ''}`,
-        )
-      : ['- Nothing shared yet.']),
+      ? resources.slice(0, 12).map(pageLine)
+      : ['- None yet. Make one with the + next to Pages, or drop a file anywhere.']),
+    ...(steps.length
+      ? [
+          '',
+          '## Plan',
+          ...steps
+            .slice(0, 6)
+            .map(
+              (s) =>
+                `- ${s.step}${s.owner ? ` · ${s.owner}` : ''}${s.due ? ` · due ${s.due.slice(0, 10)}` : ''}`,
+            ),
+        ]
+      : []),
     '',
-    '## Decisions so far',
-    ...(decisions.length
-      ? decisions.slice(-5).map((m) => `- ${m.text} — ${m.author}`)
-      : ['- None recorded yet.']),
-    '',
-    '## Open questions',
+    '## Decided',
+    ...(decided.length
+      ? decided.slice(-5).map((m) => `- ${clip(m.text.slice(DECIDED.length), 160)} · ${m.author}`)
+      : ['- Nothing yet. Mark a message Decided and it shows here.']),
     ...(questions.length
-      ? questions.slice(-5).map((m) => `- ${m.text} — ${m.author}`)
-      : ['- None open.']),
+      ? ['', '## Asked', ...questions.slice(-5).map((m) => `- ${clip(m.text, 160)} · ${m.author}`)]
+      : []),
     '',
-    '## Recent discussion',
-    ...(recent.length
-      ? recent.slice(-5).map((m) => `- ${m.author}: ${m.text.slice(0, 120)}`)
-      : ['- No discussion yet.']),
+    '## Lately',
+    ...(said.length
+      ? said.slice(-5).map((m) => `- ${m.author}: ${clip(m.text, 120)}`)
+      : ['- Quiet so far.']),
   ];
   return lines.join('\n');
 }

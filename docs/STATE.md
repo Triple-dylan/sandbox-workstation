@@ -88,6 +88,9 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 - Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
 - Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
+- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
+- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
+- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
 
 ## Added 2026-11-25
 
@@ -107,7 +110,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
 - Two people typing on the same slide at once: the last save wins. Documents merge as people type (2026-11-26); sheets save cell by cell.
-- The orientation page is kept by a local template, so it never spends usage on a timer.
+- The workspace summary page ("About …") is written by gpt-6-luna after changes when the server has an OpenAI key; the in-page build and the scripted stand-in use a fixed template instead.
 - Pictures are stored inline; fine locally, not for production.
 - Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
 - No real accounts or hosting yet; `docs/WEBAPP.md` lists what a hosted version still needs. PDF import is not built. Text size changes the base size; some small labels stay fixed.
