@@ -101,13 +101,6 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await channel.getByRole('button', { name: 'Create', exact: true }).click();
   await row(maya, 'design').waitFor();
 
-  // A channel is made in the list, in Chats, where it then appears for everyone.
-  await dylan.getByRole('button', { name: 'New channel', exact: true }).click();
-  const channel = dylan.getByRole('form', { name: 'New channel' });
-  await channel.getByLabel('Channel name').fill('design');
-  await channel.getByRole('button', { name: 'Create', exact: true }).click();
-  await row(maya, 'design').waitFor();
-
   // A document they both see; typing saves and reaches the other person.
   await newPage(dylan, 'Document', 'Brief');
   await dylan.locator('.tiptap').click();

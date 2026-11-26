@@ -697,16 +697,6 @@ export class AgentEngine {
   }
 
   /** The page a request is about: the anchored text's page, the discussed page, or the one in view. */
-  /** The sheet a proposed change names, by title, among those the agent can read; the one in question first. */
-  private sheetNamed(agent: User, title: string, inQuestion: Id | null): Id | null {
-    const sheets = this.store
-      .memberSpaces(agent.id)
-      .flatMap((id) => this.store.readableResources(agent.id, id))
-      .filter((r) => r.kind === 'sheet' && !r.archived);
-    const named = sheets.filter((r) => r.title.toLowerCase() === title.trim().toLowerCase());
-    return (named.find((r) => r.id === inQuestion) ?? named[0])?.id ?? null;
-  }
-
   private pageInQuestion(conversation: Conversation | null, trigger: Message | null): Id | null {
     return (
       trigger?.anchor?.resourceId ??
