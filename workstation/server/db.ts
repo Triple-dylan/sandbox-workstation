@@ -152,6 +152,7 @@ export function openDb(path: string): Db {
     'alter table messages add column asked text',
     'alter table messages add column replies text',
     'alter table messages add column read text',
+    'alter table spaces add column deleted_at text',
   ])
     try {
       db.exec(change);

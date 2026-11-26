@@ -341,6 +341,14 @@ export function NewAgent() {
 export function PeoplePanel({ onClose }: { onClose: () => void }) {
   const { s, space, user, resource, notify, run, open } = useWorkspace();
   const [link, setLink] = useState<{ token: string; expiresAt: string } | null>(null);
+  // One thing waiting for a second click at a time: removing someone, leaving, or deleting.
+  const [asking, setAsking] = useState<
+    { kind: 'remove'; who: User } | { kind: 'leave' } | { kind: 'delete' } | null
+  >(null);
+  const [typed, setTyped] = useState('');
+  const [name, setName] = useState(space.name);
+  useEffect(() => setName(space.name), [space.name]);
+  const owner = space.ownerId === s.me.id;
   const make = (fresh = false) =>
     api<{ token: string; expiresAt: string }>('/invites', {
       body: { spaceId: space.id, fresh },
@@ -372,6 +380,25 @@ export function PeoplePanel({ onClose }: { onClose: () => void }) {
       open({ type: 'chat', id: dm.id });
     }
   };
+  const rename = () => {
+    const next = name.trim();
+    if (!next || next === space.name) return setName(space.name);
+    void run(() => api(`/projects/${space.id}`, { method: 'PATCH', body: { name: next } })).then(
+      (ok) => (ok ? notify(`Renamed to ${next}.`) : setName(space.name)),
+    );
+  };
+  const remove = (who: User) =>
+    void run(() => api(`/projects/${space.id}/members/${who.id}`, { method: 'DELETE' })).then(
+      (ok) => ok && (setAsking(null), notify(`${who.name} is no longer in ${space.name}.`)),
+    );
+  const leave = () =>
+    void run(() => api(`/projects/${space.id}/members/${s.me.id}`, { method: 'DELETE' })).then(
+      (ok) => ok && (onClose(), notify(`You left ${space.name}.`)),
+    );
+  const destroy = () =>
+    void run(() =>
+      api(`/projects/${space.id}`, { method: 'DELETE', body: { confirm: typed } }),
+    ).then((ok) => ok && (onClose(), notify(`${space.name} is deleted.`)));
   const copy = () =>
     void navigator.clipboard?.writeText(url).then(
       () => notify('Invite link copied.'),
@@ -401,14 +428,42 @@ export function PeoplePanel({ onClose }: { onClose: () => void }) {
               {p.id === s.me.id ? ' (you)' : ''}
               {at && <small> · {at}</small>}
             </span>
-            {p.id !== s.me.id && (
-              <button type="button" onClick={() => void message(p)}>
-                Message
-              </button>
+            {asking?.kind === 'remove' && asking.who.id === p.id ? (
+              <>
+                <button type="button" className="danger" onClick={() => remove(p)}>
+                  Remove
+                </button>
+                <button type="button" onClick={() => setAsking(null)}>
+                  Keep
+                </button>
+              </>
+            ) : (
+              p.id !== s.me.id && (
+                <>
+                  <button type="button" onClick={() => void message(p)}>
+                    Message
+                  </button>
+                  {owner && p.id !== space.ownerId && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${p.name} from ${space.name}`}
+                      onClick={() => setAsking({ kind: 'remove', who: p })}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </>
+              )
             )}
           </div>
         );
       })}
+      {asking?.kind === 'remove' && (
+        <small className="list-people-note">
+          {asking.who.name} loses {space.name} now: its pages, chats and agents. What they shared
+          stays.
+        </small>
+      )}
       {others.map((p) => (
         <button
           key={p.id}
@@ -440,6 +495,79 @@ export function PeoplePanel({ onClose }: { onClose: () => void }) {
         <button className="primary" type="button" disabled={!link} onClick={copy}>
           <Copy size={12} /> Copy invite link
         </button>
+      </div>
+      <div className="list-people-space">
+        {owner ? (
+          <input
+            value={name}
+            maxLength={60}
+            aria-label="Workspace name"
+            title="Rename the workspace"
+            onChange={(e) => setName(e.target.value)}
+            onBlur={rename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              if (e.key === 'Escape') (e.stopPropagation(), setName(space.name));
+            }}
+          />
+        ) : null}
+        {asking?.kind === 'delete' ? (
+          <>
+            <small>
+              Everyone loses {space.name} at once, with its pages, chats and agents. Type its name
+              to delete it.
+            </small>
+            <input
+              autoFocus
+              value={typed}
+              placeholder={space.name}
+              aria-label={`Type ${space.name} to delete it`}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && typed.trim() === space.name && destroy()}
+            />
+            <span className="list-people-ask">
+              <button type="button" className="list-new-cancel" onClick={() => setAsking(null)}>
+                Keep
+              </button>
+              <button
+                type="button"
+                className="danger"
+                disabled={typed.trim() !== space.name}
+                onClick={destroy}
+              >
+                Delete
+              </button>
+            </span>
+          </>
+        ) : asking?.kind === 'leave' ? (
+          <>
+            <small>You lose {space.name} now. Someone in it can invite you back.</small>
+            <span className="list-people-ask">
+              <button type="button" className="list-new-cancel" onClick={() => setAsking(null)}>
+                Stay
+              </button>
+              <button type="button" className="danger" onClick={leave}>
+                Leave
+              </button>
+            </span>
+          </>
+        ) : owner ? (
+          <button
+            type="button"
+            className="list-new-cancel"
+            onClick={() => (setTyped(''), setAsking({ kind: 'delete' }))}
+          >
+            Delete workspace…
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="list-new-cancel"
+            onClick={() => setAsking({ kind: 'leave' })}
+          >
+            Leave workspace…
+          </button>
+        )}
       </div>
     </section>
   );

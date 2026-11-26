@@ -2186,3 +2186,49 @@ test('a workspace agent can be talked to one to one: it answers in that chat wit
   // Your own agent stays in the rail.
   assert.throws(() => store.openDm(dylan.id, store.personalAgent(dylan.id)!.id));
 });
+
+test('workspaces: the owner renames, removes people and deletes; anyone else can only leave', async () => {
+  const { store, dylan, maya, sam, project, general, snap } = setup();
+  store.addMember(dylan.id, project.id, sam.id);
+  const budget = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'doc',
+    title: 'Budget notes',
+    body: 'Travel is capped.',
+  });
+
+  // Only the owner manages the workspace.
+  assert.throws(() => store.renameProject(maya.id, project.id, 'Mine now'), /Only the person/);
+  assert.throws(() => store.removeMember(maya.id, project.id, sam.id), /Only the person/);
+  assert.throws(() => store.deleteProject(maya.id, project.id, 'Launch'), /Only the person/);
+
+  // Renaming carries the names made from the old one.
+  store.renameProject(dylan.id, project.id, 'Spring launch');
+  const renamed = snap(maya.id);
+  assert.equal(renamed.spaces.find((x) => x.id === project.id)?.name, 'Spring launch');
+  assert.ok(renamed.users.some((u) => u.name === 'Spring launch agent'));
+  assert.ok(renamed.resources.some((r) => r.title === 'About Spring launch'));
+
+  // Removed: nothing in the workspace is readable any more.
+  store.removeMember(dylan.id, project.id, sam.id);
+  const gone = snap(sam.id);
+  assert.ok(!gone.spaces.some((x) => x.id === project.id));
+  assert.ok(!gone.resources.some((r) => r.id === budget.id));
+  assert.ok(!gone.conversations.some((c) => c.id === general.id));
+  assert.throws(() =>
+    store.postMessage(sam.id, { conversationId: general.id, text: 'still here?' }),
+  );
+
+  // Leaving is open to members; the owner deletes instead.
+  assert.throws(() => store.removeMember(dylan.id, project.id, dylan.id), /Delete it instead/);
+  store.removeMember(maya.id, project.id, maya.id);
+  assert.ok(!snap(maya.id).spaces.some((x) => x.id === project.id));
+
+  // Deleting needs the exact name, then closes it to everyone and stops its invite link.
+  const { token } = store.invite(dylan.id, project.id);
+  assert.throws(() => store.deleteProject(dylan.id, project.id, 'spring'), /Type Spring launch/);
+  store.deleteProject(dylan.id, project.id, 'Spring launch');
+  assert.ok(!snap(dylan.id).spaces.some((x) => x.id === project.id));
+  assert.equal(store.projectAgent(project.id), null);
+  assert.throws(() => store.acceptInvite(sam.id, token));
+});
