@@ -509,3 +509,9 @@ On the agent dropdown: "Idk if the agent drop down makes a ton of sense. I think
 2026-11-25, on asking in place: "noticing that as a user you are messaging the finance agent about the budget, but not when looking at the budget. most users would have these questions when looking at the sheet itself. we arent assuming users would."
 
 2026-11-25, on the private chat: "seeing private agent chat responses having a save a a page option for both a draft suggestion but also for just normal responses. needds to be thought through more. private chat could still do a better job at sharing context, interacting with other agents, and just nromal user to agent interactions. not the best currently"
+
+2026-11-26, on agents and context: "we should probably make sure that a users agent follows them at teh account level and space agents are dedicated to a space. someones personal agent should be able to compile their personal context in their private section, and using that context in private convos across sapces. understand?"
+
+2026-11-26, on sign-in: "that being said we should also include better login process / screens so its all a bit more cohesive. some sort of default message on the private area for a user to really understand this as well"
+
+2026-11-26, correcting a one-page "personal context" plan: "it shouldnt be a personal context page holy shit man. how do you think this harness is supposed to work? comsmolidates context, raw sources provided, the existing pages, and hte graph view to explore that context." Then: "or maybe there are pages the agent uses but please do not confuse things", and: "I need you to pause and take a step back and make it clear to me you know how agetns and use context are managed. this is a core pillar of the whole product"

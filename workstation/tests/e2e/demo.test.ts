@@ -47,7 +47,7 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
   page.on('pageerror', (error) => assert.fail(`page error for ${name}: ${error.message}`));
   await page.goto(base);
   await page.getByPlaceholder('Name').fill(name);
-  await page.getByRole('button', { name: 'Join' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
   if (startWorkspace) {
     await page.getByLabel('Workspace name').fill(startWorkspace);
     await page.getByRole('button', { name: 'Start', exact: true }).click();

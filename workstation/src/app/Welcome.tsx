@@ -82,7 +82,7 @@ function Orbs() {
 }
 
 /** The two-sided layout every welcome step shares: what this is on one side, what to do on the other. */
-function Layout({ hero, children }: { hero: ReactNode; children: ReactNode }) {
+export function Layout({ hero, children }: { hero: ReactNode; children: ReactNode }) {
   return (
     <main className="welcome">
       <section className="welcome-hero">
@@ -91,6 +91,39 @@ function Layout({ hero, children }: { hero: ReactNode; children: ReactNode }) {
       </section>
       <section className="welcome-door">{children}</section>
     </main>
+  );
+}
+
+/**
+ * What Sandbox is, said the same way on every way in: by Google, by name on a local server, by a
+ * sign-in link. It names the two kinds of agent so nobody meets them unexplained.
+ */
+export function SignInHero() {
+  return (
+    <>
+      <h1>Sandbox</h1>
+      <p className="welcome-lede">Where your team and its agents work on the same pages.</p>
+      <ul className="welcome-points">
+        <li>
+          <b>Pages you build together</b>
+          <span>Documents, sheets, decks and canvases, edited live by everyone in them.</span>
+        </li>
+        <li>
+          <b>Your own agent, everywhere you go</b>
+          <span>
+            One agent for your account, private to you. It turns what you bring into your private
+            space into pages, and brings what it knows about you into every workspace.
+          </span>
+        </li>
+        <li>
+          <b>An agent for each workspace</b>
+          <span>
+            Shared by the team, it answers from that workspace's pages and brings in the right
+            specialist. It never sees your private space.
+          </span>
+        </li>
+      </ul>
+    </>
   );
 }
 
@@ -108,28 +141,7 @@ export function SignIn({
   onCredential: (credential: string) => void;
 }) {
   return (
-    <Layout
-      hero={
-        <>
-          <h1>Sandbox</h1>
-          <p className="welcome-lede">Where your team and its agents work on the same pages.</p>
-          <ul className="welcome-points">
-            <li>
-              <b>Pages you build together</b>
-              <span>Documents, sheets, decks and canvases, edited live by everyone in them.</span>
-            </li>
-            <li>
-              <b>Talk beside the work</b>
-              <span>Channels and comments sit next to what they are about.</span>
-            </li>
-            <li>
-              <b>An agent of your own</b>
-              <span>Private to you, with shared agents in every workspace you join.</span>
-            </li>
-          </ul>
-        </>
-      }
-    >
+    <Layout hero={<SignInHero />}>
       {invited ? (
         <p className="welcome-invited">
           <b>{invited.invitedBy}</b> invited you to <b>{invited.spaceName}</b>.
@@ -192,8 +204,12 @@ export function StartOrJoin({
         <>
           <h1>Welcome, {first}</h1>
           <p className="welcome-lede">
-            A workspace is where a team works: its pages, channels and shared agents. You can be in
+            A workspace is where a team works: its pages, channels and its own agent. You can be in
             as many as you like and switch between them from the list.
+          </p>
+          <p className="welcome-lede">
+            Your agent is already set up. It comes with you into every workspace, and keeps your
+            private space, where only you and it can look.
           </p>
         </>
       }

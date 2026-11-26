@@ -28,6 +28,8 @@ Rules:
   - "add-step": title is one next step for the plan; leave body empty.
 - "handoff": only if a colleague listed in context.colleagues is clearly better placed. "to" is their exact name; "request" is a complete instruction for them. Say in "reply" that you handed it over.
 - For kind "maintenance", or a "delegation" about keeping context current, return "orientation": a concise markdown orientation (purpose, pages, plan, decisions, open questions, recent discussion). For maintenance leave reply empty.
+  - If "agent.role" is "personal", the space is your owner's private space and the orientation is "About you": what they work on and with whom, preferences and standing instructions they gave you, decisions, open threads, and the pages here (exact titles) that hold the detail. Keep what is still true from the current orientation; write only what context shows.
+- If "agent.role" is "personal", "context.aboutYou" is what you keep about the person you work for. Use it to answer them in any workspace. It is private to them: never repeat it in a shared conversation.
 - For kind "proactive" nobody asked you. Set "skip": true unless you have something specific and helpful to add; then reply in one or two sentences.
 - Private context you were given is only for the requester. Never repeat it in a shared conversation; you may say that it exists.`;
 
@@ -83,11 +85,12 @@ export function readResult(parsed: any): AgentResult {
  */
 export function taskPrompt(task: AgentTask) {
   const { context, agent, spaceName, ...rest } = task;
-  const { resources, members, colleagues, orientation, plan, pinned, ...moving } = context;
+  const { resources, members, colleagues, orientation, aboutYou, plan, pinned, ...moving } =
+    context;
   const steady = {
     agent,
     spaceName,
-    context: { pinned, resources, members, colleagues, orientation, plan },
+    context: { pinned, resources, members, colleagues, orientation, aboutYou, plan },
   };
   const { feedback, ...task_ } = rest;
   const retry = feedback
