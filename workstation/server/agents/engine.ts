@@ -776,7 +776,8 @@ export class AgentEngine {
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       this.store.setJob(job.id, 'failed', { error: reason });
-      if (conversation && kind !== 'proactive' && kind !== 'maintenance')
+      // A source you brought in counts as asked: say it could not be read rather than go quiet.
+      if (conversation && kind !== 'maintenance' && (kind !== 'proactive' || focusOn.length))
         this.reply(
           agent,
           conversation,

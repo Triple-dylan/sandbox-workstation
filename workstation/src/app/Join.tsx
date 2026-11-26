@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SignIn } from './Welcome.tsx';
+import { Layout, SignIn, SignInHero } from './Welcome.tsx';
 import { api } from '../data/client.ts';
 
 type Profile = { id: string; name: string; color: string };
@@ -55,21 +55,19 @@ export function Join({ onJoined }: { onJoined: () => void }) {
   const google = config.googleClientId || '';
   if (signin)
     return (
-      <main className="join">
-        <div className="join-card">
-          <h2>{error ? 'That link did not work' : 'Signing you in…'}</h2>
-          {error && (
-            <>
-              <p className="join-error" role="alert">
-                {error}
-              </p>
-              <p className="join-note">
-                On a device where you are signed in, open Settings and make a new sign-in link.
-              </p>
-            </>
-          )}
-        </div>
-      </main>
+      <Layout hero={<SignInHero />}>
+        <h2>{error ? 'That link did not work' : 'Signing you in…'}</h2>
+        {error && (
+          <>
+            <p className="welcome-error" role="alert">
+              {error}
+            </p>
+            <p className="welcome-note">
+              On a device where you are signed in, open Settings and make a new sign-in link.
+            </p>
+          </>
+        )}
+      </Layout>
     );
   // Hosted and no invite: say how to get in instead of offering a form that cannot work.
   const closedDoor = byInvite && !invite && !config.accessCode;
@@ -83,88 +81,81 @@ export function Join({ onJoined }: { onJoined: () => void }) {
         onCredential={(credential) => void join({ credential }, '/auth/google')}
       />
     );
+  const others = !byInvite && !invite && profiles.length > 0;
   return (
-    <main className="join">
-      <form
-        className="join-card"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) void join({ name });
-        }}
-      >
-        {invited ? (
-          <header className="join-invite">
-            <h1>Join {invited.spaceName}</h1>
-            <p>{invited.invitedBy} invited you.</p>
-          </header>
-        ) : byInvite ? (
-          <header className="join-invite">
-            <h1>Sandbox</h1>
-            <p>
-              {closedDoor
-                ? 'This workstation is by invitation. Ask someone in it for an invite link.'
-                : 'Already have an account? Open a sign-in link from a device where you are signed in (Settings, Sign in on another device).'}
-            </p>
-          </header>
-        ) : null}
-        {!byInvite && !invite && profiles.length > 0 && (
-          <section aria-label="People on this server">
-            <h2>Continue as</h2>
-            <div className="join-profiles">
-              {profiles.map((p) => (
-                <button type="button" key={p.id} onClick={() => void join({ userId: p.id })}>
-                  <span className="avatar" style={{ background: p.color }}>
-                    {p.name.slice(0, 1).toUpperCase()}
-                  </span>
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-        {!closedDoor && (
-          <>
-            <label>
-              <span>
-                {profiles.length && !byInvite && !invite ? 'Or join as someone new' : 'Your name'}
+    <Layout hero={<SignInHero />}>
+      {invited ? (
+        <p className="welcome-invited">
+          <b>{invited.invitedBy}</b> invited you to <b>{invited.spaceName}</b>.
+        </p>
+      ) : (
+        <h2>{byInvite ? 'Sign in to continue' : 'Who are you?'}</h2>
+      )}
+      {byInvite && !invited && (
+        <p className="welcome-note">
+          {closedDoor
+            ? 'This workstation is by invitation. Ask someone in it for an invite link.'
+            : 'Already have an account? Open a sign-in link from a device where you are signed in (Settings, Sign in on another device).'}
+        </p>
+      )}
+      {others && (
+        <div className="welcome-profiles" aria-label="People on this server">
+          {profiles.map((p) => (
+            <button type="button" key={p.id} onClick={() => void join({ userId: p.id })}>
+              <span className="avatar" style={{ background: p.color }}>
+                {p.name.slice(0, 1).toUpperCase()}
               </span>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {!closedDoor && (
+        <form
+          className="welcome-fields"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) void join({ name });
+          }}
+        >
+          <label>
+            <span>{others ? 'Or join as someone new' : 'Your name'}</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name"
+              autoFocus
+              maxLength={40}
+            />
+          </label>
+          {config.accessCode && !invite && (
+            <label>
+              <span>{byInvite ? 'Setup code' : 'Access code'}</span>
               <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Name"
-                autoFocus
-                maxLength={40}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder={byInvite ? 'For the first people in' : 'From whoever invited you'}
+                autoComplete="off"
               />
             </label>
-            {config.accessCode && !invite && (
-              <label>
-                <span>{byInvite ? 'Setup code' : 'Access code'}</span>
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder={byInvite ? 'For the first people in' : 'From whoever invited you'}
-                  autoComplete="off"
-                />
-              </label>
-            )}
-            <button className="primary" type="submit" disabled={!name.trim() || busy}>
-              {invited ? `Join ${invited.spaceName}` : 'Join'}
-            </button>
-          </>
-        )}
-        {error && (
-          <p className="join-error" role="alert">
-            {error}
-          </p>
-        )}
-        {!byInvite && (
-          <p className="join-note">
-            {config.accessCode
-              ? 'Type the name you joined with before to come back as yourself.'
-              : 'Local sign-in: anyone who can reach this server can pick any profile. Run it on your own machine or a trusted network.'}
-          </p>
-        )}
-      </form>
-    </main>
+          )}
+          <button className="primary" type="submit" disabled={!name.trim() || busy}>
+            {invited ? `Join ${invited.spaceName}` : 'Continue'}
+          </button>
+        </form>
+      )}
+      {error && (
+        <p className="welcome-error" role="alert">
+          {error}
+        </p>
+      )}
+      {!byInvite && (
+        <p className="welcome-note">
+          {config.accessCode
+            ? 'Type the name you joined with before to come back as yourself.'
+            : 'Local sign-in: anyone who can reach this server can pick any profile. Run it on your own machine or a trusted network.'}
+        </p>
+      )}
+    </Layout>
   );
 }
