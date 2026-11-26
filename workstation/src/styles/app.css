@@ -5865,6 +5865,51 @@ select:focus-visible {
   background: var(--wash);
   color: var(--ink);
 }
+.list-people-note {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+/* The workspace itself, under its people: its name (the owner can change it), and leave or delete. */
+.list-people-space {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-top: 4px;
+}
+.list-people-space input {
+  padding: 4px 6px;
+  border-radius: var(--r-s);
+}
+.list-people-space input:hover,
+.list-people-space input:focus {
+  background: var(--wash);
+}
+.list-people-space small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.list-people-space .list-new-cancel {
+  padding-left: 0;
+}
+.list-people-ask {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.list-people .danger {
+  padding: 4px 10px;
+  border-radius: var(--r-s);
+  font-size: 12.5px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.list-people .danger:hover:not(:disabled) {
+  background: var(--wash);
+}
+.list-people .danger:disabled {
+  opacity: 0.45;
+}
 
 /* ---------- the app's own dropdown ---------- */
 .choice {
