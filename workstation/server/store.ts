@@ -276,6 +276,9 @@ export class Store {
         spaceId,
       );
     }
+    // Accounts made before private spaces had a context page get one.
+    for (const row of this.all(`select owner_id from spaces where kind = 'personal'`))
+      this.ensureAboutYou(row.owner_id as Id);
   }
 
   onChange(listener: (event: ChangeEvent) => void) {
@@ -365,6 +368,7 @@ export class Store {
       agentId,
     ]);
     void conversationId;
+    this.ensureAboutYou(userId);
     this.changed();
     return this.user(userId)!;
   }
@@ -807,6 +811,25 @@ export class Store {
       'select u.name, u.kind from members m join users u on u.id = m.user_id where m.space_id = ?',
       spaceId,
     ).map((r) => ({ name: r.name as string, kind: r.kind as 'human' | 'agent' }));
+  }
+  /**
+   * Your private space works like a workspace: what you bring in and say privately is the raw
+   * material, and your agent consolidates it into pages there. "About you" is the page it keeps
+   * current across them, as a workspace agent keeps "About <workspace>". Only you and it read it.
+   */
+  ensureAboutYou(userId: Id) {
+    const spaceId = this.personalSpace(userId);
+    if (!spaceId) return null;
+    const existing = this.resourcesIn(spaceId).find((r) => r.role === 'orientation');
+    if (existing) return existing;
+    return this.insertResource(userId, {
+      spaceId,
+      kind: 'doc',
+      title: 'About you',
+      body: '# About you\n\nYour agent keeps this page current from what you bring into your private space and what you tell it in private chats, in any workspace. It links to the pages it makes from your sources. Only you and your agent can read it.',
+      visibility: 'private',
+      role: 'orientation',
+    });
   }
   personalSpace(userId: Id) {
     const row = this.get(`select id from spaces where kind = 'personal' and owner_id = ?`, userId);
