@@ -53,7 +53,16 @@ export function Sidebar() {
   const mine = s.users.filter(
     (u) => u.kind === 'agent' && u.role === 'personal' && u.ownerId === s.me.id && !u.retired,
   );
-  const agents = [...members.filter((u) => u.kind === 'agent' && u.role === 'project'), ...mine];
+  // The workspace's own agent first: it is the one to ask about anything here.
+  const agents = [
+    ...members
+      .filter((u) => u.kind === 'agent' && u.role === 'project')
+      .sort((a, b) => Number(b.id === space.agentId) - Number(a.id === space.agentId)),
+    ...mine,
+  ];
+  const overview = s.resources.find(
+    (r) => r.spaceId === space.id && r.role === 'orientation' && !r.archived,
+  );
 
   const channels = s.conversations.filter((c) => c.kind === 'channel' && c.spaceId === space.id);
   const main = channels.find((c) => c.title === 'general');
@@ -172,7 +181,7 @@ export function Sidebar() {
         key={a.id}
         className="list-row agent"
         aria-current={isOpen({ type: 'who', id: a.id }) ? 'page' : undefined}
-        title={`${a.name} · ${a.role === 'personal' ? 'private to you' : `shared with ${space.name}`}`}
+        title={`${a.name} · ${a.id === space.agentId ? `${space.name}'s own agent: ask it anything here` : a.role === 'personal' ? 'private to you' : `shared with ${space.name}`}`}
         onClick={(e) => open({ type: 'who', id: a.id }, beside(e))}
       >
         <Character agent={a} size={18} state={status ? 'working' : agentState(a.id, s.jobs)} />
@@ -277,6 +286,7 @@ export function Sidebar() {
 
         {heading('Pages', 'New page', () => setUi({ creating: true }))}
         {ui.creating && <NewPage />}
+        {overview && pageRow(overview)}
         {pinned.map(pageRow)}
         {shownRecent.map(pageRow)}
         {pages.length === 0 && !ui.creating && (

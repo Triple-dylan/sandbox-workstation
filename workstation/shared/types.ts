@@ -71,7 +71,14 @@ export type Activity = {
   since: string;
 };
 
-export type Space = { id: Id; kind: 'personal' | 'project'; name: string; ownerId: Id };
+export type Space = {
+  id: Id;
+  kind: 'personal' | 'project';
+  name: string;
+  ownerId: Id;
+  /** A workspace's own agent: its front door, always there. A private space has none: yours does that job. */
+  agentId?: Id;
+};
 export type Member = { spaceId: Id; userId: Id; role: 'owner' | 'member' | 'agent' };
 
 /** Pages: things you open and work in. Each has its own editor. */
@@ -173,7 +180,27 @@ export type Message = {
   sourceIds: Id[];
   /** Shared from someone's private conversation with their agent: whose agent said it. */
   sharedFrom: { agentId: Id; ownerId: Id } | null;
+  /** An answer one agent gave because another asked it: who asked, and what. */
+  asked: { agentId: Id; request: string } | null;
   reactions: { emoji: string; userIds: Id[] }[];
+  createdAt: string;
+};
+
+/**
+ * One person's agent asking another person's agent. It goes to that person, not straight to their
+ * agent: their agent drafts an answer, and nothing reaches the asker until the person sends it.
+ */
+export type AgentRequest = {
+  id: Id;
+  spaceId: Id;
+  fromUserId: Id;
+  fromAgentId: Id;
+  toUserId: Id;
+  request: string;
+  status: 'pending' | 'drafting' | 'sent' | 'declined';
+  /** The message, in the recipient's own conversation with their agent, that asked for a draft. */
+  draftId: Id | null;
+  answer: string | null;
   createdAt: string;
 };
 
@@ -289,6 +316,8 @@ export type Snapshot = {
   assignments: Assignment[];
   routines: Routine[];
   approvals: Approval[];
+  /** Requests between people's agents that involve you, either way. */
+  agentRequests: AgentRequest[];
   goals: Goal[];
   skills: Skill[];
   /** Agents at work right now, as much as this person may know about each. */

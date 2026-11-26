@@ -11,6 +11,7 @@ import {
   isPage,
 } from '../shared/types.ts';
 import type {
+  AgentRequest,
   Anchor,
   Approval,
   Assignment,
@@ -121,7 +122,20 @@ const toMessage = (r: Row): Message => ({
   embed: parse<Message['embed']>(r.embed),
   sourceIds: parse<Id[]>(r.sources) ?? [],
   sharedFrom: parse<Message['sharedFrom']>(r.shared_from),
+  asked: parse<Message['asked']>(r.asked),
   reactions: [],
+  createdAt: r.created_at,
+});
+const toAgentRequest = (r: Row): AgentRequest => ({
+  id: r.id,
+  spaceId: r.space_id,
+  fromUserId: r.from_user,
+  fromAgentId: r.from_agent,
+  toUserId: r.to_user,
+  request: r.request,
+  status: r.status,
+  draftId: r.draft_id,
+  answer: r.answer,
   createdAt: r.created_at,
 });
 const toJob = (r: Row): Job => ({
@@ -405,6 +419,16 @@ export class Store {
   /** Retiring stops new work and ongoing responsibilities; the agent's history stays readable. */
   retireAgent(actorId: Id, agentId: Id) {
     this.updateAgent(actorId, agentId, {});
+    const agent = this.user(agentId);
+    // Every workspace keeps its own agent: it is the workspace's front door.
+    if (
+      agent?.role === 'project' &&
+      agent.spaceId &&
+      this.projectAgent(agent.spaceId)?.id === agentId
+    )
+      throw new InputError(
+        'A workspace always keeps its own agent. You can rename it or change how it works.',
+      );
     this.run('update users set retired = 1 where id = ?', agentId);
     this.run('update assignments set active = 0 where agent_id = ?', agentId);
     this.run('update goals set agent_id = null where agent_id = ?', agentId);
@@ -603,15 +627,25 @@ export class Store {
     this.run('insert into members values (?, ?, ?)', spaceId, actorId, 'owner');
     const agentId = this.createAgent(`${name} agent`, { spaceId, role: 'project' });
     this.run('insert into members values (?, ?, ?)', spaceId, agentId, 'agent');
+    // The workspace's own agent says what it does from the start: it is the front door for questions.
+    this.run(
+      'update users set purpose = ? where id = ?',
+      `Answers anything about ${name} and brings in the right specialist`,
+      agentId,
+    );
     this.insertResource(agentId, {
       spaceId,
       kind: 'doc',
-      title: 'Orientation',
-      body: `# ${name}\n\nThe project agent keeps this orientation up to date as work happens.`,
+      title: `About ${name}`,
+      body: `# ${name}\n\nWhat this workspace is for, what is happening and what has been decided. ${name} agent keeps it current as work happens.`,
       visibility: 'space',
       role: 'orientation',
     });
-    this.createConversation('channel', spaceId, 'general', null, []);
+    const general = this.createConversation('channel', spaceId, 'general', null, []);
+    this.postMessage(agentId, {
+      conversationId: general,
+      text: `Hi, I'm ${name} agent. Tag @${name} agent in any chat, or select something on a page and ask, and I'll answer from what's here or bring in the right specialist.\n\nTo get going: invite people from the member count at the top left, drop in a file, or make a page with the + next to Pages.`,
+    });
     this.changed();
     return this.space(spaceId)!;
   }
@@ -671,6 +705,13 @@ export class Store {
     this.changed();
     return this.user(agentId)!;
   }
+  /** The people in a space. */
+  people(spaceId: Id) {
+    return this.all(
+      "select u.* from members m join users u on u.id = m.user_id where m.space_id = ? and u.kind = 'human'",
+      spaceId,
+    ).map(toUser);
+  }
   membersOf(spaceId: Id) {
     return this.all(
       'select u.name, u.kind from members m join users u on u.id = m.user_id where m.space_id = ?',
@@ -692,6 +733,119 @@ export class Store {
       userId,
     );
     return row ? toUser(row) : null;
+  }
+
+  /** A person's own conversation with their agent. */
+  privateChat(userId: Id) {
+    const agent = this.personalAgent(userId);
+    if (!agent) return null;
+    return (
+      this.all(`select id from conversations where kind = 'agent-private'`)
+        .map((r) => this.conversation(r.id)!)
+        .find((c) => c.participantIds.includes(agent.id) && c.participantIds.includes(userId)) ??
+      null
+    );
+  }
+
+  // ---------- one person's agent asking another's ----------
+
+  /**
+   * Your agent asking a teammate's agent. It goes to the teammate: their agent drafts an answer in
+   * their own conversation, and only what they send reaches you.
+   */
+  createAgentRequest(fromAgentId: Id, input: { toUserId: Id; spaceId: Id; request: string }) {
+    const fromAgent = this.user(fromAgentId);
+    if (fromAgent?.kind !== 'agent' || fromAgent.role !== 'personal' || !fromAgent.ownerId)
+      throw new AccessError('Only your own agent can ask on your behalf.');
+    const fromUserId = fromAgent.ownerId;
+    if (fromUserId === input.toUserId) throw new InputError('That is your own agent.');
+    if (!this.isMember(fromUserId, input.spaceId) || !this.isMember(input.toUserId, input.spaceId))
+      throw new AccessError('You can only ask people you share a workspace with.');
+    const request = input.request.trim().slice(0, 2000);
+    if (!request) throw new InputError('Say what to ask.');
+    const requestId = id();
+    this.run(
+      'insert into agent_requests values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      requestId,
+      input.spaceId,
+      fromUserId,
+      fromAgentId,
+      input.toUserId,
+      request,
+      'pending',
+      null,
+      null,
+      now(),
+    );
+    this.changed();
+    return this.agentRequest(requestId)!;
+  }
+  agentRequest(requestId: Id) {
+    const r = this.get('select * from agent_requests where id = ?', requestId);
+    return r ? toAgentRequest(r) : null;
+  }
+  agentRequestsFor(userId: Id) {
+    return this.all(
+      'select * from agent_requests where from_user = ? or to_user = ? order by created_at desc limit 40',
+      userId,
+      userId,
+    ).map(toAgentRequest);
+  }
+  /** The person asked has their own agent draft an answer, privately, for them to look over. */
+  draftAgentRequest(actorId: Id, requestId: Id) {
+    const r = this.agentRequest(requestId);
+    if (!r || r.toUserId !== actorId) throw new AccessError('Not available.');
+    if (r.status !== 'pending') throw new InputError('Already answered.');
+    const chat = this.privateChat(actorId);
+    if (!chat) throw new InputError('You have no agent to draft with.');
+    const asker = this.user(r.fromUserId)?.name ?? 'Someone';
+    const draft = this.postMessage(actorId, {
+      conversationId: chat.id,
+      text: `${asker} asked, through their agent: "${r.request}"\n\nDraft a short answer I could send ${asker}. Use only what is fine to share with them.`,
+      context: { resourceIds: [], spaceId: r.spaceId, conversationIds: [] },
+    });
+    this.run(
+      "update agent_requests set status = 'drafting', draft_id = ? where id = ?",
+      draft.id,
+      requestId,
+    );
+    this.changed();
+    return this.agentRequest(requestId)!;
+  }
+  /** Sends what the person chose: it arrives in the asker's conversation, from their agent, sent by them. */
+  sendAgentRequest(actorId: Id, requestId: Id, text: string) {
+    const r = this.agentRequest(requestId);
+    if (!r || r.toUserId !== actorId) throw new AccessError('Not available.');
+    if (r.status === 'sent' || r.status === 'declined') throw new InputError('Already answered.');
+    const answer = text.trim().slice(0, 6000);
+    if (!answer) throw new InputError('Write what to send.');
+    const theirChat = this.privateChat(r.fromUserId);
+    const myAgent = this.personalAgent(actorId);
+    if (!theirChat || !myAgent) throw new InputError('They can no longer be reached this way.');
+    this.postMessage(
+      myAgent.id,
+      { conversationId: theirChat.id, text: answer },
+      {
+        relay: true,
+        asked: { agentId: r.fromAgentId, request: r.request },
+        sentBy: { agentId: myAgent.id, ownerId: actorId },
+      },
+    );
+    this.run(
+      "update agent_requests set status = 'sent', answer = ? where id = ?",
+      answer,
+      requestId,
+    );
+    this.changed();
+    return this.agentRequest(requestId)!;
+  }
+  declineAgentRequest(actorId: Id, requestId: Id) {
+    const r = this.agentRequest(requestId);
+    if (!r || r.toUserId !== actorId) throw new AccessError('Not available.');
+    if (r.status === 'sent' || r.status === 'declined') throw new InputError('Already answered.');
+    this.run("update agent_requests set status = 'declined' where id = ?", requestId);
+    this.changed();
+    return this.agentRequest(requestId)!;
   }
 
   // ---------- resources ----------
@@ -1257,6 +1411,35 @@ export class Store {
     }
     return agents;
   }
+  /**
+   * The agent a person is still talking to, when they don't tag one: the agent in the thread they
+   * reply in, or the agent whose question to them is the last thing said here, within 15 minutes.
+   */
+  private continuingWith(actorId: Id, conversation: Conversation, replyTo: Id | null): Id | null {
+    const allowed = new Set(this.addressableAgents(actorId, conversation).map((a) => a.id));
+    const isAgent = (userId: Id | null | undefined) => !!userId && allowed.has(userId);
+    if (replyTo) {
+      const root = this.get('select * from messages where id = ?', replyTo);
+      if (!root) return null;
+      if (isAgent(root.addressed_to)) return root.addressed_to;
+      if (isAgent(root.author_id)) return root.author_id;
+      const answered = this.get(
+        'select author_id from messages where reply_to = ? order by created_at desc, rowid desc limit 1',
+        replyTo,
+      );
+      return isAgent(answered?.author_id) ? answered!.author_id : null;
+    }
+    const last = this.get(
+      'select * from messages where conversation_id = ? order by created_at desc, rowid desc limit 1',
+      conversation.id,
+    );
+    if (!last || !isAgent(last.author_id) || !String(last.text).includes('?')) return null;
+    if (Date.now() - Date.parse(last.created_at) > 15 * 60_000) return null;
+    const asked = last.reply_to
+      ? this.get('select author_id from messages where id = ?', last.reply_to)
+      : null;
+    return asked?.author_id === actorId ? last.author_id : null;
+  }
   postMessage(
     actorId: Id,
     request: SendRequest,
@@ -1266,6 +1449,10 @@ export class Store {
       runtime?: string;
       sourceIds?: Id[];
       relay?: boolean;
+      /** This answer was given because another agent asked: who, and what. */
+      asked?: { agentId: Id; request: string };
+      /** Sent on by a person from their own conversation with their agent. */
+      sentBy?: { agentId: Id; ownerId: Id };
     } = {},
   ) {
     const conversation = this.conversation(request.conversationId);
@@ -1303,7 +1490,7 @@ export class Store {
     }
     // Sharing an answer from your private conversation: it must be yours, and it keeps only the
     // sources everyone at the destination could already open.
-    let shared: { agentId: Id; ownerId: Id } | null = null;
+    let shared: { agentId: Id; ownerId: Id } | null = extra.sentBy ?? null;
     let sharedSources: Id[] = [];
     if (request.sharedFrom) {
       if (actor.kind !== 'human') throw new InputError('Only people share answers.');
@@ -1332,9 +1519,16 @@ export class Store {
       if (!parent || parent.conversation_id !== conversation.id)
         throw new InputError('Unknown thread.');
     }
+    // Talking to an agent works like talking to a person: a reply in its thread, or an answer to the
+    // question it just asked you, reaches it without tagging it again.
+    const addressedTo =
+      request.addressedTo ??
+      (actor.kind === 'human' && conversation.kind !== 'agent-private'
+        ? this.continuingWith(actorId, conversation, request.replyTo ?? null)
+        : null);
     const messageId = id();
     this.run(
-      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context, shared_from) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'insert into messages (id, conversation_id, author_id, text, anchor, addressed_to, reply_to, job_id, approval_id, runtime, created_at, delegated, embed, sources, context, shared_from, asked) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       messageId,
       conversation.id,
       actorId,
@@ -1344,7 +1538,7 @@ export class Store {
           ? { resourceId: request.anchor.resourceId, quote: request.anchor.quote.slice(0, 280) }
           : null,
       ),
-      request.addressedTo ?? null,
+      addressedTo,
       request.replyTo ?? null,
       extra.jobId ?? null,
       extra.approvalId ?? null,
@@ -1364,6 +1558,7 @@ export class Store {
           : null,
       ),
       json(shared),
+      json(extra.asked ?? null),
     );
     const message = toMessage(this.get('select * from messages where id = ?', messageId)!);
     if (actor.kind === 'human') this.markRead(actorId, conversation.id);
@@ -2049,7 +2244,18 @@ export class Store {
     const spaces = this.all(
       'select s.* from spaces s join members m on m.space_id = s.id where m.user_id = ? order by s.kind desc, s.created_at',
       userId,
-    ).map((r) => ({ id: r.id, kind: r.kind, name: r.name, ownerId: r.owner_id }) as Space);
+    ).map(
+      (r) =>
+        ({
+          id: r.id,
+          kind: r.kind,
+          name: r.name,
+          ownerId: r.owner_id,
+          ...(r.kind === 'project' && this.projectAgent(r.id)
+            ? { agentId: this.projectAgent(r.id)!.id }
+            : {}),
+        }) as Space,
+    );
     const spaceIds = new Set(spaces.map((s) => s.id));
     const members = this.all('select * from members')
       .filter((m) => spaceIds.has(m.space_id))
@@ -2168,6 +2374,7 @@ export class Store {
       assignments,
       routines,
       approvals,
+      agentRequests: this.agentRequestsFor(userId),
       goals: spaces.flatMap((s) => this.goals(s.id)),
       skills: spaces.flatMap((s) => this.skillsIn(s.id)),
       activity,

@@ -585,6 +585,14 @@ export function createApp(options: AppOptions) {
         return send(res, 200, { ok: true });
       }
     }
+    if (segments[0] === 'agent-requests' && segments[1] && method === 'POST') {
+      if (segments[2] === 'draft')
+        return send(res, 200, store.draftAgentRequest(me.id, segments[1]));
+      if (segments[2] === 'send')
+        return send(res, 200, store.sendAgentRequest(me.id, segments[1], str('text')));
+      if (segments[2] === 'decline')
+        return send(res, 200, store.declineAgentRequest(me.id, segments[1]));
+    }
     if (segments[0] === 'approvals' && segments[1] && method === 'POST')
       return send(
         res,

@@ -107,7 +107,9 @@ export function useMentions({
           <span>
             <strong>{a.name}</strong>
             <small>
-              {a.purpose || (a.role === 'personal' ? 'Your own agent' : 'Shared with the space')}
+              {a.role === 'personal'
+                ? `Asks ${a.name.replace(/'s agent$/, '')} first; they decide what it shares`
+                : a.purpose || 'Shared with the space'}
             </small>
           </span>
         </button>

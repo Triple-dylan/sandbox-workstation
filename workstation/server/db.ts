@@ -57,6 +57,11 @@ create table if not exists routines (
   instruction text not null, cadence text not null, weekday integer, time text not null,
   tz_offset integer not null, created_by text not null, last_run_at text, created_at text not null
 );
+create table if not exists agent_requests (
+  id text primary key, space_id text not null, from_user text not null, from_agent text not null,
+  to_user text not null, request text not null, status text not null, draft_id text, answer text,
+  created_at text not null
+);
 create table if not exists approvals (
   id text primary key, job_id text not null, space_id text not null, agent_id text not null, proposal text not null,
   status text not null, decided_by text, result_resource_id text, created_at text not null
@@ -123,6 +128,7 @@ export function openDb(path: string): Db {
     'alter table messages add column sources text',
     'alter table messages add column context text',
     'alter table messages add column shared_from text',
+    'alter table messages add column asked text',
   ])
     try {
       db.exec(change);
