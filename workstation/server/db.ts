@@ -108,6 +108,9 @@ create table if not exists watches (
   last_state text, created_at text not null,
   primary key (agent_id, resource_id)
 );
+create table if not exists doc_states (
+  resource_id text primary key, state blob not null, updated_at text not null
+);
 create table if not exists browser_states (
   space_id text primary key, state text not null, updated_at text not null
 );
@@ -149,6 +152,7 @@ export function openDb(path: string): Db {
     'alter table messages add column asked text',
     'alter table messages add column replies text',
     'alter table messages add column read text',
+    'alter table spaces add column deleted_at text',
   ])
     try {
       db.exec(change);

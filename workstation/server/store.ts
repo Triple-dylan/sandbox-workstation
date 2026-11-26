@@ -239,6 +239,8 @@ const toApproval = (r: Row): Approval => ({
 export type ChangeEvent =
   | { type: 'message'; message: Message }
   | { type: 'resource'; resource: Resource; actorId: Id }
+  /** A message was marked Decided, or unmarked: the workspace summary lists decisions. */
+  | { type: 'decided'; spaceId: Id }
   | { type: 'other' };
 
 export class Store {
@@ -681,6 +683,70 @@ export class Store {
     if (this.closed && !this.memberSpaces(actorId).some((id) => this.isMember(userId, id)))
       throw new InputError('Invite them with a link instead.');
     this.run('insert or ignore into members values (?, ?, ?)', spaceId, userId, 'member');
+    this.changed();
+  }
+  /** A workspace its owner manages: renaming, removing people and deleting are theirs alone. */
+  private ownedProject(actorId: Id, spaceId: Id) {
+    const space = this.requireMember(actorId, spaceId);
+    if (space.kind !== 'project') throw new InputError('Your private space cannot be changed.');
+    if (space.ownerId !== actorId)
+      throw new AccessError(`Only the person who started ${space.name} can do that.`);
+    return space;
+  }
+  renameProject(actorId: Id, spaceId: Id, rawName: string) {
+    const space = this.ownedProject(actorId, spaceId);
+    const name = rawName.trim().slice(0, 60);
+    if (!name) throw new InputError('A workspace needs a name.');
+    if (name === space.name) return this.space(spaceId)!;
+    this.run('update spaces set name = ? where id = ?', name, spaceId);
+    // Names that were made from the old one follow it; anything renamed by hand stays as it is.
+    const agent = this.projectAgent(spaceId);
+    if (agent?.name === `${space.name} agent`)
+      this.run('update users set name = ? where id = ?', `${name} agent`, agent.id);
+    const about = this.resourcesIn(spaceId).find((r) => r.role === 'orientation');
+    if (about?.title === `About ${space.name}`)
+      this.run('update resources set title = ? where id = ?', `About ${name}`, about.id);
+    this.changed();
+    return this.space(spaceId)!;
+  }
+  /**
+   * Someone stops being in a workspace: removed by its owner, or leaving on their own. Their pages
+   * shared with the workspace and their messages stay; nothing in it is readable by them, or by
+   * their own agent, from now on, because every read checks membership first.
+   */
+  removeMember(actorId: Id, spaceId: Id, userId: Id) {
+    const space = this.requireMember(actorId, spaceId);
+    if (space.kind !== 'project') throw new InputError('Your private space cannot be changed.');
+    if (userId !== actorId) this.ownedProject(actorId, spaceId);
+    if (userId === space.ownerId)
+      throw new InputError(
+        `You started ${space.name}, so you can't leave it. Delete it instead if it is done.`,
+      );
+    const member = this.get(
+      'select role from members where space_id = ? and user_id = ?',
+      spaceId,
+      userId,
+    );
+    if (!member || member.role === 'agent') throw new InputError('They are not in this workspace.');
+    this.run('delete from members where space_id = ? and user_id = ?', spaceId, userId);
+    this.changed();
+  }
+  /**
+   * The owner closes a workspace for good. Everyone loses it at once, its agents stop, and its
+   * invite links stop working. Like a deleted page, its rows stay in the database, unreadable,
+   * until a purge exists.
+   */
+  deleteProject(actorId: Id, spaceId: Id, confirm: string) {
+    const space = this.ownedProject(actorId, spaceId);
+    if (confirm.trim() !== space.name)
+      throw new InputError(`Type ${space.name} exactly to delete it.`);
+    this.run('update spaces set deleted_at = ? where id = ?', now(), spaceId);
+    this.run('delete from members where space_id = ?', spaceId);
+    this.run(
+      `update users set retired = 1 where kind = 'agent' and role = 'project' and space_id = ?`,
+      spaceId,
+    );
+    this.run('update invites set revoked = 1 where space_id = ?', spaceId);
     this.changed();
   }
   projectAgent(spaceId: Id) {
@@ -1344,6 +1410,24 @@ export class Store {
     this.run('update resources set body = ? where id = ?', next, resourceId);
     this.changed();
   }
+  /** A document's shared edit history (Yjs), so live editing picks up where it left off. */
+  docState(resourceId: Id): Uint8Array | null {
+    const row = this.get('select state from doc_states where resource_id = ?', resourceId);
+    return row?.state ? new Uint8Array(row.state as Uint8Array) : null;
+  }
+  setDocState(resourceId: Id, state: Uint8Array | null) {
+    if (!state) {
+      this.run('delete from doc_states where resource_id = ?', resourceId);
+      return;
+    }
+    this.run(
+      `insert into doc_states values (?, ?, ?)
+       on conflict (resource_id) do update set state = excluded.state, updated_at = excluded.updated_at`,
+      resourceId,
+      state,
+      now(),
+    );
+  }
   /** A workspace's shared-browser sign-ins (cookies and site storage), kept between sessions. */
   browserState(spaceId: Id) {
     const row = this.get('select state from browser_states where space_id = ?', spaceId);
@@ -1472,7 +1556,9 @@ export class Store {
     if (!conversation || !this.canReadConversation(actorId, conversation))
       throw new AccessError('Not available.');
     this.run('update messages set resolved = ? where id = ?', resolved ? 1 : 0, messageId);
-    this.changed();
+    this.changed(
+      conversation.spaceId ? { type: 'decided', spaceId: conversation.spaceId } : undefined,
+    );
   }
   /** The stored context of a message: what its sender was looking at. */
   messageContext(messageId: Id) {
