@@ -2,6 +2,10 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-26
+
+- **Documents are edited live together.** Dylan chose live co-editing as the next piece. Everyone's typing merges as it happens (Yjs, the standard library for this, with TipTap's collaboration extension); two people in the same line both keep their words. Each document's shared history is kept in the database and relayed by the app's server, no third-party service. The page's Markdown is still saved for agents, search and history, taken from the merged text. An accepted suggestion or a restored version replaces the shared history and open editors start again from it. Undo is per person.
+
 ## 2026-11-25
 
 - **The shared browser runs as its own hosted service, never on the app's machine or anyone's computer.** Dylan, after Chrome had been installed and run on his Mac for the local copy: "wasnt aware we had local dependencies. not acceptable". Chrome now runs in `browser-service/` (its own Railway service, private network, secret in the address, with the connection guard). The app only connects to it (`BROWSER_SERVICE_URL`) and keeps each workspace's sign-ins in its own database. Without the service set up, Browser pages say so; nothing is launched locally.

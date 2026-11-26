@@ -108,6 +108,9 @@ create table if not exists watches (
   last_state text, created_at text not null,
   primary key (agent_id, resource_id)
 );
+create table if not exists doc_states (
+  resource_id text primary key, state blob not null, updated_at text not null
+);
 create table if not exists browser_states (
   space_id text primary key, state text not null, updated_at text not null
 );

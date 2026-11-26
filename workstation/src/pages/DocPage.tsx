@@ -34,6 +34,9 @@ import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import { Markdown } from 'tiptap-markdown';
+import Collaboration from '@tiptap/extension-collaboration';
+import { ySyncPluginKey } from 'y-prosemirror';
+import { useCollab, type CollabDoc } from '../features/collab/useCollab.ts';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { useFading, useSpot } from '../app/spot.ts';
@@ -160,6 +163,16 @@ const HIGHLIGHT = 'Highlighted';
  * what people see. Comments sit beside the text they are about; the page's own feed is underneath.
  */
 export function DocPage({ page }: { page: Resource }) {
+  // Everyone typing in the same document at once: their edits merge as they type.
+  const locked = page.role === 'orientation';
+  const collab = useCollab(page.id, !locked);
+  if (!locked && !collab) return <div className="doc-loading" aria-busy="true" />;
+  return (
+    <DocEditor key={collab ? String(collab.doc.clientID) : 'kept'} page={page} collab={collab} />
+  );
+}
+
+function DocEditor({ page, collab }: { page: Resource; collab: CollabDoc | null }) {
   const { s, ui, setUi, run, user, ask, notify } = useWorkspace();
   const { feed, ensure } = usePageFeed(page);
   const locked = page.role === 'orientation';
@@ -224,20 +237,29 @@ export function DocPage({ page }: { page: Resource }) {
   const checkSlash = useRef<(editor: any) => void>(() => undefined);
   const pending = useRef<string | null>(null);
 
+  // Who typed here last, and the editor itself: a save always takes the merged text at that moment.
+  const lastLocal = useRef(0);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const flush = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const body = pending.current;
+    const now = editorRef.current?.storage.markdown.getMarkdown();
+    const body = pending.current === null ? null : (now ?? pending.current);
     pending.current = null;
     if (body === null || body === saved.current) return setState('saved');
     saved.current = body;
-    void run(() => api(`/resources/${page.id}`, { method: 'PATCH', body: { body } })).then(() =>
-      setState('saved'),
-    );
+    void run(() =>
+      api(`/resources/${page.id}`, {
+        method: 'PATCH',
+        body: { body, collab: !!collab, epoch: collab?.epoch() ?? '' },
+      }),
+    ).then(() => setState('saved'));
   };
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      // The shared history keeps its own undo, per person.
+      collab ? StarterKit.configure({ history: false }) : StarterKit,
+      ...(collab ? [Collaboration.configure({ document: collab.doc })] : []),
       TaskList,
       TaskItem.configure({ nested: true }),
       Table,
@@ -251,10 +273,24 @@ export function DocPage({ page }: { page: Resource }) {
       CommentMarks,
       TeamCarets,
     ],
-    content: page.body,
+    content: collab ? undefined : page.body,
     editable: !locked,
+    // The first person to open a document with no shared history yet fills it from the saved text.
+    onCreate: ({ editor }) => {
+      if (collab?.seed) editor.commands.setContent(collab.body ?? page.body);
+    },
     editorProps: { handleKeyDown: (_view, event) => slashKey.current(event) },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
+      // A teammate's typing arriving: shown, not saved again by everyone who sees it.
+      if (transaction.getMeta(ySyncPluginKey)?.isChangeOrigin) {
+        setTick((t) => t + 1);
+        // Someone who just typed here saves again once the others' edits have arrived, so the
+        // saved text (what agents and search read) has everyone's words, not only their own.
+        if (Date.now() - lastLocal.current > 10_000) {
+          saved.current = editor.storage.markdown.getMarkdown();
+          return;
+        }
+      } else lastLocal.current = Date.now();
       pending.current = editor.storage.markdown.getMarkdown();
       setState('saving');
       if (timer.current) clearTimeout(timer.current);
@@ -285,6 +321,7 @@ export function DocPage({ page }: { page: Resource }) {
       });
     },
   });
+  editorRef.current = editor;
   // Save whatever is unsent when the page closes.
   useEffect(() => flush, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Teammates' carets, redrawn whenever one moves.
@@ -309,7 +346,7 @@ export function DocPage({ page }: { page: Resource }) {
   }, [caretKey, editor]);
   // Someone else's change (a teammate, an accepted suggestion) appears unless you have unsent typing.
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || collab) return;
     if (page.body === saved.current || pending.current !== null) return;
     saved.current = page.body;
     const { from, to } = editor.state.selection;

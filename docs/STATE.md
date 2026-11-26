@@ -84,6 +84,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: a sign-in page that says what the product is, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The space switcher offers both at any time ("New workspace", "Join with an invite link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
+## Added 2026-11-26
+
+- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
+
 ## Added 2026-11-25
 
 - Agents open as chats: clicking one in the list opens your chat with it (your own agent: the rail); settings are the sliders button in its chat header or right-click.
@@ -101,7 +105,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
-- Two people typing in the same document or the same slide at once: the last save wins. Sheets do not have this problem.
+- Two people typing on the same slide at once: the last save wins. Documents merge as people type (2026-11-26); sheets save cell by cell.
 - The orientation page is kept by a local template, so it never spends usage on a timer.
 - Pictures are stored inline; fine locally, not for production.
 - Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
