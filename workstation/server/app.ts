@@ -7,6 +7,7 @@ import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
+import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
@@ -35,6 +36,10 @@ export type AppOptions = {
   staticDir?: string | null;
   maintenanceDelayMs?: number;
   env?: NodeJS.ProcessEnv;
+  /** Hosts the shared browser may reach although they are private (tests use a local page). */
+  browserHosts?: string[];
+  /** The browser service to use instead of BROWSER_SERVICE_URL (tests start their own). */
+  browserService?: string;
   /** Where linked spreadsheets live. Tests pass stand-ins; by default Google Sheets and Excel. */
   providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
@@ -80,6 +85,11 @@ export function createApp(options: AppOptions) {
         : (options.embedder ?? undefined),
   });
   const connectors = new Connectors(store, env, options.providers);
+  // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
+  const browsers = new SharedBrowsers(store, {
+    endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
+    allowHosts: options.browserHosts,
+  });
   // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
   const callback = (req: IncomingMessage, provider: string) => {
     const origin =
@@ -486,6 +496,29 @@ export function createApp(options: AppOptions) {
             )
           : store.setCell(me.id, segments[1], Number(input.row), Number(input.col), str('value')),
       );
+    if (segments[0] === 'browser' && segments[1]) {
+      const page = store.resource(segments[1]);
+      if (!page || page.kind !== 'browser' || !store.canReadResource(me.id, page))
+        throw new AccessError('Not available.');
+      if (segments[2] === 'stream' && method === 'GET') {
+        res.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+          connection: 'keep-alive',
+        });
+        try {
+          await browsers.watch(page.id, me.id, res);
+        } catch (error) {
+          res.write(`data: ${JSON.stringify({ t: 'error', text: (error as Error).message })}\n\n`);
+          res.end();
+        }
+        return;
+      }
+      if (segments[2] === 'input' && method === 'POST') {
+        await browsers.input(page.id, me.id, input as BrowserInput);
+        return send(res, 200, { ok: true });
+      }
+    }
     if (segments[0] === 'connections' && segments[1] && method === 'DELETE') {
       connectors.disconnect(me.id, segments[1]);
       return send(res, 200, { ok: true });
@@ -659,7 +692,8 @@ export function createApp(options: AppOptions) {
           200,
           store.updateResource(me.id, segments[1], {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
-            ...(typeof input.body === 'string'
+            // A browser page's contents are only ever what its browser shows.
+            ...(typeof input.body === 'string' && store.resource(segments[1])?.kind !== 'browser'
               ? { body: ownLink(input.body, store.resource(segments[1])?.body ?? null) }
               : {}),
             ...('placement' in input ? { placement: placement(input.placement) } : {}),
@@ -785,6 +819,7 @@ export function createApp(options: AppOptions) {
     store,
     engine,
     connectors,
+    browsers,
     runtime,
     async close() {
       if (closed) return;
@@ -792,6 +827,7 @@ export function createApp(options: AppOptions) {
       clearInterval(heartbeat);
       engine.stop();
       connectors.close();
+      await browsers.stop();
       for (const res of streams.keys()) res.end();
       await new Promise((resolve) => server.close(resolve));
       store.db.close();

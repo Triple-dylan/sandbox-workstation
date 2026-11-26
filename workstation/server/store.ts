@@ -14,6 +14,7 @@ import {
 import type {
   AgentRequest,
   ApprovalLevel,
+  BrowserBody,
   Watch,
   Anchor,
   Approval,
@@ -1013,6 +1014,15 @@ export class Store {
       if (!Array.isArray(rows))
         body = json({ rows: Array.from({ length: 8 }, () => ['', '', '', '']) })!;
       title = title || 'Untitled sheet';
+    } else if (input.kind === 'browser') {
+      // Opens on Google. What it shows afterwards is set only by the browser itself.
+      body = json({
+        tabs: [{ url: 'https://www.google.com/', title: 'Google' }],
+        active: 0,
+        text: '',
+        engine: 'google',
+      })!;
+      title = title || 'Browser';
     } else if (input.kind === 'deck') {
       const slides = parse<{ slides?: unknown }>(body)?.slides;
       if (!Array.isArray(slides)) body = json({ slides: [{ title: title || 'Title', body: '' }] })!;
@@ -1325,6 +1335,30 @@ export class Store {
     this.run('update resources set body = ? where id = ?', json(next), resourceId);
     this.changed();
   }
+  /** What a shared browser page has open. Saved quietly: browsing is not a new version of the page. */
+  setBrowserBody(resourceId: Id, body: BrowserBody) {
+    const page = this.resource(resourceId);
+    if (!page || page.kind !== 'browser') return;
+    const next = json(body)!;
+    if (next === page.body) return;
+    this.run('update resources set body = ? where id = ?', next, resourceId);
+    this.changed();
+  }
+  /** A workspace's shared-browser sign-ins (cookies and site storage), kept between sessions. */
+  browserState(spaceId: Id) {
+    const row = this.get('select state from browser_states where space_id = ?', spaceId);
+    return row ? String(row.state) : null;
+  }
+  setBrowserState(spaceId: Id, state: string) {
+    if (state.length > 2_000_000) return;
+    this.run(
+      `insert into browser_states values (?, ?, ?)
+       on conflict (space_id) do update set state = excluded.state, updated_at = excluded.updated_at`,
+      spaceId,
+      state,
+      now(),
+    );
+  }
   linkedSheets() {
     return this.all(
       `select id from resources where kind = 'sheet' and deleted = 0 and body like '%"link":{%'`,
@@ -1488,7 +1522,14 @@ export class Store {
   }
   openDm(actorId: Id, otherId: Id) {
     const other = this.user(otherId);
-    if (!other || other.kind !== 'human' || otherId === actorId)
+    // A workspace agent can be talked to one to one, like a person; your own agent lives in the rail.
+    const agent =
+      other?.kind === 'agent' &&
+      other.role === 'project' &&
+      !other.retired &&
+      !!other.spaceId &&
+      this.isMember(actorId, other.spaceId);
+    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&

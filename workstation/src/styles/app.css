@@ -6483,3 +6483,162 @@ select:focus-visible {
   box-shadow: inset 3px 0 0 var(--focus);
   background: color-mix(in oklab, var(--focus) 7%, transparent);
 }
+
+/* ---------- the shared browser ---------- */
+.browser-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.browser-tabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 0;
+  overflow-x: auto;
+}
+.browser-tab {
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+  border-radius: 8px 8px 0 0;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+.browser-tab[aria-selected='true'] {
+  background: var(--wash-2);
+  color: var(--ink);
+}
+.browser-tab > button {
+  padding: 5px 4px 5px 10px;
+  color: inherit;
+}
+.browser-tab > button + button {
+  padding: 5px 7px 5px 2px;
+}
+.browser-new {
+  padding: 4px 6px;
+  color: var(--ink-3);
+}
+.browser-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+}
+.browser-bar > button {
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--ink-2);
+}
+.browser-bar > button:hover {
+  background: var(--wash);
+}
+.browser-bar input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  font-size: 13px;
+}
+.browser-who {
+  display: inline-flex;
+  gap: 2px;
+}
+.browser-driver {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--wash);
+  font-size: 12.5px;
+}
+.browser-driver button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+.browser-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 12px;
+  container-type: size;
+}
+.browser-screen {
+  position: relative;
+  aspect-ratio: 1280 / 800;
+  width: min(100cqw, 160cqh);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  outline: none;
+  cursor: default;
+}
+.browser-screen:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+.browser-screen.watching {
+  cursor: not-allowed;
+}
+.browser-screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+.browser-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: #666;
+  font-size: 13px;
+}
+.browser-pointer {
+  position: absolute;
+  pointer-events: none;
+  transition:
+    left 80ms linear,
+    top 80ms linear;
+}
+.browser-pointer svg path {
+  fill: var(--who);
+  stroke: #fff;
+  stroke-width: 1;
+}
+.browser-pointer small {
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--who);
+  color: #fff;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+.browser-note {
+  flex: none;
+  margin: 6px 12px 8px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}

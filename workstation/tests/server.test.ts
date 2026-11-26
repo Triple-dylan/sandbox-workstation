@@ -2135,3 +2135,27 @@ test('agents look after pages: a line about a cell is said once when crossed and
   store.dropWatch(dylan.id, agent.id, sheet.id);
   assert.equal(snap(dylan.id).watches.length, 0);
 });
+
+test('a workspace agent can be talked to one to one: it answers in that chat without a tag', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      return { reply: `Answering: ${task.request}` };
+    },
+  };
+  const { store, engine, dylan, sam, agent } = setup(runtime);
+  const chat = store.openDm(dylan.id, agent.id);
+  assert.equal(store.openDm(dylan.id, agent.id).id, chat.id, 'the same chat comes back');
+  store.postMessage(dylan.id, { conversationId: chat.id, text: 'what is due this week?' });
+  await engine.idle();
+  const answer = store.messages(chat.id, 10).at(-1)!;
+  assert.equal(answer.authorId, agent.id);
+  assert.equal(answer.replyTo, null, 'a chat, not a thread');
+  assert.match(answer.text, /what is due this week/);
+  // Someone outside the workspace cannot open a chat with its agent.
+  assert.throws(() => store.openDm(sam.id, agent.id), /Choose another person/);
+  // Your own agent stays in the rail.
+  assert.throws(() => store.openDm(dylan.id, store.personalAgent(dylan.id)!.id));
+});

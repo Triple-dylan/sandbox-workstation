@@ -62,6 +62,7 @@ In the service, **Variables**, add:
 | `GOOGLE_CLIENT_ID` | the Client ID from step 2.5 |
 | `GOOGLE_CLIENT_SECRET` | optional; turns on linking Google Sheets. The same OAuth client's secret. In Google Cloud, enable the **Google Sheets API**, add the `.../auth/spreadsheets` scope to the consent screen, and add `https://<your address>/api/connect/google/callback` as an authorised redirect URI |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | optional; turn on linking Excel workbooks in OneDrive or SharePoint. An app registration in Microsoft Entra with delegated `Files.ReadWrite`, `User.Read` and `offline_access`, and the redirect URI `https://<your address>/api/connect/microsoft/callback` |
+| `BROWSER_SERVICE_URL` | optional; turns on shared browser pages. See "The shared browser service" below |
 | `PUBLIC_URL` | optional; the address people use, if sign-in redirects should not be worked out from the request |
 | `WORKSPACE_CREATORS` | optional; emails and/or `@domain`s allowed to start workspaces. Unset, anyone signed in may |
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents answer with the labelled scripted stand-in |
@@ -75,3 +76,14 @@ Railway redeploys when variables change.
 1. Open the Railway address and **Continue with Google**.
 2. Start a workspace, then share its invite link (good for 14 days). Invited people only need **Continue with Google**.
 3. Check `https://<your address>/healthz` returns `{"ok":true,...}` if anything looks wrong, and read the service's **Deploy Logs** in Railway.
+
+### The shared browser service
+
+Chrome runs in a second Railway service, not in the app. In the same Railway project:
+
+1. **New → Empty service**, named `browser`, connected to this repository. In its **Settings**, set **Root Directory** to `/browser-service` (it builds that folder's `Dockerfile` on its own). Give it at least 2 GB of memory.
+2. In its **Variables**: `PORT=3000` and `BROWSER_TOKEN=${{ secret(48, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") }}` (Railway generates it). Don't give it a public domain; the app reaches it on Railway's private network.
+3. In the app service's **Variables**: `BROWSER_SERVICE_URL=ws://${{browser.RAILWAY_PRIVATE_DOMAIN}}:3000/${{browser.BROWSER_TOKEN}}`.
+
+The app keeps each workspace's sign-ins in its database; the browser service keeps nothing.
+

@@ -218,11 +218,13 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.rail-strip').waitFor();
   await dylan.locator('.rail-strip').click();
   await dylan.locator('.rail .rail-top').waitFor();
-  // Your agent has one home, the rail. Its page is for setting it up: no second way to talk to it,
-  // and nothing opens its conversation in the middle.
+  // Your agent has one home, the rail: clicking it in the list opens the rail, never a page in the
+  // middle. Its settings are one click further, from the rail.
   await dylan.getByRole('button', { name: 'Close · ⌘J' }).click();
   await dylan.locator('.rail-strip').waitFor();
   await row(dylan, "Dylan's agent").click();
+  await dylan.locator('.rail .rail-top').waitFor();
+  await dylan.getByRole('button', { name: "Your agent's skills and instructions" }).click();
   await dylan.locator('.agent-page').waitFor();
   assert.equal(await dylan.getByRole('button', { name: /^Talk to / }).count(), 0);
   // A routine set up on its page reads back as one sentence.
@@ -230,7 +232,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByLabel('What to do').fill('Summarise what changed');
   await dylan.getByRole('button', { name: 'Add routine' }).click();
   await dylan.locator('.routines', { hasText: 'Weekdays at 09:00' }).waitFor();
-  await dylan.locator('.rail-strip').click();
+  // The rail stayed open beside the settings; the conversation never opened in the middle.
   await dylan.locator('.rail .rail-top').waitFor();
   assert.equal(await dylan.locator('.pane-chat').count(), 0);
 
