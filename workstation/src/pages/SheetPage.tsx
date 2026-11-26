@@ -101,6 +101,16 @@ export function SheetPage({ page }: { page: Resource }) {
     window.addEventListener('mouseup', up);
     return () => window.removeEventListener('mouseup', up);
   }, []);
+  // Where a run of Tabs began, so Enter goes to the next row under it, as in Excel and Sheets.
+  const tabRun = useRef<{ r: number; c: number } | null>(null);
+  // A cell to move to once it exists: Tab past the last column adds one first.
+  const goTo = useRef<{ r: number; c: number } | null>(null);
+  useEffect(() => {
+    if (goTo.current && goTo.current.c < width) {
+      cellAt(goTo.current.r, goTo.current.c)?.focus();
+      goTo.current = null;
+    }
+  });
 
   const corner = end ?? at;
   const box: Box | null =
@@ -382,6 +392,23 @@ export function SheetPage({ page }: { page: Resource }) {
     window.addEventListener('mouseup', up);
   };
 
+  // Tab and Enter while entering data: Tab moves along the row (adding a column at the edge), and
+  // Enter starts the next row under the cell where the Tabs began.
+  const step = (key: 'Tab' | 'Enter', back: boolean, r: number, c: number) => {
+    if (key === 'Tab') {
+      if (tabRun.current?.r !== r) tabRun.current = { r, c };
+      if (!back && c === width - 1 && width < MAX_COLS) {
+        goTo.current = { r, c: c + 1 };
+        setExtra((x) => ({ ...x, cols: x.cols + 1 }));
+        return;
+      }
+      return moveTo(r, c + (back ? -1 : 1));
+    }
+    const col = !back && tabRun.current?.r === r ? tabRun.current.c : c;
+    tabRun.current = null;
+    moveTo(r + (back ? -1 : 1), col);
+  };
+
   const keys = (e: React.KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
     const mod = e.metaKey || e.ctrlKey;
     const arrow = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[
@@ -393,20 +420,20 @@ export function SheetPage({ page }: { page: Resource }) {
         setEditing(null);
         return;
       }
-      if (e.key === 'Enter' || e.key === 'Tab' || (arrow && editing === 'enter')) {
+      if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault();
         finishEditing(true);
-        const [dr, dc] =
-          e.key === 'Enter'
-            ? [e.shiftKey ? -1 : 1, 0]
-            : e.key === 'Tab'
-              ? [0, e.shiftKey ? -1 : 1]
-              : arrow!;
-        moveTo(r + dr, c + dc);
+        step(e.key, e.shiftKey, r, c);
+      } else if (arrow && editing === 'enter') {
+        e.preventDefault();
+        finishEditing(true);
+        tabRun.current = null;
+        moveTo(r + arrow[0], c + arrow[1]);
       }
       return;
     }
     if (arrow) {
+      tabRun.current = null;
       e.preventDefault();
       const from = e.shiftKey ? (corner ?? { r, c }) : { r, c };
       const to = mod
@@ -417,11 +444,9 @@ export function SheetPage({ page }: { page: Resource }) {
     }
     if (e.key === 'Tab' || e.key === 'Enter') {
       e.preventDefault();
-      if (e.key === 'Enter' && !e.shiftKey && !many) return startEditing('edit', rows[r][c]);
-      moveTo(
-        r + (e.key === 'Enter' ? (e.shiftKey ? -1 : 1) : 0),
-        c + (e.key === 'Tab' ? (e.shiftKey ? -1 : 1) : 0),
-      );
+      if (e.key === 'Enter' && !e.shiftKey && !many && !tabRun.current)
+        return startEditing('edit', rows[r][c]);
+      step(e.key, e.shiftKey, r, c);
       return;
     }
     if (e.key === 'F2') return (e.preventDefault(), startEditing('edit', rows[r][c]));
@@ -626,6 +651,7 @@ export function SheetPage({ page }: { page: Resource }) {
                       className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${who ? 'teammate' : ''} ${inBox(r, c) ? 'in-range' : ''} ${here ? 'here' : ''}`}
                       onMouseDown={(e) => {
                         if (typing) return;
+                        tabRun.current = null;
                         if (e.shiftKey && at) {
                           e.preventDefault();
                           setEnd({ r, c });

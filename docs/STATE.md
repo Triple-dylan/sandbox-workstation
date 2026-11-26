@@ -87,6 +87,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-26
 
 - Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
+- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
 
 ## Added 2026-11-25
 
