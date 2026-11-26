@@ -232,7 +232,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.getByLabel('What to do').fill('Summarise what changed');
   await dylan.getByRole('button', { name: 'Add routine' }).click();
   await dylan.locator('.routines', { hasText: 'Weekdays at 09:00' }).waitFor();
-  await dylan.locator('.rail-strip').click();
+  // The rail stayed open beside the settings; the conversation never opened in the middle.
   await dylan.locator('.rail .rail-top').waitFor();
   assert.equal(await dylan.locator('.pane-chat').count(), 0);
 
