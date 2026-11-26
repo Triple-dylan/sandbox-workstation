@@ -4,6 +4,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-26
 
+- **pstack trimmed to 38 skills.** Dylan approved dropping 29 skills and 3 agents that duplicate Claude Code built-ins (`/code-review`, `/security-review`, `/simplify`, `/steward`), each other, or were niche (formal verification, TLA+ statecharts, benchmarking, parallel arenas). The 38 kept stay in `.claude/` so every harness has them; Claude sessions also reach them through Dylan's user-level resolver.
 - **Documents are edited live together.** Dylan chose live co-editing as the next piece. Everyone's typing merges as it happens (Yjs, the standard library for this, with TipTap's collaboration extension); two people in the same line both keep their words. Each document's shared history is kept in the database and relayed by the app's server, no third-party service. The page's Markdown is still saved for agents, search and history, taken from the merged text. An accepted suggestion or a restored version replaces the shared history and open editors start again from it. Undo is per person.
 
 ## 2026-11-25
@@ -58,7 +59,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 - **Things shared in chat lead back to their source.** Rows of a sheet open the sheet beside the chat at those rows, lit; a quoted line opens its document at that line, lit.
 - **Stop and Decided.** Work your agent is doing can be stopped from the rail; nothing is said or changed afterwards (the model call itself is not cut short). In a channel anyone can mark a message Decided; agents receive it as settled, and a cached answer no longer applies once something new is decided.
 - **Quotes from a board piece** open the board centred on that piece, selected.
-- **pstack skills** (the Claude Code port of Poteto's pstack) are kept in the repository's `.claude/` so every session on it has them.
+- **pstack skills** (the Claude Code port of Poteto's pstack) are kept in the repository's `.claude/` so every session on it has them. *Trimmed 2026-11-26, see above.*
 
 ## 2026-11-14
 
