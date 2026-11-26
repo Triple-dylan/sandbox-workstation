@@ -81,8 +81,25 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.space-people').click();
   await dylan.getByRole('button', { name: 'Add Maya' }).click();
   await dylan.keyboard.press('Escape');
-  await maya.locator('.space-name').click();
-  await maya.getByRole('menuitemradio', { name: 'Launch' }).click();
+  // Maya's screen hears about it a moment later; the switcher lists what she had when opened.
+  for (let tries = 0; ; tries++) {
+    await maya.locator('.space-name').click();
+    const launch = maya.getByRole('menuitemradio', { name: 'Launch' });
+    if (await launch.isVisible().catch(() => false)) {
+      await launch.click();
+      break;
+    }
+    await maya.keyboard.press('Escape');
+    if (tries > 20) throw new Error('Maya never saw the Launch workspace');
+    await maya.waitForTimeout(250);
+  }
+
+  // A channel is made in the list, in Chats, where it then appears for everyone.
+  await dylan.getByRole('button', { name: 'New channel', exact: true }).click();
+  const channel = dylan.getByRole('form', { name: 'New channel' });
+  await channel.getByLabel('Channel name').fill('design');
+  await channel.getByRole('button', { name: 'Create', exact: true }).click();
+  await row(maya, 'design').waitFor();
 
   // A channel is made in the list, in Chats, where it then appears for everyone.
   await dylan.getByRole('button', { name: 'New channel', exact: true }).click();
