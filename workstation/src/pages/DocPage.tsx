@@ -274,7 +274,7 @@ function DocEditor({ page, collab }: { page: Resource; collab: CollabDoc | null 
     editable: !locked,
     // The first person to open a document with no shared history yet fills it from the saved text.
     onCreate: ({ editor }) => {
-      if (collab?.seed) editor.commands.setContent(page.body);
+      if (collab?.seed) editor.commands.setContent(collab.body ?? page.body);
     },
     editorProps: { handleKeyDown: (_view, event) => slashKey.current(event) },
     onUpdate: ({ editor, transaction }) => {

@@ -56,8 +56,11 @@ export class Collab {
       seed = true;
     }
     room.viewers.set(res, client);
+    // Whoever fills it gets the page's text as it is now, not their own copy, which may be behind
+    // (an accepted suggestion arrives here before it reaches everyone's screen).
+    const body = seed ? (this.store.resource(resourceId)?.body ?? '') : undefined;
     res.write(
-      `data: ${JSON.stringify({ t: 'init', state: b64(Y.encodeStateAsUpdate(room.doc)), seed })}\n\n`,
+      `data: ${JSON.stringify({ t: 'init', state: b64(Y.encodeStateAsUpdate(room.doc)), seed, body })}\n\n`,
     );
     res.on('close', () => {
       room.viewers.delete(res);

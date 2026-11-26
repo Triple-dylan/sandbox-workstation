@@ -6,6 +6,8 @@ export type CollabDoc = {
   doc: Y.Doc;
   /** This editor fills the empty shared document from the page's saved text. */
   seed: boolean;
+  /** That text, as the server has it now. */
+  body?: string;
 };
 
 const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -51,7 +53,7 @@ export function useCollab(pageId: string, enabled: boolean): CollabDoc | null {
         Y.applyUpdate(doc, fromB64(m.state), 'remote');
         // Reconnected after a drop: send anything typed meanwhile.
         if (queued.length) flush();
-        setState((s) => s ?? { doc, seed: !!m.seed });
+        setState((s) => s ?? { doc, seed: !!m.seed, body: m.body });
       } else if (m.t === 'update') Y.applyUpdate(doc, fromB64(m.update), 'remote');
       else if (m.t === 'reset') setRound((r) => r + 1);
     };

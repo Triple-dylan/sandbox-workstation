@@ -32,6 +32,7 @@ test('live documents: two people typing at once both keep their words, and it su
   collab.watch(page.id, 'client-a', a.res as any);
   collab.watch(page.id, 'client-b', b.res as any);
   assert.equal(a.seen[0].seed, true);
+  assert.equal(a.seen[0].body, '# Plan', 'the filler gets the text as the server has it');
   assert.equal(b.seen[0].seed, false);
 
   // Both type into the same line at the same moment, each from the same starting point.
@@ -77,5 +78,10 @@ test('live documents: two people typing at once both keep their words, and it su
   store.updateResource(dylan.id, page.id, { body: '# Plan\n\nBudget, revised by Finance' });
   assert.ok(c.seen.some((m) => m.t === 'reset'));
   assert.equal(store.docState(page.id), null);
+  // Whoever refills it gets the accepted text, even if their own screen has not caught up.
+  const d = editor();
+  collab.watch(page.id, 'client-d', d.res as any);
+  assert.equal(d.seen[0].seed, true);
+  assert.equal(d.seen[0].body, '# Plan\n\nBudget, revised by Finance');
   await app.close();
 });
