@@ -120,6 +120,54 @@ export function ChatPage({ chat }: { chat: Conversation }) {
       )}
     </div>
   );
+  // A chat with an agent opens on what it is for and how to reach it, so a new agent isn't a blank page.
+  const agent =
+    channel || about
+      ? undefined
+      : chat.participantIds.map((id) => user(id)).find((u) => u?.kind === 'agent');
+  const looksAfter = agent
+    ? s.watches
+        .filter((w) => w.agentId === agent.id)
+        .map((w) => resource(w.resourceId))
+        .filter((r): r is Resource => !!r)
+    : [];
+  const intro = agent && (
+    <div className="agent-intro">
+      <p>
+        <b>{agent.name}</b>
+        {agent.purpose ? ` · ${agent.purpose}` : ''}
+      </p>
+      <ul>
+        <li>Ask it here. Only you see this conversation.</li>
+        <li>In any chat, tag @{agent.name} and it answers where everyone there can see it.</li>
+        <li>On a page, select text or cells and ask it about just that part.</li>
+        <li>
+          {looksAfter.length ? (
+            <>
+              It looks after{' '}
+              {looksAfter.map((p, i) => (
+                <span key={p.id}>
+                  {i > 0 && ', '}
+                  <button className="link" onClick={() => open({ type: 'page', id: p.id }, true)}>
+                    {p.title}
+                  </button>
+                </span>
+              ))}
+              .
+            </>
+          ) : (
+            <>
+              It doesn't look after any page yet.{' '}
+              <button className="link" onClick={() => open({ type: 'who', id: agent.id }, true)}>
+                Give it one
+              </button>{' '}
+              and it speaks up when that page crosses a line you set.
+            </>
+          )}
+        </li>
+      </ul>
+    </div>
+  );
   return (
     <div className="chat-page">
       <Feed
@@ -140,7 +188,7 @@ export function ChatPage({ chat }: { chat: Conversation }) {
             ? `This is the start of #${name}. Everyone in ${space.name} can read it.`
             : chat.kind === 'discussion'
               ? 'Nothing said about this page yet.'
-              : `Only you and ${name} see this conversation.`
+              : (intro ?? `Only you and ${name} see this conversation.`)
         }
       />
     </div>

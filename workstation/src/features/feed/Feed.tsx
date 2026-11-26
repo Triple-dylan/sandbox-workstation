@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowUp,
   ArrowUpRight,
@@ -629,7 +629,7 @@ export function Feed({
   draftKey: string;
   placeholder: string;
   filter?: (m: Message) => boolean;
-  empty?: string;
+  empty?: ReactNode;
   /** Show only the last few, for a feed tucked under a page. */
   latest?: number;
   /** What "earlier" does when only the last few are shown. */
@@ -663,7 +663,7 @@ export function Feed({
     <div className="feed">
       <div className="feed-list">
         {top}
-        {roots.length === 0 && <p className="feed-empty">{empty ?? 'Nothing here yet.'}</p>}
+        {roots.length === 0 && <div className="feed-empty">{empty ?? 'Nothing here yet.'}</div>}
         {shown.length < roots.length && (
           <button className="link earlier" onClick={() => (onEarlier ? onEarlier() : setAll(true))}>
             {roots.length - shown.length} earlier{' '}
