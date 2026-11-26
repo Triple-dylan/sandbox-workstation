@@ -8,6 +8,8 @@ export type CollabDoc = {
   seed: boolean;
   /** That text, as the server has it now. */
   body?: string;
+  /** Which shared history this copy is on; saves carry it so a replaced one is not saved over. */
+  epoch: () => string;
 };
 
 const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -31,15 +33,20 @@ export function useCollab(pageId: string, enabled: boolean): CollabDoc | null {
     const doc = new Y.Doc();
     let queued: Uint8Array[] = [];
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // Which shared history this copy belongs to; nothing is sent until it is known.
+    let epoch = '';
+    let replaced = false;
     const flush = () => {
       timer = null;
-      if (!queued.length) return;
+      if (!queued.length || !epoch || replaced) return;
       const update = Y.mergeUpdates(queued);
       queued = [];
-      void api(`/collab/${pageId}`, { body: { client, update: toB64(update) } }).catch(() => {
-        // Lost on the way: the next change carries the document's full state instead.
-        queued.unshift(Y.encodeStateAsUpdate(doc));
-      });
+      void api(`/collab/${pageId}`, { body: { client, update: toB64(update), epoch } }).catch(
+        () => {
+          // Lost on the way: the next change carries the document's full state instead.
+          queued.unshift(Y.encodeStateAsUpdate(doc));
+        },
+      );
     };
     doc.on('update', (update: Uint8Array, origin: unknown) => {
       if (origin === 'remote') return;
@@ -50,12 +57,25 @@ export function useCollab(pageId: string, enabled: boolean): CollabDoc | null {
     stream.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.t === 'init') {
+        // Reconnected to a history that was replaced meanwhile: start again rather than mix them.
+        if (epoch && m.epoch !== epoch) {
+          replaced = true;
+          queued = [];
+          setRound((r) => r + 1);
+          return;
+        }
+        epoch = m.epoch;
         Y.applyUpdate(doc, fromB64(m.state), 'remote');
         // Reconnected after a drop: send anything typed meanwhile.
         if (queued.length) flush();
-        setState((s) => s ?? { doc, seed: !!m.seed, body: m.body });
+        setState((s) => s ?? { doc, seed: !!m.seed, body: m.body, epoch: () => epoch });
       } else if (m.t === 'update') Y.applyUpdate(doc, fromB64(m.update), 'remote');
-      else if (m.t === 'reset') setRound((r) => r + 1);
+      else if (m.t === 'reset') {
+        // The page changed some other way: anything not yet sent belongs to the old history.
+        replaced = true;
+        queued = [];
+        setRound((r) => r + 1);
+      }
     };
     return () => {
       if (timer) clearTimeout(timer);

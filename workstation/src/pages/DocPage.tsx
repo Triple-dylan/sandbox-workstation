@@ -249,7 +249,10 @@ function DocEditor({ page, collab }: { page: Resource; collab: CollabDoc | null 
     if (body === null || body === saved.current) return setState('saved');
     saved.current = body;
     void run(() =>
-      api(`/resources/${page.id}`, { method: 'PATCH', body: { body, collab: !!collab } }),
+      api(`/resources/${page.id}`, {
+        method: 'PATCH',
+        body: { body, collab: !!collab, epoch: collab?.epoch() ?? '' },
+      }),
     ).then(() => setState('saved'));
   };
   const editor = useEditor({

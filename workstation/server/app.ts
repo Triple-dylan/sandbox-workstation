@@ -515,8 +515,9 @@ export function createApp(options: AppOptions) {
       }
       if (method === 'POST') {
         if (page.role === 'orientation') throw new AccessError('This page is kept by its agent.');
-        collab.update(page.id, str('client'), str('update'));
-        return send(res, 200, { ok: true });
+        return send(res, 200, {
+          ok: collab.update(page.id, str('client'), str('update'), str('epoch')),
+        });
       }
     }
     if (segments[0] === 'browser' && segments[1]) {
@@ -709,16 +710,20 @@ export function createApp(options: AppOptions) {
     if (segments[0] === 'resources' && segments[1]) {
       if (segments[2] === 'revisions' && method === 'GET')
         return send(res, 200, store.revisions(me.id, segments[1]));
+      // A live editor's save from a history that has since been replaced is dropped.
+      if (
+        method === 'PATCH' &&
+        input.collab === true &&
+        typeof input.body === 'string' &&
+        !collab.acceptsSave(segments[1], str('epoch'), input.body)
+      )
+        return send(res, 200, store.resource(segments[1]));
       if (method === 'PATCH')
         return send(
           res,
           200,
           store.updateResource(me.id, segments[1], {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
-            // Saved by a live editor: already in the shared history, so not an outside change.
-            ...(input.collab === true && typeof input.body === 'string'
-              ? (collab.noteSaved(segments[1], input.body), {})
-              : {}),
             // A browser page's contents are only ever what its browser shows.
             ...(typeof input.body === 'string' && store.resource(segments[1])?.kind !== 'browser'
               ? { body: ownLink(input.body, store.resource(segments[1])?.body ?? null) }

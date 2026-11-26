@@ -38,7 +38,8 @@ test('live documents: two people typing at once both keep their words, and it su
   // Both type into the same line at the same moment, each from the same starting point.
   const start = new Y.Doc();
   start.getXmlFragment('default').insert(0, [new Y.XmlText('Budget: ')]);
-  collab.update(page.id, 'client-a', b64(Y.encodeStateAsUpdate(start)));
+  const epoch = a.seen[0].epoch;
+  collab.update(page.id, 'client-a', b64(Y.encodeStateAsUpdate(start)), epoch);
   const docA = new Y.Doc();
   const docB = new Y.Doc();
   Y.applyUpdate(docA, Y.encodeStateAsUpdate(start));
@@ -46,8 +47,8 @@ test('live documents: two people typing at once both keep their words, and it su
   const before = Y.encodeStateVector(docA);
   line(docA).insert(8, 'travel 2,800');
   line(docB).insert(8, 'venue 3,000; ');
-  collab.update(page.id, 'client-a', b64(Y.encodeStateAsUpdate(docA, before)));
-  collab.update(page.id, 'client-b', b64(Y.encodeStateAsUpdate(docB, before)));
+  collab.update(page.id, 'client-a', b64(Y.encodeStateAsUpdate(docA, before)), epoch);
+  collab.update(page.id, 'client-b', b64(Y.encodeStateAsUpdate(docB, before)), epoch);
 
   // Each hears the other's change, never their own, and both end up with both edits.
   assert.ok(b.seen.some((m) => m.t === 'update' && m.client === 'client-a'));
@@ -71,7 +72,7 @@ test('live documents: two people typing at once both keep their words, and it su
   assert.equal(words(docC), words(docA));
 
   // The editors' own save is not an outside change...
-  app.collab.noteSaved(page.id, '# Plan\n\nBudget');
+  assert.equal(app.collab.acceptsSave(page.id, c.seen[0].epoch, '# Plan\n\nBudget'), true);
   store.updateResource(dylan.id, page.id, { body: '# Plan\n\nBudget' });
   assert.ok(!c.seen.some((m) => m.t === 'reset'));
   // ...but an accepted suggestion or a restored version is: open editors start again from it.
@@ -83,5 +84,13 @@ test('live documents: two people typing at once both keep their words, and it su
   collab.watch(page.id, 'client-d', d.res as any);
   assert.equal(d.seen[0].seed, true);
   assert.equal(d.seen[0].body, '# Plan\n\nBudget, revised by Finance');
+  // An edit still on its way from before the restart is dropped, not mixed into the new history.
+  const stale = new Y.Doc();
+  stale.getXmlFragment('default').insert(0, [new Y.XmlText('old text')]);
+  assert.equal(collab.update(page.id, 'client-c', b64(Y.encodeStateAsUpdate(stale)), epoch), false);
+  assert.notEqual(d.seen[0].epoch, epoch);
+  // A save from an editor still on the replaced history is refused, so it can't undo the change.
+  assert.equal(collab.acceptsSave(page.id, c.seen[0].epoch, '# Plan\n\nBudget'), false);
+  assert.equal(collab.acceptsSave(page.id, d.seen[0].epoch, '# Plan\n\nBudget, revised'), true);
   await app.close();
 });
