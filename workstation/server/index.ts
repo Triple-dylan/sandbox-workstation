@@ -14,7 +14,7 @@ app.server.listen(port, host, () => {
   const address = app.server.address();
   const actual = typeof address === 'object' && address ? address.port : port;
   console.log(
-    `Workstation listening on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}`,
+    `Sandbox listening on http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${actual}`,
   );
   if (host === '0.0.0.0')
     for (const nets of Object.values(networkInterfaces()))
