@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Columns2, ExternalLink, Maximize2, MessageSquare, Sparkles, X } from 'lucide-react';
+import { ArrowUpRight, Columns2, ExternalLink, MessageSquare, Sparkles, X } from 'lucide-react';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { KindIcon, Md, ago, deckSlides, kindName } from '../../app/util.tsx';
 import { api } from '../../data/client.ts';
@@ -177,20 +177,6 @@ export function GraphPreview({ page, onClose }: { page: Resource; onClose: () =>
       <header>
         <KindIcon kind={page.kind} size={16} />
         <h2 className="truncate">{page.title}</h2>
-        <button
-          aria-label="Open here"
-          title="Open here"
-          onClick={() => open({ type: 'page', id: page.id })}
-        >
-          <Maximize2 size={14} />
-        </button>
-        <button
-          aria-label="Open beside the graph"
-          title="Open beside the graph"
-          onClick={() => open({ type: 'page', id: page.id }, true)}
-        >
-          <Columns2 size={14} />
-        </button>
         <button aria-label="Close the preview" title="Close (Esc)" onClick={onClose}>
           <X size={15} />
         </button>
@@ -204,6 +190,15 @@ export function GraphPreview({ page, onClose }: { page: Resource; onClose: () =>
         <Contents page={page} />
       </div>
       <footer>
+        <button className="primary" onClick={() => open({ type: 'page', id: page.id })}>
+          <ArrowUpRight size={13} /> Go to page
+        </button>
+        <button
+          title="The page opens in a second panel; the graph stays on the left"
+          onClick={() => open({ type: 'page', id: page.id }, true)}
+        >
+          <Columns2 size={13} /> Show next to the graph
+        </button>
         <button
           onClick={() =>
             setUi({

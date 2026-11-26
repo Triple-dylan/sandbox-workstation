@@ -6864,3 +6864,11 @@ select:focus-visible {
   color: var(--ink-2);
   line-height: 1.45;
 }
+.graph-preview footer {
+  flex-wrap: wrap;
+}
+.graph-preview footer .primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
