@@ -4,7 +4,7 @@ import { api } from '../data/client.ts';
 import { Actor, Character, agentState } from '../features/agents/Character.tsx';
 import { isPage } from '../../shared/types.ts';
 import type { Conversation, Resource, User } from '../../shared/types.ts';
-import { KindIcon, chatTitle, unreadIn } from './util.tsx';
+import { KindIcon, chatTitle, mentionsIn, unreadIn } from './util.tsx';
 import { sameTarget, useWorkspace, type MenuItem, type Target } from './workspace.tsx';
 import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
@@ -88,6 +88,12 @@ export function Sidebar() {
       return page ? `in ${page.title}` : 'working';
     }
     if (agentState(a.id, s.jobs) === 'waiting') return 'needs a yes';
+    const watched = s.watches
+      .filter((w) => w.agentId === a.id)
+      .map((w) => resource(w.resourceId)?.title)
+      .filter(Boolean);
+    if (watched.length)
+      return `watching ${watched[0]}${watched.length > 1 ? ` +${watched.length - 1}` : ''}`;
     return '';
   };
 
@@ -169,7 +175,13 @@ export function Sidebar() {
           <KindIcon kind="channel" />
         )}
         <span className="truncate">{chatTitle(c, s)}</span>
-        {unread > 0 && <b className="count">{unread}</b>}
+        {mentionsIn(c, s) > 0 ? (
+          <b className="count mention" title="You were mentioned">
+            @{unread}
+          </b>
+        ) : (
+          unread > 0 && <b className="count">{unread}</b>
+        )}
       </button>
     );
   };
@@ -184,7 +196,11 @@ export function Sidebar() {
         title={`${a.name} · ${a.id === space.agentId ? `${space.name}'s own agent: ask it anything here` : a.role === 'personal' ? 'private to you' : `shared with ${space.name}`}`}
         onClick={(e) => open({ type: 'who', id: a.id }, beside(e))}
       >
-        <Character agent={a} size={18} state={status ? 'working' : agentState(a.id, s.jobs)} />
+        <Character
+          agent={a}
+          size={18}
+          state={status && !status.startsWith('watching') ? 'working' : agentState(a.id, s.jobs)}
+        />
         <span className="truncate">{a.name}</span>
         {status ? (
           <small>{status}</small>

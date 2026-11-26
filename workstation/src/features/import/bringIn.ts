@@ -2,6 +2,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { api } from '../../data/client.ts';
 import { readImage } from '../canvas/image.ts';
 import { baseName, parseDocx, parsePptx, parseText, type Parsed } from './parse.ts';
+import { readXlsx } from '../../../shared/sheet.ts';
 
 type Made = { id: string; title: string };
 export type Brought = { made: Made[]; skipped: string[] };
@@ -9,9 +10,24 @@ export type Brought = { made: Made[]; skipped: string[] };
 async function read(
   file: File,
 ): Promise<
-  (Parsed & { asset?: false }) | { kind: 'asset'; title: string; body: string; type: string } | null
+  | (Parsed & { asset?: false })
+  | Parsed[]
+  | { kind: 'asset'; title: string; body: string; type: string }
+  | null
 > {
   const name = file.name;
+  // A workbook: every tab that has something in it becomes its own sheet.
+  if (/\.(xlsx|xlsm)$/i.test(name)) {
+    const tabs = readXlsx(new Uint8Array(await file.arrayBuffer())).filter((t) =>
+      t.sheet.rows.some((r) => r.some((c) => c.trim())),
+    );
+    return tabs.map((t) => ({
+      kind: 'sheet' as const,
+      title: tabs.length > 1 ? `${baseName(name)} · ${t.tab}` : baseName(name),
+      type: 'Excel workbook',
+      body: JSON.stringify(t.sheet),
+    }));
+  }
   if (file.type.startsWith('image/')) {
     const image = await readImage(file, 1400);
     return { kind: 'asset', title: baseName(name), body: image.dataUrl, type: 'picture' };
@@ -44,24 +60,26 @@ export async function bringIn(
   const skipped: string[] = [];
   for (const file of files.slice(0, 20)) {
     try {
-      const parsed = await read(file);
-      if (!parsed) {
+      const found = await read(file);
+      const all = Array.isArray(found) ? found : found ? [found] : [];
+      if (!all.length) {
         skipped.push(file.name);
         continue;
       }
-      made.push(
-        await api<Made>('/resources', {
-          body: {
-            spaceId: where.spaceId,
-            parentId: where.parentId ?? null,
-            visibility: where.visibility ?? 'space',
-            kind: parsed.kind,
-            title: parsed.title,
-            body: parsed.body,
-            source: { name: file.name, type: parsed.type },
-          },
-        }),
-      );
+      for (const parsed of all)
+        made.push(
+          await api<Made>('/resources', {
+            body: {
+              spaceId: where.spaceId,
+              parentId: where.parentId ?? null,
+              visibility: where.visibility ?? 'space',
+              kind: parsed.kind,
+              title: parsed.title,
+              body: parsed.body,
+              source: { name: file.name, type: parsed.type },
+            },
+          }),
+        );
     } catch {
       skipped.push(file.name);
     }

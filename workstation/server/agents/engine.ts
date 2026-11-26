@@ -1,4 +1,5 @@
-import { sheetText } from '../../shared/formula.ts';
+import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
+import { readSheet } from '../../shared/sheet.ts';
 import type { ChangeEvent, Store } from '../store.ts';
 import type { Conversation, Id, Job, JobKind, Message, User } from '../../shared/types.ts';
 import {
@@ -134,7 +135,97 @@ export class AgentEngine {
     }
     if (event.type === 'resource' && this.store.user(event.actorId)?.kind === 'human')
       this.scheduleMaintenance(event.resource.spaceId);
+    if (event.type === 'resource') this.scheduleWatch(event.resource.id, event.actorId);
   }
+
+  /** A watched page changed: its agents check their line once the edits settle. */
+  private scheduleWatch(resourceId: Id, actorId: Id) {
+    const watchers = this.store.watchersOf(resourceId).filter((w) => w.agentId !== actorId);
+    if (!watchers.length) return;
+    const key = `watch:${resourceId}`;
+    clearTimeout(this.timers.get(key));
+    this.timers.set(
+      key,
+      setTimeout(
+        () => {
+          this.timers.delete(key);
+          this.track(
+            this.checkWatches(resourceId).catch((error) => console.error('watch failed', error)),
+          );
+        },
+        Math.min(this.options.maintenanceDelayMs ?? 4000, 4000),
+      ),
+    );
+  }
+
+  /**
+   * Each agent looking after the page checks its line. A line about a cell ("B5 above 5000") is
+   * checked exactly and said once when crossed and once when back. Any other instruction is put to
+   * the model, at most every ten minutes. A personal agent tells its owner privately.
+   */
+  private async checkWatches(resourceId: Id) {
+    const page = this.store.resource(resourceId);
+    if (!page) return;
+    for (const w of this.store.watchersOf(resourceId)) {
+      const agent = this.store.user(w.agentId);
+      if (!agent || agent.retired || !this.store.canReadResource(agent.id, page)) continue;
+      const where =
+        agent.role === 'personal' && agent.ownerId
+          ? this.store.privateChat(agent.ownerId)
+          : this.store.openDiscussion(agent.id, page.id);
+      if (!where) continue;
+      const line = cellLine(w.rule);
+      if (line && page.kind === 'sheet') {
+        const rows = readSheet(page.body).rows;
+        const shown = evaluate(rows, line.row, line.col);
+        const n = toNumber(shown);
+        if (n === null) continue;
+        const met = line.above
+          ? line.orEqual
+            ? n >= line.value
+            : n > line.value
+          : line.orEqual
+            ? n <= line.value
+            : n < line.value;
+        const state = met ? 'met' : 'clear';
+        if (state === (w.lastState ?? 'clear')) {
+          if (!w.lastState) this.store.markWatch(agent.id, page.id, state);
+          continue;
+        }
+        this.store.markWatch(agent.id, page.id, state);
+        const ref = `${colName(line.col)}${line.row + 1}`;
+        const label = rows[line.row]?.[0]?.trim();
+        const name = label && label !== shown ? `${label} (${ref})` : ref;
+        const limit = line.value.toLocaleString('en-US');
+        this.store.postMessage(
+          agent.id,
+          {
+            conversationId: where.id,
+            text: met
+              ? `Heads up on ${page.title}: ${name} is now ${shown}, ${line.above ? 'above' : 'below'} ${limit}.`
+              : `${page.title}: ${name} is back to ${shown}, within ${limit}.`,
+          },
+          { relay: agent.role === 'personal' },
+        );
+        continue;
+      }
+      if (!w.rule.trim()) continue;
+      const key = `${w.agentId}:${resourceId}`;
+      if (Date.now() - (this.watchAsked.get(key) ?? 0) < 600_000) continue;
+      this.watchAsked.set(key, Date.now());
+      await this.runJob(
+        agent,
+        where,
+        'proactive',
+        `${page.title} just changed. You look after it and were told: "${w.rule}". If the page now calls for that, say so in one or two sentences, naming what changed. Otherwise skip.`,
+        null,
+        null,
+        page.spaceId,
+        agent.role === 'personal',
+      );
+    }
+  }
+  private watchAsked = new Map<string, number>();
 
   private async handleMessage(message: Message) {
     const conversation = this.store.conversation(message.conversationId)!;
@@ -429,6 +520,7 @@ export class AgentEngine {
         role: agent.role ?? 'project',
         front: agent.role === 'project' && this.store.projectAgent(spaceId)?.id === agent.id,
         purpose: agent.purpose ?? '',
+        approvals: agent.approvals ?? 'ask',
         instructions: agent.instructions ?? '',
         skills: this.store
           .skillsOf(agent.id)
@@ -473,6 +565,16 @@ export class AgentEngine {
           .map((r) => ({ title: r.title, kind: r.kind, body: this.readable(r).slice(0, 4000) })),
         focus,
         colleagues,
+        pendingProposal: (() => {
+          const waiting = this.waitingApproval(agent, conversation);
+          return waiting
+            ? {
+                kind: waiting.proposal.kind,
+                title: waiting.proposal.title,
+                body: waiting.proposal.body,
+              }
+            : null;
+        })(),
       },
     };
     this.searchable.set(task, pages);
@@ -598,6 +700,8 @@ export class AgentEngine {
       return;
     }
     let approvalId: Id | undefined;
+    // A follow-up that revises a waiting draft replaces it, rather than leaving two to choose from.
+    const waiting = result.proposal ? this.waitingApproval(agent, conversation) : null;
     if (result.proposal) {
       const looking = trigger ? this.store.messageContext(trigger.id) : null;
       const anchored = this.pageInQuestion(conversation, trigger);
@@ -615,11 +719,23 @@ export class AgentEngine {
               : null;
       const needsTarget =
         result.proposal.kind === 'edit-doc' || result.proposal.kind === 'edit-cells';
-      if (!needsTarget || target)
+      if (!needsTarget || target) {
         approvalId = this.store.createApproval(job, {
           ...result.proposal,
           ...(target ? { resourceId: target } : {}),
         }).id;
+        if (waiting && waiting.proposal.kind === result.proposal.kind)
+          this.store.replaceApproval(waiting.id);
+        // "Small fixes without asking": a few cells or a short line are changed at once, with Undo.
+        const requester =
+          trigger && this.store.user(trigger.authorId)?.kind === 'human' ? trigger.authorId : null;
+        if (agent.approvals === 'small' && requester && isSmall(result.proposal))
+          try {
+            this.store.decideApproval(requester, approvalId, 'approved');
+          } catch (error) {
+            console.error('small fix not applied', error);
+          }
+      }
     }
     const titles = new Map(
       this.store
@@ -641,6 +757,13 @@ export class AgentEngine {
         approvalId,
         sourceIds,
         relay,
+        {
+          replies: (result.replies ?? [])
+            .map((r) => String(r).trim().slice(0, 60))
+            .filter(Boolean)
+            .slice(0, 3),
+          read: this.readList(task, conversation, trigger),
+        },
       );
     // Passing part of the job to a colleague: it answers in the same conversation, visibly as itself.
     if (result.handoff && conversation && trigger && !relay) {
@@ -673,7 +796,12 @@ export class AgentEngine {
           { askedBy: agent.id },
         );
     }
-    this.store.setJob(job.id, approvalId ? 'awaiting_approval' : 'done');
+    this.store.setJob(
+      job.id,
+      approvalId && this.store.approval(approvalId)?.status === 'pending'
+        ? 'awaiting_approval'
+        : 'done',
+    );
   }
 
   /** The sheet a proposed change names, by title, among those the agent can read; the one in question first. */
@@ -684,6 +812,34 @@ export class AgentEngine {
       .filter((r) => r.kind === 'sheet' && !r.archived);
     const named = sheets.filter((r) => r.title.toLowerCase() === title.trim().toLowerCase());
     return (named.find((r) => r.id === inQuestion) ?? named[0])?.id ?? null;
+  }
+
+  /** The change this agent suggested in this conversation that is still waiting for a person. */
+  private waitingApproval(agent: User, conversation: Conversation | null) {
+    if (!conversation) return null;
+    const mine = this.store
+      .messages(conversation.id, 20)
+      .filter((m) => m.authorId === agent.id && m.approvalId)
+      .at(-1);
+    const approval = mine?.approvalId ? this.store.approval(mine.approvalId) : null;
+    return approval?.status === 'pending' ? approval : null;
+  }
+
+  /** What an answer read, in words a person recognises: pages, conversations, pinned pages. */
+  private readList(task: AgentTask, conversation: Conversation | null, trigger: Message | null) {
+    const looking = trigger ? this.store.messageContext(trigger.id) : null;
+    const chats = (looking?.conversationIds ?? [])
+      .map((id) => this.store.conversation(id))
+      .filter((c): c is Conversation => !!c && c.id !== conversation?.id)
+      .map((c) => (c.kind === 'channel' ? `#${c.title}` : c.title || 'a conversation'));
+    return [
+      ...new Set([
+        ...(task.anchor ? [task.anchor.title] : []),
+        ...task.context.focus.map((f) => f.title),
+        ...chats,
+        ...task.context.pinned.map((p) => `${p.title} (pinned)`),
+      ]),
+    ].slice(0, 8);
   }
 
   /** Teammates' own agents in a workspace: reachable from your agent, through the teammate. */
@@ -771,6 +927,7 @@ export class AgentEngine {
     approvalId?: Id,
     sourceIds: Id[] = [],
     relay: boolean | { askedBy: Id } = false,
+    more: { replies?: string[]; read?: string[] } = {},
   ) {
     this.store.postMessage(
       agent.id,
@@ -786,10 +943,36 @@ export class AgentEngine {
         runtime,
         sourceIds,
         relay: !!relay,
+        replies: more.replies,
+        read: more.read,
         ...(typeof relay === 'object'
           ? { asked: { agentId: relay.askedBy, request: job.request } }
           : {}),
       },
     );
   }
+}
+
+/** A change small and undoable enough to make without asking first. */
+function isSmall(p: { kind: string; title: string; body: string }) {
+  if (p.kind === 'edit-cells') return p.body.trim().split('\n').length <= 3;
+  if (p.kind === 'edit-doc') return p.title.length <= 240 && p.body.length <= 240;
+  return false;
+}
+
+/** A watch line about one cell: "B5 above 5000", "total in B5 goes over $5,000", "C3 < 0". */
+export function cellLine(rule: string) {
+  const m =
+    /\b([A-Za-z]{1,2})(\d{1,3})\b[^<>\d]*?(>=|<=|>|<|at least|at most|above|over|more than|exceeds|below|under|less than)\s*\$?\s*(-?[\d,]+(?:\.\d+)?)/i.exec(
+      rule,
+    );
+  if (!m) return null;
+  const op = m[3].toLowerCase();
+  return {
+    row: Number(m[2]) - 1,
+    col: colIndex(m[1]),
+    above: ['>=', '>', 'at least', 'above', 'over', 'more than', 'exceeds'].includes(op),
+    orEqual: ['>=', '<=', 'at least', 'at most'].includes(op),
+    value: Number(m[4].replace(/,/g, '')),
+  };
 }

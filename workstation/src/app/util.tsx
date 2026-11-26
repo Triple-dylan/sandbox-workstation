@@ -134,4 +134,17 @@ export function unreadIn(c: Conversation, s: Snapshot) {
   ).length;
 }
 
+/** Unread messages in a conversation that tag you by name. */
+export function mentionsIn(c: Conversation, s: Snapshot) {
+  const last = s.lastRead[c.id] ?? '';
+  const tag = new RegExp(
+    `(^|[^\\w@])@${s.me.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w])`,
+    'i',
+  );
+  return s.messages.filter(
+    (m) =>
+      m.conversationId === c.id && m.authorId !== s.me.id && m.createdAt > last && tag.test(m.text),
+  ).length;
+}
+
 export { scopeOf } from './scope.ts';

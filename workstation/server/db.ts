@@ -98,6 +98,16 @@ create table if not exists passage_vectors (
   resource_id text not null, idx integer not null, stamp text not null, text text not null, vector blob not null,
   primary key (resource_id, idx)
 );
+create table if not exists connections (
+  user_id text not null, provider text not null, account text not null, access text not null,
+  refresh text, expires_at integer not null,
+  primary key (user_id, provider)
+);
+create table if not exists watches (
+  agent_id text not null, resource_id text not null, rule text not null, set_by text not null,
+  last_state text, created_at text not null,
+  primary key (agent_id, resource_id)
+);
 create table if not exists agent_usage (
   day text not null, scope text not null, key text not null, tokens integer not null,
   primary key (day, scope, key)
@@ -112,7 +122,12 @@ export function openDb(path: string): Db {
   db.exec('pragma journal_mode = wal; pragma foreign_keys = on;');
   db.exec(schema);
   // Added after the first databases were created; ignore the error where the column already exists.
-  for (const column of ['purpose text', 'instructions text', 'retired integer not null default 0'])
+  for (const column of [
+    'purpose text',
+    'instructions text',
+    'retired integer not null default 0',
+    'approvals text',
+  ])
     try {
       db.exec(`alter table users add column ${column}`);
     } catch {
@@ -129,6 +144,8 @@ export function openDb(path: string): Db {
     'alter table messages add column context text',
     'alter table messages add column shared_from text',
     'alter table messages add column asked text',
+    'alter table messages add column replies text',
+    'alter table messages add column read text',
   ])
     try {
       db.exec(change);

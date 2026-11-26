@@ -152,6 +152,31 @@ export function WhoPage({ who }: { who: User }) {
         </section>
 
         <section className="agent-side">
+          <h3>Looks after</h3>
+          <LooksAfter who={who} editable={editable} />
+
+          <h3>Changes</h3>
+          <div className="who-line">
+            <Choice
+              label="How it makes changes"
+              value={who.approvals ?? 'ask'}
+              options={[
+                ['ask', 'Ask me first'],
+                ['small', 'Small fixes without asking'],
+                ['plan', 'Show the plan first'],
+              ]}
+              onChange={(approvals) => void patch({ approvals })}
+              style={{ pointerEvents: editable ? undefined : 'none' }}
+            />
+            <small className="muted">
+              {(who.approvals ?? 'ask') === 'small'
+                ? 'A few cells or a short line are changed at once, with Undo. Anything bigger is asked.'
+                : who.approvals === 'plan'
+                  ? 'For anything with several steps, it lists them and waits for your go-ahead.'
+                  : 'Every change waits for a person to accept it.'}
+            </small>
+          </div>
+
           <h3>Routines</h3>
           <Routines who={who} editable={editable} />
           {assignments.map((a) => (
@@ -454,5 +479,98 @@ function Skills({ who, editable }: { who: User; editable: boolean }) {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * The pages an agent looks after, and the line it was told to speak up at. A line about one cell
+ * ("B5 above 5000") is checked exactly; anything else it judges when the page changes.
+ */
+function LooksAfter({ who, editable }: { who: User; editable: boolean }) {
+  const { s, run, open, resource, pick } = useWorkspace();
+  const [adding, setAdding] = useState<{ resourceId: string; rule: string } | null>(null);
+  const watches = s.watches.filter((w) => w.agentId === who.id);
+  const save = (resourceId: string, rule: string) =>
+    void run(() => api(`/agents/${who.id}/watches`, { body: { resourceId, rule } })).then(
+      (ok) => ok && setAdding(null),
+    );
+  return (
+    <>
+      {watches.length === 0 && !adding && (
+        <p className="feed-empty">
+          Nothing yet. Give it a page to keep an eye on, and when to say something.
+        </p>
+      )}
+      {watches.map((w) => {
+        const page = resource(w.resourceId);
+        if (!page) return null;
+        return (
+          <p key={w.resourceId} className="who-line watch-line">
+            <button className="link" onClick={() => open({ type: 'page', id: page.id }, true)}>
+              <KindIcon kind={page.kind} /> {page.title}
+            </button>
+            <span className="muted truncate">{w.rule || 'Keeps it in mind'}</span>
+            {editable && (
+              <button
+                aria-label={`Stop looking after ${page.title}`}
+                title="Stop looking after it"
+                onClick={() =>
+                  void run(() =>
+                    api(`/agents/${who.id}/watches/${w.resourceId}`, { method: 'DELETE' }),
+                  )
+                }
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </p>
+        );
+      })}
+      {adding ? (
+        <form
+          className="watch-new"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save(adding.resourceId, adding.rule);
+          }}
+        >
+          <span>
+            <KindIcon kind={resource(adding.resourceId)?.kind ?? 'doc'} />{' '}
+            {resource(adding.resourceId)?.title}
+          </span>
+          <input
+            autoFocus
+            value={adding.rule}
+            maxLength={300}
+            placeholder={
+              resource(adding.resourceId)?.kind === 'sheet'
+                ? 'Say something when B5 goes above 5000'
+                : 'Say something when the dates change'
+            }
+            aria-label="When to say something"
+            onChange={(e) => setAdding({ ...adding, rule: e.target.value })}
+            onKeyDown={(e) => e.key === 'Escape' && setAdding(null)}
+          />
+          <button className="primary" type="submit">
+            Look after it
+          </button>
+        </form>
+      ) : (
+        editable && (
+          <button
+            className="who-add"
+            onClick={() =>
+              pick({
+                title: `A page for ${who.name} to look after`,
+                filter: (r) => r.spaceId === (who.spaceId ?? r.spaceId),
+                onPick: (t) => t.type === 'page' && setAdding({ resourceId: t.id, rule: '' }),
+              })
+            }
+          >
+            <Plus size={12} /> A page to look after
+          </button>
+        )
+      )}
+    </>
   );
 }

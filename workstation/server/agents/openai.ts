@@ -21,9 +21,10 @@ const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type:
 export const answerSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['reply', 'sources', 'proposal', 'handoff', 'orientation', 'skip'],
+  required: ['reply', 'replies', 'sources', 'proposal', 'handoff', 'orientation', 'skip'],
   properties: {
     reply: { type: 'string' },
+    replies: { type: 'array', items: { type: 'string' } },
     sources: { type: 'array', items: { type: 'string' } },
     proposal: nullable({
       type: 'object',

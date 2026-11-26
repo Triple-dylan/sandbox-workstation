@@ -25,6 +25,7 @@ import { CanvasPage } from './CanvasPage.tsx';
 import { ChatPage } from './ChatPage.tsx';
 import { GraphPage } from './GraphPage.tsx';
 import { WhoPage } from './WhoPage.tsx';
+import { agentsIn } from '../features/feed/Feed.tsx';
 import { AssetPage } from './AssetPage.tsx';
 
 /** Who can open a page, and the way to change it. Only its owner changes it. */
@@ -258,7 +259,10 @@ export function Pane({
       }`
     : chat
       ? chat.kind === 'channel'
-        ? `Channel · everyone in ${space.name}`
+        ? `Channel · everyone in ${space.name}${(() => {
+            const listening = agentsIn(chat, s.users).map((a) => a.name);
+            return listening.length ? ` · ${listening.join(', ')} listening` : '';
+          })()}`
         : chat.kind === 'agent-private'
           ? 'Private to you'
           : chat.kind === 'dm'
@@ -351,6 +355,22 @@ export function Pane({
           )}
         </div>
         <span className="pane-people">
+          {page &&
+            s.watches
+              .filter((w) => w.resourceId === page.id)
+              .map((w) => user(w.agentId))
+              .filter((a): a is User => !!a && !working.some((x) => x.id === a.id))
+              .map((a) => (
+                <button
+                  key={a.id}
+                  className="looks-after"
+                  title={`${a.name} looks after this${s.watches.find((w) => w.agentId === a.id && w.resourceId === page.id)?.rule ? `: ${s.watches.find((w) => w.agentId === a.id && w.resourceId === page.id)!.rule}` : ''}. Ask it about this page.`}
+                  onClick={() => setUi({ railOpen: true, railText: `@${a.name} ` })}
+                >
+                  <Character agent={a} size={18} state={agentState(a.id, s.jobs)} />
+                  <small>Ask {a.name}</small>
+                </button>
+              ))}
           {working.map((a) => (
             <span key={a.id} className="at-work" title={`${agentLabel(s, a.id)} is working here`}>
               <Character agent={a} size={20} state="working" />

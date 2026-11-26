@@ -37,6 +37,8 @@ export type Ui = {
   railOpen: boolean;
   /** Text you picked on a page to ask your agent about. */
   asking: { resourceId: Id; quote: string } | null;
+  /** Words to start the rail's box with, like "@Finance ", when asking from somewhere else. */
+  railText: string | null;
   /** A spot to bring into view and light briefly: a quoted line, rows of a sheet, a piece of a board. */
   focus: Spot | null;
   /** Where something is about to be shared, lit faintly while you choose. */
@@ -80,6 +82,7 @@ export const initialUi: Ui = {
   theme: 'system',
   railOpen: typeof window !== 'undefined' && window.innerWidth >= 1180,
   asking: null,
+  railText: null,
   focus: null,
   preview: null,
   selection: [],

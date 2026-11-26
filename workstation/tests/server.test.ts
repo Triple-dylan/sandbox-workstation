@@ -1987,3 +1987,151 @@ test('agents asking agents: exchanges say who asked, and a teammate’s agent an
   assert.deepEqual(arrived.sharedFrom, { agentId: mayaAgent.id, ownerId: maya.id });
   assert.equal(store.agentRequest(request.id)!.status, 'sent');
 });
+
+test('your private chat: answers say what they read, offer replies to tap, and a follow-up revises the waiting draft', async () => {
+  const seen: (string | undefined)[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      seen.push(task.context.pendingProposal?.body);
+      if (/3,?800/.test(task.request))
+        return {
+          reply: 'Changed it to 3,800.',
+          proposal: { kind: 'edit-cells', title: 'Q1 Budget', body: 'B3 = 3800' },
+        };
+      return {
+        reply: 'Travel could drop to 2,800. Want me to apply it?',
+        replies: ['Yes, apply it', 'Make it 3,800', '  '],
+        proposal: { kind: 'edit-cells', title: 'Q1 Budget', body: 'B3 = 2800' },
+      };
+    },
+  };
+  const { store, engine, dylan, project, general, snap } = setup(runtime);
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Q1 Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Software', '1200'],
+        ['Travel', '3400'],
+      ],
+    }),
+  });
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  const askMine = (text: string) =>
+    store.postMessage(dylan.id, {
+      conversationId: mine.id,
+      text,
+      context: { resourceIds: [sheet.id], conversationIds: [general.id], spaceId: project.id },
+    });
+  askMine('can travel come down?');
+  await engine.idle();
+  const first = store.messages(mine.id, 10).at(-1)!;
+  assert.deepEqual(first.replies, ['Yes, apply it', 'Make it 3,800']);
+  assert.deepEqual(first.read, ['Q1 Budget', '#general']);
+
+  askMine('make it 3,800 instead');
+  await engine.idle();
+  assert.equal(seen.at(-1), 'B3 = 2800', 'the follow-up sees the draft it is changing');
+  const drafts = snap(dylan.id)
+    .approvals.filter((a) => a.proposal.kind === 'edit-cells')
+    .sort((a, b) => a.proposal.body.localeCompare(b.proposal.body));
+  assert.deepEqual(
+    drafts.map((a) => [a.proposal.body, a.status]),
+    [
+      ['B3 = 2800', 'replaced'],
+      ['B3 = 3800', 'pending'],
+    ],
+  );
+
+  // Edited before accepting: what the person wrote is what is applied.
+  assert.throws(
+    () => store.decideApproval(dylan.id, drafts[1].id, 'approved', 'travel 3700'),
+    /one change per line/,
+  );
+  store.decideApproval(dylan.id, drafts[1].id, 'approved', 'B3 = 3700');
+  assert.equal(JSON.parse(store.resource(sheet.id)!.body).rows[2][1], '3700');
+  assert.equal(store.approval(drafts[1].id)!.proposal.body, 'B3 = 3700');
+});
+
+test('agents look after pages: a line about a cell is said once when crossed and once when back, and small fixes can be undone', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind !== 'ask' && task.kind !== 'instruction') return {};
+      return {
+        reply: 'Done.',
+        proposal: { kind: 'edit-cells', title: 'Q1 Budget', body: 'B3 = 3000' },
+      };
+    },
+  };
+  const { store, engine, dylan, maya, project, agent, snap } = setup(runtime);
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Q1 Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Software', '1200'],
+        ['Travel', '3400'],
+        ['Total', '=SUM(B2:B3)'],
+      ],
+    }),
+  });
+  store.setWatch(maya.id, agent.id, sheet.id, 'Tell us when the total in B4 goes over $5,000');
+  assert.deepEqual(
+    snap(dylan.id).watches.map((w) => [w.agentId, w.resourceId]),
+    [[agent.id, sheet.id]],
+  );
+  const feed = () => {
+    const talk = snap(dylan.id).conversations.find(
+      (c) => c.kind === 'discussion' && c.resourceId === sheet.id,
+    );
+    return talk ? store.messages(talk.id, 20).map((m) => m.text) : [];
+  };
+  store.setCell(dylan.id, sheet.id, 2, 1, '3600');
+  await engine.idle();
+  assert.deepEqual(feed(), [], 'under the line: nothing said');
+  store.setCell(dylan.id, sheet.id, 2, 1, '4100');
+  await engine.idle();
+  store.setCell(dylan.id, sheet.id, 1, 1, '1300');
+  await engine.idle();
+  assert.deepEqual(
+    feed(),
+    ['Heads up on Q1 Budget: Total (B4) is now 5300, above 5,000.'],
+    'said once when crossed, not again while still over',
+  );
+  store.setCell(dylan.id, sheet.id, 2, 1, '3000');
+  await engine.idle();
+  assert.deepEqual(feed().at(-1), 'Q1 Budget: Total (B4) is back to 4300, within 5,000.');
+  assert.equal(feed().length, 2);
+
+  // "Small fixes without asking": made at once, and undone by a person.
+  store.updateAgent(dylan.id, agent.id, { approvals: 'small' });
+  const general = snap(dylan.id).conversations.find((c) => c.kind === 'channel')!;
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'set travel to 3000',
+    addressedTo: agent.id,
+  });
+  store.setCell(dylan.id, sheet.id, 2, 1, '2500');
+  await engine.idle();
+  const applied = snap(dylan.id).approvals.find((a) => a.proposal.body === 'B3 = 3000')!;
+  assert.equal(applied.status, 'approved');
+  assert.equal(JSON.parse(store.resource(sheet.id)!.body).rows[2][1], '3000');
+  store.undoApproval(dylan.id, applied.id);
+  assert.equal(JSON.parse(store.resource(sheet.id)!.body).rows[2][1], '2500');
+  assert.equal(store.approval(applied.id)!.status, 'undone');
+
+  // Only people who direct the agent can change what it looks after.
+  const sam = store.createHuman('Sam2');
+  assert.throws(() => store.setWatch(sam.id, agent.id, sheet.id, 'x'), /Not available/);
+  store.dropWatch(dylan.id, agent.id, sheet.id);
+  assert.equal(snap(dylan.id).watches.length, 0);
+});
