@@ -1,5 +1,6 @@
 import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
 import { readSheet } from '../../shared/sheet.ts';
+import { isPage } from '../../shared/types.ts';
 import type { ChangeEvent, Store } from '../store.ts';
 import type {
   BrowserBody,
@@ -457,6 +458,14 @@ export class AgentEngine {
         null,
         null,
         spaceId,
+        false,
+        // Your private space is small and all of it is your context: read its pages in full,
+        // newest first, rather than the one-line directory a workspace's upkeep works from.
+        this.store
+          .resourcesIn(spaceId)
+          .filter((r) => isPage(r.kind) && !r.archived && !r.role)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .map((r) => r.id),
       );
       return;
     }
@@ -549,7 +558,13 @@ export class AgentEngine {
           : [];
     const recent = shared
       .flatMap((c) => this.store.messages(c.id, 40))
-      .filter((m) => this.store.user(m.authorId)?.kind === 'human' || kind !== 'maintenance')
+      .filter(
+        (m) =>
+          kind !== 'maintenance' ||
+          this.store.user(m.authorId)?.kind === 'human' ||
+          // What your agent answered you is part of your context too.
+          (space.kind === 'personal' && m.authorId === agent.id),
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .slice(-30)
       .map((m) => ({
