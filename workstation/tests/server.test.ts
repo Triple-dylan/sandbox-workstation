@@ -2324,3 +2324,25 @@ test('your private space: your agent keeps "About you" from it, brings that to p
   assert.equal(made.visibility, 'private');
   assert.ok(!store.canReadResource(maya.id, made));
 });
+
+test('your private space: a file your agent could not read is said in your private chat, not dropped', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'proactive') throw new Error('The model is busy.');
+      return {};
+    },
+  };
+  const { store, engine, dylan } = setup(runtime);
+  store.createResource(dylan.id, {
+    spaceId: store.personalSpace(dylan.id)!,
+    kind: 'doc',
+    title: 'notes.txt',
+    body: 'Paperie is reliable.',
+    source: { name: 'notes.txt', type: 'Text' },
+  });
+  await engine.idle();
+  const said = store.messages(store.privateChat(dylan.id)!.id, 10).at(-1)!;
+  assert.match(said.text, /couldn't finish that: The model is busy/);
+});
