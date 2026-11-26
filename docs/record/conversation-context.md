@@ -509,3 +509,5 @@ On the agent dropdown: "Idk if the agent drop down makes a ton of sense. I think
 2026-11-25, on asking in place: "noticing that as a user you are messaging the finance agent about the budget, but not when looking at the budget. most users would have these questions when looking at the sheet itself. we arent assuming users would."
 
 2026-11-25, on the private chat: "seeing private agent chat responses having a save a a page option for both a draft suggestion but also for just normal responses. needds to be thought through more. private chat could still do a better job at sharing context, interacting with other agents, and just nromal user to agent interactions. not the best currently"
+
+2026-11-26, on the left rail: "on the ui front - I think we can bring back the two layered left rail. the thin left rail containing channel and private access. the current left rail containing everything within a given channel or group. the main left rail should auto hide when someone is working on a page unless they decide to manually open it, but usually it should operate how the claude harness left rail does when collapsed. mouse hover over the area brings it"

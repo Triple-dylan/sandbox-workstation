@@ -2,6 +2,10 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-26
+
+- **Two rails on the left; the list steps aside on pages.** Dylan: "bring back the two layered left rail. the thin left rail containing channel and private access. the current left rail containing everything within a given channel or group. the main left rail should auto hide when someone is working on a page unless they decide to manually open it ... mouse hover over the area brings it". The thin rail is your private space and each workspace (replacing the switcher menu); the list beside it is that space's chats, pages and agents. On a page the list hides and slides out over the page while the pointer is on the thin rail; keeping it open (button or ⌘\\) sticks until hidden again. *Read as:* "channel or group" means a workspace, since channels already live inside one.
+
 ## 2026-11-25
 
 - **The shared browser runs as its own hosted service, never on the app's machine or anyone's computer.** Dylan, after Chrome had been installed and run on his Mac for the local copy: "wasnt aware we had local dependencies. not acceptable". Chrome now runs in `browser-service/` (its own Railway service, private network, secret in the address, with the connection guard). The app only connects to it (`BROWSER_SERVICE_URL`) and keeps each workspace's sign-ins in its own database. Without the service set up, Browser pages say so; nothing is launched locally.

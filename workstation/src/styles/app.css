@@ -1214,35 +1214,27 @@ body.resizing .pane {
 .space-head {
   position: relative;
 }
-.space-name {
-  width: 100%;
+.space-title {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--r-s);
-  text-align: left;
-}
-.space-name:hover,
-.space-name[aria-expanded='true'] {
-  background: var(--wash);
-}
-.space-name > span {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-.space-name strong {
-  font-size: 15px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.space-name small {
-  color: var(--ink-3);
-  font-size: 12px;
-  display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 6px 4px 2px 10px;
+}
+.space-name {
+  flex: 1;
+  font-size: 15px;
+}
+.list-keep {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-s);
+  color: var(--ink-3);
+}
+.list-keep:hover {
+  background: var(--wash);
+  color: var(--ink);
 }
 .list-scroll {
   flex: 1;
@@ -1365,12 +1357,6 @@ body.resizing .pane {
   border-radius: 50%;
   background: var(--ok);
   border: 2px solid var(--bg);
-}
-.list-foot {
-  padding-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 .me {
   display: flex;
@@ -3303,27 +3289,6 @@ button.need:disabled {
 
 /* ---------- narrower windows ---------- */
 @media (max-width: 860px) {
-  .sidebar {
-    position: absolute;
-    z-index: 80;
-    inset: 0 auto 0 0;
-    width: min(300px, 86vw);
-    background: var(--bg);
-    border-right: 1px solid var(--line);
-    box-shadow: var(--lift);
-    transform: translateX(-102%);
-    transition: transform 0.18s ease;
-  }
-  .nav-open .sidebar {
-    transform: none;
-  }
-  .nav-open .scrim {
-    display: block;
-    position: absolute;
-    inset: 0;
-    z-index: 75;
-    background: color-mix(in oklab, var(--bg) 60%, transparent);
-  }
   .menu-button {
     display: inline-flex;
   }
@@ -3342,6 +3307,7 @@ button.need:disabled {
 }
 @media (prefers-reduced-motion: reduce) {
   .sidebar,
+  .left,
   .cursor {
     transition: none;
   }
@@ -3538,30 +3504,6 @@ body,
 :root[data-accent='on'] {
   --focus: var(--accent);
 }
-.list-hidden .sidebar {
-  position: absolute;
-  z-index: 80;
-  inset: 0 auto 0 0;
-  width: min(300px, 86vw);
-  background: var(--bg);
-  box-shadow: var(--lift);
-  transform: translateX(-102%);
-  transition: transform 0.18s ease;
-}
-.list-hidden.nav-open .sidebar {
-  transform: none;
-}
-.list-hidden.nav-open .scrim {
-  display: block;
-  position: absolute;
-  inset: 0;
-  z-index: 75;
-  background: color-mix(in oklab, var(--bg) 60%, transparent);
-}
-.list-hidden .menu-button {
-  display: inline-flex;
-}
-
 /* ---------- dialogs ---------- */
 .dialog {
   width: min(440px, 100%);
@@ -5686,17 +5628,6 @@ button.space-people:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sidebar .me {
-  width: 100%;
-  border-radius: var(--r-s);
-  padding: 6px 10px;
-  text-align: left;
-}
-.sidebar .me:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-
 /* ---------- popups: one frame ---------- */
 input:focus-visible,
 textarea:focus-visible,
@@ -6641,4 +6572,162 @@ select:focus-visible {
   margin: 6px 12px 8px;
   font-size: 11.5px;
   color: var(--ink-3);
+}
+/* ---------- the left: a thin rail of spaces, and the list of the one picked ---------- */
+.left {
+  flex: none;
+  display: flex;
+  min-height: 0;
+  position: relative;
+  z-index: 80;
+}
+.space-rail {
+  position: relative;
+  z-index: 1;
+  width: 56px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 10px;
+  background: var(--bg);
+}
+.space-tiles {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+.space-tile {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--wash);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  transition:
+    border-radius 0.15s ease,
+    background 0.15s ease;
+}
+.space-tile:hover {
+  background: var(--wash-2);
+  color: var(--ink);
+  border-radius: 13px;
+}
+.space-tile[aria-current='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+/* Where you are, and where something new is waiting: a mark at the rail's edge. */
+.space-tile::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  width: 4px;
+  height: 0;
+  border-radius: 0 3px 3px 0;
+  background: var(--ink);
+  transition: height 0.15s ease;
+}
+.space-tile.unread::before {
+  height: 8px;
+}
+.space-tile[aria-current='true']::before {
+  height: 22px;
+}
+.space-tile .count {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  margin: 0;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  border: 2px solid var(--bg);
+  box-sizing: content-box;
+}
+.space-tile.add {
+  background: transparent;
+  color: var(--ink-3);
+}
+.space-tile.add:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.space-me {
+  margin-top: auto;
+  border-radius: 50%;
+  padding: 3px;
+}
+.space-me:hover {
+  background: var(--wash);
+}
+
+/* Out of the way: the list sits off to the side and slides out over the page while the pointer is
+   on the rail, or while something is being made in it. */
+.list-hidden .sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: clamp(220px, 19vw, 264px);
+  background: var(--bg);
+  border-radius: 0 var(--r-m) var(--r-m) 0;
+  box-shadow: var(--lift);
+  opacity: 0;
+  transform: translateX(-14px);
+  pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    transform 0.16s ease;
+}
+.list-hidden.nav-open .sidebar {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* Narrow windows: the rail and its list come out together as one drawer from the menu button. */
+@media (max-width: 860px) {
+  .left {
+    position: absolute;
+    inset: 0 auto 0 0;
+    max-width: 92vw;
+    background: var(--bg);
+    box-shadow: var(--lift);
+    transform: translateX(-102%);
+    transition: transform 0.18s ease;
+  }
+  .shell.nav-open .left {
+    transform: none;
+  }
+  .shell .left .sidebar {
+    position: static;
+    width: min(264px, calc(92vw - 56px));
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    box-shadow: none;
+  }
+  .nav-open .scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 75;
+    background: color-mix(in oklab, var(--bg) 60%, transparent);
+  }
+  .list-keep {
+    display: none;
+  }
 }

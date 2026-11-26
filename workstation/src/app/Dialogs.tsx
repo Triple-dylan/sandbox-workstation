@@ -38,7 +38,7 @@ function Dialog({
 export const shortcuts: [string, string][] = [
   ['⌘ K', 'Find a page, or do something'],
   ['⌘ J', 'Your agent: go to its box; again to fold it away'],
-  ['⌘ \\', 'Show or hide the list'],
+  ['⌘ \\', 'Keep the list open, or let it step aside'],
   ['⌘ ,', 'Settings'],
   ['⌘ /', 'This list of shortcuts'],
   ['Alt N', 'New page'],
@@ -140,12 +140,13 @@ export function Settings() {
       </div>
       {seg(
         'The list',
-        prefs.list ? 'shown' : 'hidden',
+        prefs.list,
         [
-          ['shown', 'Shown'],
-          ['hidden', 'Hidden until asked'],
+          ['auto', 'Out of the way on pages'],
+          ['shown', 'Always shown'],
+          ['hidden', 'Only at the edge'],
         ],
-        (v) => set({ list: v === 'shown' }),
+        (v) => set({ list: v }),
       )}
       {seg(
         "Teammates' cursors",
