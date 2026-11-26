@@ -24,6 +24,8 @@ export type AgentTask = {
   anchor: { title: string; quote: string } | null;
   context: {
     orientation: string | null;
+    /** Your agent only: what it keeps about its owner in their private space ("About you"). */
+    aboutYou?: string | null;
     /** A directory of every page the agent may read: titles and a line each. */
     resources: { title: string; kind: string; excerpt: string }[];
     /** The passages found to be most relevant to this request, best first. */

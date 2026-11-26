@@ -188,6 +188,10 @@ export function Rail({ docked }: { docked: boolean }) {
   );
   const mentions = useMentions({ text, setText, agents: roster, jobs: s.jobs, box });
   const thread = myChat ? s.messages.filter((m) => m.conversationId === myChat.id) : [];
+  const privateSpace = s.spaces.find((x) => x.kind === 'personal');
+  const aboutYou = s.resources.find(
+    (r) => r.spaceId === privateSpace?.id && r.role === 'orientation' && !r.archived,
+  );
   const lastAnswer = [...thread].reverse().find((m) => user(m.authorId)?.kind === 'agent');
   const busy = s.jobs.find(
     (j) => j.conversationId === myChat?.id && (j.status === 'running' || j.status === 'queued'),
@@ -705,8 +709,40 @@ export function Rail({ docked }: { docked: boolean }) {
       <div className="rail-body" ref={body} onScroll={() => picked && setPicked(null)}>
         <IncomingRequests />
         <OutgoingRequests />
-        {thread.length === 0 && (
-          <p className="rail-empty">Select text on any page to ask about just that part.</p>
+        {thread.length <= latest.length && (
+          <section className="rail-intro" aria-label="How your agent works">
+            <small>From Sandbox</small>
+            <p>
+              <b>This is your agent.</b> It belongs to your account, not to one workspace, and only
+              you see this conversation.
+            </p>
+            <ul>
+              <li>
+                Bring files and notes into your private space. It turns them into pages there, which
+                you can explore on its graph.
+              </li>
+              <li>
+                It keeps{' '}
+                {aboutYou ? (
+                  <button
+                    className="link"
+                    onClick={() => open({ type: 'page', id: aboutYou.id }, true)}
+                  >
+                    About you
+                  </button>
+                ) : (
+                  'About you'
+                )}{' '}
+                current from those pages and what you tell it here.
+              </li>
+              <li>
+                Ask from any workspace: it answers from that workspace's pages and what it knows
+                about you, and asks the workspace's agents when they fit better.
+              </li>
+              <li>Workspace agents are shared by the team and never see your private space.</li>
+            </ul>
+            <p>Select text on any page to ask about just that part.</p>
+          </section>
         )}
         {thread.length > latest.length && (
           <button className="link rail-earlier" onClick={() => setEarlier(true)}>

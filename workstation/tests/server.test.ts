@@ -282,6 +282,8 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
     !JSON.stringify(calls[0]).includes(PLACEHOLDER_KEY),
     'the key only travels in the auth header',
   );
+  // Your agent also keeps "About you" after a private chat, which is a second call.
+  const before = calls.length;
   usage = 1000;
   store.postMessage(dylan.id, { conversationId: mine.id, text: 'summarize' });
   await engine.idle();
@@ -290,7 +292,7 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
     .at(-1)!;
   assert.equal(last.runtime, 'scripted');
   assert.match(last.text, /Daily token budget of 150 reached/);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, before, 'nothing reaches the model past the budget');
   await app.close();
 });
 
@@ -1290,7 +1292,7 @@ test("meaning search: finds a page by what it means, embeds each page once until
     id: 'fake-model',
     label: 'Fake model',
     run: async (task) => {
-      seen.push(task);
+      if (task.kind !== 'maintenance') seen.push(task);
       return { reply: 'ok', tokens: 1 };
     },
   };
@@ -1330,8 +1332,9 @@ test("meaning search: finds a page by what it means, embeds each page once until
     await engine.idle();
     return seen.at(-1)!.context.passages.map((p) => p.title);
   };
-  // The first question embeds the pages in the background; keywords alone find nothing here.
-  assert.deepEqual(await ask('what is the price of the vehicle'), []);
+  // The first question embeds the pages. (This used to read the background upkeep's task, which
+  // has no passages, and so passed whatever the search found.)
+  await ask('what is the price of the vehicle');
   const once = embedded.length;
   assert.ok(once > 0);
   // Asked again in other words: found by meaning, and nothing re-embedded but the question.
@@ -2059,7 +2062,7 @@ test('your private chat: answers say what they read, offer replies to tap, and a
   await engine.idle();
   const first = store.messages(mine.id, 10).at(-1)!;
   assert.deepEqual(first.replies, ['Yes, apply it', 'Make it 3,800']);
-  assert.deepEqual(first.read, ['Q1 Budget', '#general']);
+  assert.deepEqual(first.read, ['Q1 Budget', '#general', 'About you']);
 
   askMine('make it 3,800 instead');
   await engine.idle();
@@ -2231,4 +2234,115 @@ test('workspaces: the owner renames, removes people and deletes; anyone else can
   assert.ok(!snap(dylan.id).spaces.some((x) => x.id === project.id));
   assert.equal(store.projectAgent(project.id), null);
   assert.throws(() => store.acceptInvite(sam.id, token));
+});
+
+test('your private space: your agent keeps "About you" from it, brings that to private chats in every workspace, and turns a brought-in file into a page you accept', async () => {
+  const tasks: AgentTask[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      tasks.push(task);
+      if (task.kind === 'maintenance' && task.agent.role === 'personal')
+        return { orientation: '# About you\n\nPrefers short replies. Works on the Launch budget.' };
+      if (task.kind === 'maintenance') return {};
+      if (task.kind === 'proactive')
+        return {
+          reply: 'I made a page from the supplier notes.',
+          proposal: { kind: 'create-doc', title: 'Suppliers', body: '# Suppliers\n\nPaperie.' },
+        };
+      return { reply: 'ok' };
+    },
+  };
+  const { store, engine, dylan, maya, project, general, snap } = setup(runtime);
+  const personal = store.personalSpace(dylan.id)!;
+  const about = snap(dylan.id).resources.find(
+    (r) => r.spaceId === personal && r.role === 'orientation',
+  )!;
+  assert.equal(about.title, 'About you');
+  assert.equal(about.visibility, 'private');
+  assert.ok(!store.canReadResource(maya.id, about), 'nobody else reads it');
+
+  store.createResource(dylan.id, { spaceId: project.id, kind: 'doc', title: 'Plan', body: 'x' });
+  store.createResource(dylan.id, {
+    spaceId: personal,
+    kind: 'doc',
+    title: 'Running notes',
+    body: 'Keep travel under 3,000.',
+  });
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'I prefer short replies' });
+  await engine.idle();
+  const upkeep = tasks.find((t) => t.kind === 'maintenance' && t.agent.role === 'personal')!;
+  assert.ok(upkeep, 'your agent keeps your private space, as a workspace agent keeps its own');
+  const titles = upkeep.context.resources.map((r) => r.title);
+  assert.ok(titles.includes('Running notes'));
+  assert.ok(!titles.includes('Plan'), 'built from your private space, not from workspaces');
+  assert.ok(upkeep.context.recent.some((m) => m.text === 'I prefer short replies'));
+  assert.match(store.resource(about.id)!.body, /Prefers short replies/);
+
+  // Asked privately while in the workspace: it brings what it keeps about you.
+  store.postMessage(dylan.id, {
+    conversationId: mine.id,
+    text: 'what should I do next',
+    context: { spaceId: project.id, resourceIds: [], conversationIds: [general.id] },
+  });
+  await engine.idle();
+  const asked = tasks.find((t) => t.request === 'what should I do next')!;
+  assert.equal(asked.spaceName, 'Launch');
+  assert.match(asked.context.aboutYou ?? '', /Prefers short replies/);
+  // The workspace's agent, asked in the open, never gets it.
+  store.postMessage(maya.id, {
+    conversationId: general.id,
+    text: '@Launch agent what is the plan',
+    addressedTo: store.projectAgent(project.id)!.id,
+  });
+  await engine.idle();
+  const shared = tasks.find((t) => t.request.includes('what is the plan'))!;
+  assert.ok(!shared.context.aboutYou);
+  assert.ok(!JSON.stringify(shared).includes('Prefers short replies'));
+
+  // A file brought into the private space is raw material: your agent offers a page made from it.
+  const file = store.createResource(dylan.id, {
+    spaceId: personal,
+    kind: 'doc',
+    title: 'supplier-notes.txt',
+    body: 'Paperie is reliable. Boxwell was late twice.',
+    source: { name: 'supplier-notes.txt', type: 'Text' },
+  });
+  await engine.idle();
+  const read = tasks.find((t) => t.kind === 'proactive')!;
+  assert.deepEqual(
+    read.context.focus.map((f) => f.title),
+    [file.title],
+  );
+  const offer = store.messages(mine.id, 20).find((m) => m.approvalId)!;
+  assert.equal(offer.text, 'I made a page from the supplier notes.');
+  store.decideApproval(dylan.id, offer.approvalId!, 'approved');
+  const made = snap(dylan.id).resources.find((r) => r.title === 'Suppliers')!;
+  assert.equal(made.spaceId, personal);
+  assert.equal(made.visibility, 'private');
+  assert.ok(!store.canReadResource(maya.id, made));
+});
+
+test('your private space: a file your agent could not read is said in your private chat, not dropped', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'proactive') throw new Error('The model is busy.');
+      return {};
+    },
+  };
+  const { store, engine, dylan } = setup(runtime);
+  store.createResource(dylan.id, {
+    spaceId: store.personalSpace(dylan.id)!,
+    kind: 'doc',
+    title: 'notes.txt',
+    body: 'Paperie is reliable.',
+    source: { name: 'notes.txt', type: 'Text' },
+  });
+  await engine.idle();
+  const said = store.messages(store.privateChat(dylan.id)!.id, 10).at(-1)!;
+  assert.match(said.text, /couldn't finish that: The model is busy/);
 });
