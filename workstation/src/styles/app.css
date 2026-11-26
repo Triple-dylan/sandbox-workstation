@@ -620,7 +620,7 @@ button.danger {
   margin-left: 23px;
   width: 100%;
 }
-.plan-meta select,
+.plan-meta .choice,
 .plan-meta input[type='date'] {
   border: 0;
   background: var(--wash);
@@ -661,7 +661,7 @@ button.danger {
   font-size: 13.5px;
   padding: 2px 0;
 }
-.plan-meta select {
+.plan-meta .choice {
   max-width: 86px;
 }
 .plan-meta input[type='date'] {
@@ -725,7 +725,7 @@ button.danger {
 .plan-meta .plan-move {
   margin-left: auto;
 }
-.plan-meta select {
+.plan-meta .choice {
   max-width: 72px;
 }
 .plan-meta input[type='date'] {
@@ -822,7 +822,7 @@ button.danger {
   color: var(--ink);
   background: var(--paper);
 }
-.plan-meta select,
+.plan-meta .choice,
 .plan-meta input[type='date'] {
   color: var(--ink-2);
   background: var(--wash);
@@ -1166,7 +1166,7 @@ body.resizing .pane {
 .popover.menu > button.danger {
   color: var(--danger);
 }
-.popover.menu select {
+.popover.menu .choice {
   flex: 1;
   padding: 3px 6px;
 }
@@ -1243,37 +1243,6 @@ body.resizing .pane {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-.space-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: 40;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  box-shadow: var(--lift);
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-}
-.space-menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-  border-radius: var(--r-s);
-  text-align: left;
-  color: var(--ink-2);
-}
-.space-menu button:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-.space-menu button[aria-checked='true'] {
-  color: var(--ink);
-  font-weight: 600;
 }
 .list-scroll {
   flex: 1;
@@ -1381,28 +1350,6 @@ body.resizing .pane {
   color: var(--ink-3);
   font-size: 12.5px;
   padding: 2px 10px;
-}
-.list-form {
-  padding: 2px 6px 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.list-form input {
-  width: 100%;
-  background: var(--paper);
-}
-.list-form.people button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
-  border-radius: var(--r-s);
-  color: var(--ink-2);
-  font-size: 13px;
-}
-.list-form.people button:hover {
-  background: var(--wash);
 }
 .dot-wrap {
   position: relative;
@@ -2134,7 +2081,7 @@ body.resizing .pane {
   border-color: var(--mark-edge);
 }
 .comment.drafting textarea,
-.comment.drafting select {
+.comment.drafting .choice {
   width: 100%;
   font-size: 13px;
 }
@@ -3718,14 +3665,6 @@ body,
   color: var(--ink);
   font-size: 12px;
 }
-.builder-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.builder-row label {
-  flex: 1;
-}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -4241,23 +4180,6 @@ body,
 .res time {
   margin-right: 8px;
   font-size: 11.5px;
-}
-.chat-context .people {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.chat-context .people span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.7;
-}
-.chat-context .people span.here {
-  opacity: 1;
-  color: var(--ink);
 }
 .pins {
   display: none;
@@ -5649,7 +5571,7 @@ button.chat-pin.add:hover {
 .agent-setup input,
 .agent-setup textarea,
 .routine-form input,
-.routine-form select {
+.routine-form .choice {
   border: 1px solid var(--line);
   background: var(--paper);
   color: inherit;
@@ -5721,45 +5643,6 @@ button.chat-pin.add:hover {
   justify-content: flex-end;
   gap: 6px;
 }
-@media (max-width: 900px) {
-  .agent-page {
-    overflow-y: auto;
-  }
-  .agent-cols {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ---------- the list: chats, pages, agents ---------- */
-.space-top {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.space-top .space-name {
-  flex: 1;
-  min-width: 0;
-  width: auto;
-}
-.space-top .space-name strong {
-  flex: 0 1 auto;
-}
-.sidebar .new {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 28px;
-  padding: 0 10px 0 8px;
-  border-radius: var(--r-s);
-  border: 1px solid var(--line);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 550;
-}
-.sidebar .new:hover {
-  background: var(--wash);
-}
 .space-people {
   display: inline-flex;
   align-items: center;
@@ -5811,39 +5694,6 @@ button.space-people:hover {
   background: var(--wash);
   color: var(--ink);
 }
-.people {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.people li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 4px;
-}
-.people li > span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.people small {
-  color: var(--ink-3);
-  font-size: 12px;
-}
-.people li button {
-  padding: 4px 10px;
-  border-radius: var(--r-s);
-  border: 1px solid var(--line);
-  font-size: 12.5px;
-}
-.people li button:hover {
-  background: var(--wash);
-}
 
 /* ---------- popups: one frame ---------- */
 input:focus-visible,
@@ -5857,48 +5707,6 @@ select:focus-visible {
   font-size: 15px;
   font-weight: 600;
 }
-.dialog-form,
-.new-page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.dialog .new-title {
-  border: 0;
-  box-shadow: none;
-  padding: 2px 0;
-  font-size: 18px;
-  font-weight: 600;
-  background: transparent;
-}
-.dialog .new-title:focus-visible {
-  box-shadow: none;
-}
-.kind-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.kind-row button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-s);
-  color: var(--ink-2);
-  font-size: 13px;
-}
-.kind-row button:hover {
-  color: var(--ink);
-  background: var(--wash);
-}
-.kind-row button[aria-checked='true'] {
-  border-color: var(--ink-3);
-  background: var(--wash-2);
-  color: var(--ink);
-}
 .dialog-foot {
   display: flex;
   align-items: center;
@@ -5906,25 +5714,337 @@ select:focus-visible {
   gap: 8px;
   margin-top: 4px;
 }
-.dialog-foot select {
-  height: 30px;
-  padding: 0 8px;
+
+/* ---------- made in the list: one shape for pages, channels, agents, people ---------- */
+.list-new {
+  margin: 4px 0 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+  animation: list-in 120ms ease-out;
+}
+@keyframes list-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .list-new {
+    animation: none;
+  }
+}
+.list-new input {
+  width: 100%;
   font-size: 13px;
+}
+.list-new .list-new-name {
+  border: 0;
+  padding: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+}
+.list-new .list-new-name:focus-visible {
+  box-shadow: none;
+}
+.list-new-agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.list-new-kinds {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.list-new-kinds button {
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  color: var(--ink-3);
+}
+.list-new-kinds button:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.list-new-kinds button[aria-checked='true'] {
+  color: var(--ink);
+  background: var(--wash-2);
+  border-color: var(--ink-3);
+}
+.list-new-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.list-new-foot > span {
+  display: inline-flex;
+  gap: 4px;
+}
+.list-new-foot .choice {
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12.5px;
   color: var(--ink-2);
 }
-.dialog-foot small {
+.list-new-foot small {
   color: var(--ink-3);
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-}
-.dialog-foot .primary kbd {
-  margin-left: 6px;
-  background: none;
-  padding: 0;
-  opacity: 0.6;
   font-size: 12px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
 }
-.dialog .builder-row input {
+.list-new-foot .primary {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.list-new-cancel {
+  padding: 4px 8px;
+  font-size: 13px;
+  color: var(--ink-3);
+  border-radius: var(--r-s);
+}
+.list-new-cancel:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.list-people-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.list-people-head button {
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.list-people-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.list-people-row .truncate {
   flex: 1;
+}
+.list-people-row small {
+  color: var(--ink-3);
+}
+.list-people-row button,
+.list-people-add {
+  padding: 2px 8px;
+  border-radius: var(--r-s);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.list-people-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.list-people-row button:hover,
+.list-people-add:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+
+/* ---------- the app's own dropdown ---------- */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.choice:hover {
+  color: var(--ink);
+  background: var(--wash);
+}
+.choice svg {
+  flex: none;
+  color: var(--ink-3);
+}
+.context button[role='menuitemradio'] {
+  padding-left: 28px;
+  position: relative;
+}
+.context button.checked {
+  color: var(--ink);
+}
+.context button.checked::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-70%) rotate(-45deg);
+}
+.choice > span {
+  flex: 0 1 auto;
+}
+.list-new-foot .choice {
+  flex: none;
+}
+.list-new {
+  position: relative;
+}
+.list-new-close {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+}
+.list-new-close:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.list-new > .list-new-name,
+.list-new-agent {
+  padding-right: 24px;
+}
+
+/* Each part of the list: its + shows on hover, or when you are moving through it by keyboard. */
+.sidebar .list-head button {
+  opacity: 0;
+}
+.sidebar .list-head:hover button,
+.sidebar .list-head button:focus-visible,
+.sidebar .list-scroll:focus-within .list-head button:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .sidebar .list-head button {
+    opacity: 1;
+  }
+}
+
+/* Find grows from the list's Find field: no dimming, the page stays in view. */
+.overlay.anchored {
+  background: transparent;
+  backdrop-filter: none;
+  display: block;
+  padding: 0;
+}
+.overlay.anchored .find {
+  position: absolute;
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  animation: list-in 120ms ease-out;
+}
+.overlay.anchored .find-rows {
+  overflow-y: auto;
+}
+.find {
+  border-radius: 12px;
+}
+.find label {
+  padding: 8px 12px;
+}
+.find input,
+.find input:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+  font-size: 14px;
+}
+.find-rows button {
+  padding: 6px 10px;
+  font-size: 13.5px;
+}
+.find-rows strong {
+  font-weight: 550;
+}
+.find-rows kbd {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* The agent page answers to its pane's width, not the window's: with the chat open beside it,
+   it stacks into one column instead of losing half its settings. It scrolls only if it must. */
+.agent-page {
+  display: block;
+  container-type: inline-size;
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
+}
+.agent-cols {
+  grid-template-columns: 1fr;
+}
+.agent-setup textarea {
+  flex: none;
+  min-height: 110px;
+  height: 22vh;
+  max-height: 40vh;
+  resize: vertical;
+}
+.agent-setup label.grow {
+  flex: none;
+  min-height: 0;
+}
+.agent-side {
+  overflow: visible;
+}
+@container (min-width: 720px) {
+  .agent-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.list-tools {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.list-tools .list-find {
+  flex: 1;
+  margin-top: 0;
+}
+.list-graph {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-s);
+  color: var(--ink-3);
+}
+.list-graph:hover,
+.list-graph[aria-pressed='true'] {
+  background: var(--wash);
+  color: var(--ink);
 }

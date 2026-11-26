@@ -1,3 +1,4 @@
+import { useClickAway } from '../app/clickAway.ts';
 import { useRef, useState } from 'react';
 import { Columns2, SlidersHorizontal, Star, X } from 'lucide-react';
 import { useWorkspace } from '../app/workspace.tsx';
@@ -29,6 +30,9 @@ export function GraphPage() {
   const [sinceVisit, setSinceVisit] = useState(false);
   const [naming, setNaming] = useState(false);
   const [panel, setPanel] = useState(false);
+  const bar = useRef<HTMLDivElement>(null);
+  const panelBox = useRef<HTMLDivElement>(null);
+  useClickAway(panel, () => setPanel(false), bar, panelBox);
   const saved = useSaved(space.id);
   const visit = useRef(lastVisit(space.id));
   const week = useRef(new Date(Date.now() - 7 * 86_400_000).toISOString());
@@ -71,7 +75,7 @@ export function GraphPage() {
         selected={selectedId}
         onSelect={(id) => setUi({ selection: id ? [id] : [] })}
       />
-      <div className="graph-filter-bar">
+      <div className="graph-filter-bar" ref={bar}>
         <button
           className="chip"
           aria-expanded={panel}
@@ -87,7 +91,12 @@ export function GraphPage() {
         )}
       </div>
       {panel && (
-        <div className="graph-filter-panel" role="dialog" aria-label="Filter the graph">
+        <div
+          className="graph-filter-panel"
+          role="dialog"
+          aria-label="Filter the graph"
+          ref={panelBox}
+        >
           <div className="graph-filters" role="toolbar" aria-label="Narrow the graph">
             <span className="seg">
               {kinds.map((k) => (

@@ -47,15 +47,17 @@ export type Ui = {
   drafts: Record<string, string>;
   /** The left list as a drawer, on narrow windows. */
   nav: boolean;
-  /** The new-page popup is open; a kind preselects that kind. */
+  /** The new-page form is open in the list; a kind preselects that kind. */
   creating: boolean | PageKind;
+  /** A channel or an agent being made, in its section of the list. */
+  making: 'channel' | 'agent' | null;
   graphScope: 'space' | 'everything';
   /** What your agent reads: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';
   /** Pages added to what it looks at by dropping them on your agent's rail. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
-  dialog: null | 'settings' | 'agent' | 'shortcuts' | 'paste' | 'people';
+  dialog: null | 'settings' | 'shortcuts' | 'paste';
   /** How things look for this person. */
   prefs: {
     size: 's' | 'm' | 'l';
@@ -84,6 +86,7 @@ export const initialUi: Ui = {
   drafts: {},
   nav: false,
   creating: false,
+  making: null,
   graphScope: 'space',
   split: 0.5,
   dialog: null,
@@ -107,10 +110,19 @@ export type Picker = {
   filter?: (r: Resource) => boolean;
   /** Also offer conversations. */
   chats?: boolean;
+  /** Open here, growing from the field that asked, instead of in the middle of the window. */
+  anchor?: { left: number; top: number };
   onPick: (target: Target) => void;
 };
 
-export type MenuItem = { label: string; run: () => void; danger?: boolean } | 'line';
+export type MenuItem =
+  | {
+      label: string;
+      run: () => void;
+      danger?: boolean;
+      /** A choice: ticked when current. */ checked?: boolean;
+    }
+  | 'line';
 
 export type Workspace = {
   s: Snapshot;

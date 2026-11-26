@@ -1,3 +1,4 @@
+import { Choice } from '../../app/Choice.tsx';
 import { nameStyle } from '../agents/Character.tsx';
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, MessageSquareText, Plus, Trash2 } from 'lucide-react';
@@ -69,31 +70,19 @@ export function PlanList({ spaceId, compact = false }: { spaceId: Id; compact?: 
                       <MessageSquareText size={12} />
                     </button>
                   )}
-                  <select
-                    aria-label="Owner"
+                  <Choice
+                    label="Owner"
                     value={g.ownerId ?? ''}
                     style={nameStyle(user(g.ownerId)?.color)}
-                    onChange={(e) => patch(g, { ownerId: e.target.value || null })}
-                  >
-                    <option value="">Owner</option>
-                    {people.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    aria-label="Agent"
+                    options={[['', 'Owner'], ...people.map((p) => [p.id, p.name] as const)]}
+                    onChange={(v) => patch(g, { ownerId: v || null })}
+                  />
+                  <Choice
+                    label="Agent"
                     value={g.agentId ?? ''}
-                    onChange={(e) => patch(g, { agentId: e.target.value || null })}
-                  >
-                    <option value="">Agent</option>
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[['', 'Agent'], ...agents.map((a) => [a.id, a.name] as const)]}
+                    onChange={(v) => patch(g, { agentId: v || null })}
+                  />
                   <input
                     type="date"
                     aria-label="Date"

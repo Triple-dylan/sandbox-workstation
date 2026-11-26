@@ -7,16 +7,15 @@ import { Join } from './Join.tsx';
 import { Sidebar } from './Sidebar.tsx';
 import { Rail } from './Rail.tsx';
 import { Find } from './Find.tsx';
-import { NewPage } from './NewPage.tsx';
 import { Pane } from '../pages/Pane.tsx';
 import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
-import { AgentBuilder, People, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
-import { PAGE_KINDS, isPage } from '../../shared/types.ts';
+import { isPage } from '../../shared/types.ts';
 import {
   WorkspaceContext,
   initialUi,
@@ -119,6 +118,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const [picker, setPicker] = useState<Picker | null>(null);
   const [menuAt, setMenuAt] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [dropping, setDropping] = useState(false);
+  // A drag over the window fires dragover again and again; when those stop (dropped, cancelled,
+  // or carried out of the window) the hint goes. Leave events alone are not reliable for this.
+  const dragGone = useRef<ReturnType<typeof setTimeout>>(undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const [width, setWidth] = useState(() => window.innerWidth);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -360,6 +362,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         else if (picker) setPicker(null);
         else if (ui.dialog) setUi({ dialog: null });
         else if (ui.creating) setUi({ creating: false });
+        else if (ui.making) setUi({ making: null });
         else if (ui.nav) setUi({ nav: false });
       }
     };
@@ -390,32 +393,29 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     [space.id, space.kind, space.name, notify, refresh, open],
   );
   /** Find, with the things you can do offered alongside what you can open. */
-  const finder = (): Picker => ({
-    title: 'Find',
-    chats: true,
-    onPick: (target) => open(target),
-    actions: [
-      ...PAGE_KINDS.filter((k) => k !== 'asset').map((kind) => ({
-        label: `New ${kind === 'doc' ? 'document' : kind}`,
-        run: () => setUi({ creating: kind }),
-      })),
-      {
-        label: 'Bring in files',
-        hint: 'transcripts, documents, decks, sheets, pictures',
-        run: () => fileInput.current?.click(),
-      },
-      {
-        label: 'Paste text in',
-        hint: 'a transcript, an email, notes',
-        run: () => setUi({ dialog: 'paste' }),
-      },
-      { label: 'New agent', run: () => setUi({ dialog: 'agent' }) },
-      { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
-      { label: 'Ask your agent', hint: '⌘ J', run: () => setUi({ railOpen: true }) },
-      { label: 'Settings', hint: '⌘ ,', run: () => setUi({ dialog: 'settings' }) },
-      { label: 'Shortcuts', hint: '⌘ /', run: () => setUi({ dialog: 'shortcuts' }) },
-    ],
-  });
+  const finder = (): Picker => {
+    // Find opens from the list's own Find field when the list is showing, as if the field grew.
+    const field = document.querySelector('.sidebar .list-find')?.getBoundingClientRect();
+    return {
+      title: 'Find',
+      chats: true,
+      anchor: field && field.width ? { left: field.left, top: field.top } : undefined,
+      onPick: (target) => open(target),
+      actions: [
+        { label: 'New page', hint: 'Alt N', run: () => setUi({ creating: true }) },
+        { label: 'Bring in a file', run: () => fileInput.current?.click() },
+        { label: 'Paste text', run: () => setUi({ dialog: 'paste' }) },
+        ...(space.kind === 'project'
+          ? [{ label: 'New channel', run: () => setUi({ making: 'channel' as const }) }]
+          : []),
+        { label: 'New agent', run: () => setUi({ making: 'agent' }) },
+        { label: 'Open the graph', hint: 'Alt G', run: () => open({ type: 'graph' }) },
+        { label: 'Ask your agent', hint: '⌘J', run: () => setUi({ railOpen: true }) },
+        { label: 'Settings', hint: '⌘,', run: () => setUi({ dialog: 'settings' }) },
+        { label: 'Shortcuts', hint: '⌘/', run: () => setUi({ dialog: 'shortcuts' }) },
+      ],
+    };
+  };
 
   const value = useMemo<Workspace>(
     () => ({
@@ -491,7 +491,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   return (
     <WorkspaceContext.Provider value={value}>
       <div
-        className={`shell ${ui.nav ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
+        className={`shell ${ui.nav || ui.creating || ui.making ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
         onDragOver={(e) => {
           const types = [...e.dataTransfer.types];
           // Something dragged from the list can be dropped on the middle to open it beside.
@@ -499,9 +499,11 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           if (!types.includes('Files')) return;
           e.preventDefault();
           setDropping(true);
+          clearTimeout(dragGone.current);
+          dragGone.current = setTimeout(() => setDropping(false), 250);
         }}
-        onDragLeave={(e) => e.currentTarget === e.target && setDropping(false)}
         onDrop={(e) => {
+          clearTimeout(dragGone.current);
           setDropping(false);
           if (e.defaultPrevented) return;
           const dragged = e.dataTransfer.getData(DRAG);
@@ -596,9 +598,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         {picker && <Find picker={picker} close={() => setPicker(null)} />}
         {ui.dialog === 'settings' && <Settings />}
         {ui.dialog === 'shortcuts' && <Shortcuts />}
-        {ui.dialog === 'agent' && <AgentBuilder />}
         {ui.dialog === 'paste' && <PasteText />}
-        {ui.dialog === 'people' && <People />}
         <input
           ref={fileInput}
           type="file"
@@ -612,7 +612,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           }}
         />
         {dropping && (
-          <div className="drop-hint" onDragLeave={() => setDropping(false)}>
+          <div className="drop-hint">
             Drop to add to {space.kind === 'personal' ? 'your space' : space.name}
           </div>
         )}
@@ -637,8 +637,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
                 ) : (
                   <button
                     key={i}
-                    role="menuitem"
-                    className={item.danger ? 'danger' : ''}
+                    role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
+                    aria-checked={item.checked}
+                    className={`${item.danger ? 'danger' : ''} ${item.checked ? 'checked' : ''}`}
                     onClick={() => {
                       setMenuAt(null);
                       item.run();
@@ -651,7 +652,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
             </div>
           </div>
         )}
-        {ui.creating && <NewPage />}
         {notice && (
           <div className="notice" role="status">
             <span>{notice.text}</span>

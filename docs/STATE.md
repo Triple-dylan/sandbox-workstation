@@ -19,7 +19,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 ## The structure
 
-**Left: one list, three parts.** At the top: the workspace (switcher), its member count (opens the people panel: who is here, message anyone, invite link) and one "+ New" for a page, a file, pasted text, a channel, an agent or inviting people. Then **Chats** (general, channels, direct messages), **Pages** (pinned first, then the 8 most recent, "Show all", "See as a map") and **Agents** (by name, with what each is doing). Your name at the bottom opens settings, shortcuts and sign out. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there.
+**Left: one list, three parts.** At the top: the workspace (a menu to switch, start or join one), its member count (opens People in the list: who is here, message anyone, invite link), then Find and the Graph button beside it. Then **Chats** (general, channels, direct messages), **Pages** (pinned first, then the 8 most recent, "Show all") and **Agents** (by name, with what each is doing). Each part has a + on hover that opens its form right there in the list. Your name at the bottom opens settings, shortcuts and sign out. A page changed by someone else since you last looked is bold; a count marks suggestions and comments waiting on you there.
 
 **Middle: one page, or two side by side.** Anything can be opened beside anything (Alt-click in the list, or the button in a page's header). The line between the two is a handle: drag to resize, double-click to even out, and a control on it swaps sides. In a narrow window the two become tabs named after the pages, each with its own close, and the list becomes a drawer.
 

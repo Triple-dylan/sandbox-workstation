@@ -28,6 +28,8 @@ Rules:
 - Every read goes through the server's access checks. Private stays private across chat, graph, search, presence and agent context.
 - Dylan does not run terminal commands. Give him something that opens (`npm run build:inpage` writes one HTML file), finish the work, and report plainly. A published preview page is only a way to look at a build; the code and decisions behind it must be on GitHub first.
 - Don't compartmentalise the interface: no summary pages that take over the view, no frames and separator lines boxing areas off, and nothing docked or fixed over content that scrolls. Check layouts while resizing the window.
+- Things made from the left list are made in the list, in the section where they will appear (a page in Pages, a channel in Chats, an agent in Agents, people under the member count), with the one in-list form shape (`ListForm` in `src/app/ListForms.tsx`). No popup opens from the list. Centered popups are only for app-wide things (Settings, Shortcuts, Paste text from ⌘K).
+- Before asking Dylan to approve or merge a visible change, show it to him running (the Browser pane open on it). Ask about merging only after he has reacted to what he saw.
 - Never show an empty product for review; the in-page preview seeds a labelled example project.
 - Ask Dylan only consequential, decision-shaped questions. Don't re-ask anything settled in `DECISIONS.md`.
 - Keep `main` working: typecheck, lint, format and tests green. Add tests for new behaviour. The lint (`npm run lint`, oxlint) checks only the rules of hooks: every React hook runs before any early `return` in a component. It is narrow on purpose; add a rule only when it catches a mistake that actually happened here.

@@ -1,10 +1,11 @@
+import { Choice } from '../app/Choice.tsx';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Square } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, ago } from '../app/util.tsx';
-import { Avatar, Character, agentState, orbForm } from '../features/agents/Character.tsx';
+import { Avatar, Character, orbForm } from '../features/agents/Character.tsx';
 import { ApprovalCard } from '../features/feed/Feed.tsx';
 import { ORB_FORMS, isPage } from '../../shared/types.ts';
 import type { Job, RoutineCadence, User } from '../../shared/types.ts';
@@ -16,17 +17,10 @@ const verb: Record<Job['kind'], string> = {
   delegation: 'Ongoing work',
   maintenance: 'Kept the orientation current',
 };
-const stateLine = {
-  idle: 'Not working on anything right now',
-  working: 'Working',
-  waiting: 'Waiting for a person to say yes',
-  failed: 'The last job failed',
-};
 
 /** A person, or an agent: what it is doing, who can see it, and how it should behave. */
 export function WhoPage({ who }: { who: User }) {
   const { s, run, open, resource, closePane, ui, notify } = useWorkspace();
-  const [name, setName] = useState(who.name);
   const [purpose, setPurpose] = useState(who.purpose ?? '');
   const [instructions, setInstructions] = useState(who.instructions ?? '');
   const [retiring, setRetiring] = useState(false);
@@ -57,36 +51,18 @@ export function WhoPage({ who }: { who: User }) {
   const editable = personal
     ? who.ownerId === s.me.id
     : s.members.some((m) => m.spaceId === who.spaceId && m.userId === s.me.id);
-  const state = agentState(who.id, s.jobs);
   const jobs = s.jobs.filter((j) => j.agentId === who.id).slice(0, 4);
   const approvals = s.approvals.filter((a) => a.agentId === who.id && a.status === 'pending');
   const assignments = s.assignments.filter((a) => a.agentId === who.id && a.active);
   const patch = (body: Record<string, unknown>) =>
     run(() => api(`/agents/${who.id}`, { method: 'PATCH', body }));
   // Settings save when you leave the field; what it is for and how it works go into every request.
-  const save = (field: 'name' | 'purpose' | 'instructions', value: string, was: string) => {
-    if (value.trim() === was.trim() || (field === 'name' && !value.trim())) return;
+  const save = (field: 'purpose' | 'instructions', value: string, was: string) => {
+    if (value.trim() === was.trim()) return;
     void patch({ [field]: value.trim() }).then((ok) => ok && notify('Saved.'));
   };
   return (
     <div className="agent-page">
-      <header className="agent-head">
-        <Character agent={who} size={64} state={state} />
-        <div>
-          <input
-            className="agent-name"
-            aria-label="Name"
-            value={name}
-            maxLength={40}
-            disabled={!editable}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() => save('name', name, who.name)}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          />
-          <span className="agent-sub">{stateLine[state]}</span>
-        </div>
-      </header>
-
       <div className="agent-cols">
         <section className="agent-setup" aria-label="How it works">
           <label>
@@ -278,27 +254,23 @@ function Routines({ who, editable }: { who: User; editable: boolean }) {
           }}
         >
           <div className="routine-when">
-            <select
-              aria-label="How often"
+            <Choice
+              label="How often"
               value={cadence}
-              onChange={(e) => setCadence(e.target.value as RoutineCadence)}
-            >
-              <option value="weekdays">Weekdays</option>
-              <option value="daily">Every day</option>
-              <option value="weekly">Weekly</option>
-            </select>
+              options={[
+                ['weekdays', 'Weekdays'],
+                ['daily', 'Every day'],
+                ['weekly', 'Weekly'],
+              ]}
+              onChange={setCadence}
+            />
             {cadence === 'weekly' && (
-              <select
-                aria-label="Day"
-                value={weekday}
-                onChange={(e) => setWeekday(Number(e.target.value))}
-              >
-                {DAYS.map((d, i) => (
-                  <option key={d} value={i}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <Choice
+                label="Day"
+                value={String(weekday)}
+                options={DAYS.map((d, i) => [String(i), d] as const)}
+                onChange={(v) => setWeekday(Number(v))}
+              />
             )}
             <input
               type="time"
@@ -307,17 +279,12 @@ function Routines({ who, editable }: { who: User; editable: boolean }) {
               onChange={(e) => setTime(e.target.value)}
             />
             {!personal && (
-              <select
-                aria-label="Post in"
+              <Choice
+                label="Post in"
                 value={channel}
-                onChange={(e) => setChannel(e.target.value)}
-              >
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    #{c.title}
-                  </option>
-                ))}
-              </select>
+                options={channels.map((c) => [c.id, `#${c.title}`] as const)}
+                onChange={setChannel}
+              />
             )}
           </div>
           <input

@@ -1,3 +1,4 @@
+import { Choice } from '../app/Choice.tsx';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Bold,
@@ -861,18 +862,17 @@ export function DocPage({ page }: { page: Resource }) {
             >
               <p className="comment-quote">“{draft.quote.slice(0, 90)}”</p>
               {projectAgents.length > 0 && (
-                <select
+                <Choice
+                  label="Ask an agent to answer here"
                   value={draftAgent}
-                  aria-label="Ask an agent to answer here"
-                  onChange={(e) => setDraftAgent(e.target.value)}
-                >
-                  <option value="">Just a comment</option>
-                  {projectAgents.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      Ask {a.name} to answer here · everyone sees it
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    ['', 'Just a comment'],
+                    ...projectAgents.map(
+                      (a) => [a.id, `Ask ${a.name} to answer here · everyone sees it`] as const,
+                    ),
+                  ]}
+                  onChange={setDraftAgent}
+                />
               )}
               <textarea
                 autoFocus

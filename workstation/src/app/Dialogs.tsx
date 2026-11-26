@@ -1,28 +1,21 @@
 import { useState } from 'react';
-import { Copy, Link2 } from 'lucide-react';
-import { Lock, Plus, X } from 'lucide-react';
+import { Copy, Link2, X } from 'lucide-react';
 import { api } from '../data/client.ts';
-import { Actor, Character } from '../features/agents/Character.tsx';
-import { ORB_FORMS } from '../../shared/types.ts';
-import type { User } from '../../shared/types.ts';
 import { useWorkspace } from './workspace.tsx';
 
 /**
  * Every popup shares this frame: a title with a close button, the content, and at most one primary
  * action at the bottom right. Esc and a click outside close it.
  */
-export function Dialog({
+function Dialog({
   title,
   children,
   wide,
-  bare,
   onClose,
 }: {
   title: string;
   children: React.ReactNode;
   wide?: boolean;
-  /** No title row: the first field says what this is (a new page's title, say). */
-  bare?: boolean;
   onClose?: () => void;
 }) {
   const { setUi } = useWorkspace();
@@ -30,14 +23,12 @@ export function Dialog({
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <section className={`dialog ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
-        {!bare && (
-          <header>
-            <h2>{title}</h2>
-            <button aria-label="Close" onClick={close}>
-              <X size={15} />
-            </button>
-          </header>
-        )}
+        <header>
+          <h2>{title}</h2>
+          <button aria-label="Close" onClick={close}>
+            <X size={15} />
+          </button>
+        </header>
         {children}
       </section>
     </div>
@@ -238,85 +229,6 @@ export function PasteText() {
   );
 }
 
-/** A new agent: a name, what it is for, and who can use it. The rest is set up on its page. */
-export function AgentBuilder() {
-  const { s, space, setUi, run, open } = useWorkspace();
-  const canShare = space.kind === 'project';
-  const [shared, setShared] = useState(canShare);
-  const [name, setName] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const form = ORB_FORMS[s.users.filter((u) => u.kind === 'agent').length % ORB_FORMS.length];
-  const preview = {
-    id: 'preview',
-    name,
-    color: '#888',
-    kind: 'agent',
-    character: { hue: 210, shape: 'round', eyes: 'dot', form },
-  } as User;
-  const create = async () => {
-    const made = await run(async () => {
-      const agent = await api<User>('/agents', {
-        body: { name: name.trim(), purpose, instructions: '', spaceId: shared ? space.id : null },
-      });
-      await api(`/agents/${agent.id}`, { method: 'PATCH', body: { form } });
-      return agent;
-    });
-    if (made) {
-      setUi({ dialog: null });
-      open({ type: 'who', id: made.id });
-    }
-  };
-  return (
-    <Dialog title="New agent">
-      <form
-        className="dialog-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) void create();
-        }}
-      >
-        <div className="builder-row">
-          <Character agent={preview} size={44} />
-          <input
-            autoFocus
-            value={name}
-            maxLength={40}
-            placeholder="Name, like Editor"
-            aria-label="Name"
-            onChange={(e) => setName(e.target.value)}
-          />
-        </div>
-        <input
-          value={purpose}
-          maxLength={300}
-          placeholder="What it's for, like messaging in our voice"
-          aria-label="What it's for"
-          onChange={(e) => setPurpose(e.target.value)}
-        />
-        <div className="dialog-foot">
-          {canShare ? (
-            <select
-              aria-label="Who can use it"
-              value={shared ? 'space' : 'mine'}
-              onChange={(e) => setShared(e.target.value === 'space')}
-            >
-              <option value="space">Everyone in {space.name}</option>
-              <option value="mine">Only you</option>
-            </select>
-          ) : (
-            <small>
-              <Lock size={11} /> Only you
-            </small>
-          )}
-          <button className="primary" type="submit" disabled={!name.trim()}>
-            Create
-          </button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
 function copy(text: string, notify: (t: string) => void, what: string) {
   void navigator.clipboard?.writeText(text).then(
     () => notify(`${what} copied.`),
@@ -358,113 +270,5 @@ function DeviceLink() {
       )}
       <small>Works once, for 15 minutes. Anyone with it can sign in as you.</small>
     </div>
-  );
-}
-
-/** The people in this workspace: who is here now, a message to any of them, and the invite link. */
-export function People() {
-  const { s, space, user, resource, notify, run, open, setUi } = useWorkspace();
-  const [link, setLink] = useState<{ token: string; expiresAt: string } | null>(null);
-  const [error, setError] = useState('');
-  const make = async (fresh = false) => {
-    try {
-      setLink(await api('/invites', { body: { spaceId: space.id, fresh } }));
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  if (!link && !error) void make();
-  const url = link ? `${location.origin}/?invite=${link.token}` : '';
-  const people = s.members
-    .filter((m) => m.spaceId === space.id)
-    .map((m) => user(m.userId))
-    .filter((u): u is User => !!u && u.kind === 'human');
-  const where = (p: User) => {
-    const here = s.presence.find((x) => x.userId === p.id && x.online);
-    if (!here) return '';
-    const page = resource(here.resourceId);
-    const chat = s.conversations.find((c) => c.id === here.conversationId);
-    return page ? `In ${page.title}` : chat?.kind === 'channel' ? `In #${chat.title}` : 'Here now';
-  };
-  const others = s.users.filter(
-    (u) => u.kind === 'human' && u.id !== s.me.id && !people.some((p) => p.id === u.id),
-  );
-  const message = async (p: User) => {
-    const dm =
-      s.conversations.find((c) => c.kind === 'dm' && c.participantIds.includes(p.id)) ??
-      (await run(() => api<{ id: string }>('/dms', { body: { userId: p.id } })));
-    if (dm) {
-      setUi({ dialog: null });
-      open({ type: 'chat', id: dm.id });
-    }
-  };
-  return (
-    <Dialog title={`People in ${space.name}`}>
-      <ul className="people">
-        {people.map((p) => {
-          const at = where(p);
-          return (
-            <li key={p.id}>
-              <span className={`dot-wrap ${at ? 'online' : ''}`}>
-                <Actor user={p} jobs={s.jobs} size={28} />
-              </span>
-              <span>
-                <b>
-                  {p.name}
-                  {p.id === s.me.id && ' (you)'}
-                </b>
-                {at && <small>{at}</small>}
-              </span>
-              {p.id !== s.me.id && <button onClick={() => void message(p)}>Message</button>}
-            </li>
-          );
-        })}
-      </ul>
-      {others.length > 0 && (
-        <div className="chips">
-          {others.map((p) => (
-            <button
-              key={p.id}
-              onClick={() =>
-                void run(() =>
-                  api(`/projects/${space.id}/members`, { body: { userId: p.id } }),
-                ).then((ok) => ok && notify(`${p.name} can now open ${space.name}.`))
-              }
-            >
-              <Plus size={12} /> Add {p.name}
-            </button>
-          ))}
-        </div>
-      )}
-      <span className="label">Invite with a link</span>
-      {error && <p className="join-error">{error}</p>}
-      {link && (
-        <>
-          <span className="link-out">
-            <input
-              readOnly
-              value={url}
-              aria-label="Invite link"
-              onFocus={(e) => e.target.select()}
-            />
-            <button className="primary" onClick={() => copy(url, notify, 'Invite link')}>
-              <Copy size={13} /> Copy
-            </button>
-          </span>
-          <p className="dialog-note">
-            Works until{' '}
-            {new Date(link.expiresAt).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-            })}
-            .{' '}
-            <button className="link" onClick={() => void make(true)}>
-              Make a new link
-            </button>{' '}
-            to stop this one working.
-          </p>
-        </>
-      )}
-    </Dialog>
   );
 }
