@@ -4,7 +4,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 
 ## Ready now
 
-- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; `railway.json` tells Railway to use it and to check `/healthz`. Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `WORKSPACE_CREATORS`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`, `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
+- **One deployable unit.** The root `Dockerfile` builds the client and runs the server that serves it; Railway builds it and checks `/healthz` (set in the service's settings, not a file: Railway stopped reading `railway.json` on 2026-12-01). Settings come from the environment: `PORT`, `HOST`, `WORKSTATION_DB`, `SIGN_IN`, `ACCESS_CODE`, `GOOGLE_CLIENT_ID`, `WORKSPACE_CREATORS`, `OPENAI_API_KEY`, `OPENAI_DAILY_TOKEN_LIMIT`, `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE`.
 - **Health check** at `/healthz`.
 - **Sign-in by invitation** (`SIGN_IN=invite`, set in the container). New people join only through a space's invite link (good for 14 days, replaceable) or, for the first people in, the setup code in `ACCESS_CODE`. Someone signs in on another device with a one-time link they make in Settings (15 minutes). Session and sign-in tokens are stored only as hashes. People outside your spaces are not visible and cannot be messaged. The doors in are rate limited.
 - **Google sign-in** (set `GOOGLE_CLIENT_ID`). Anyone with a verified Google account can sign up; the same Google account always comes back as the same person. Someone in no workspace yet chooses to start one they own or join one with an invite link; both stay in the space switcher, and a person can be in any number of workspaces. `WORKSPACE_CREATORS` (emails and/or `@domain`s, comma-separated) limits who may start workspaces; unset, anyone signed in may. What anyone can see is still only their private space and the workspaces they start or are invited to. With Google on, joining by name alone is turned off and no setup code is needed. Device sign-in links still work.
@@ -34,14 +34,14 @@ Accounts and invitations, then Postgres and object storage, then merging edits, 
 
 ## Deploying to Railway
 
-Configured by `railway.json` and the root `Dockerfile`, which runs by invitation and keeps its database at `/data/workstation.db`. Railway sets `PORT` and handles HTTPS; the server marks its cookie `Secure` when it sees HTTPS.
+Built from the root `Dockerfile`, which runs by invitation and keeps its database at `/data/workstation.db`. Railway sets `PORT` and handles HTTPS; the server marks its cookie `Secure` when it sees HTTPS.
 
 Three accounts are needed. Do them in this order, because Google needs the address Railway gives you.
 
 ### 1. Railway: create the service
 
 1. Sign in at railway.com with GitHub.
-2. **New Project → Deploy from GitHub repo →** `Triple-dylan/sandbox-workstation`. Railway finds `railway.json` and builds the `Dockerfile`. Leave the branch as `main`, so every merge to `main` deploys.
+2. **New Project → Deploy from GitHub repo →** `Triple-dylan/sandbox-workstation`. Railway builds the root `Dockerfile`. Leave the branch as `main`, so every merge to `main` deploys. In the service's **Settings**, set **Healthcheck Path** to `/healthz` and **Restart Policy** to On Failure with 5 retries; in **Variables**, `RAILWAY_HEALTHCHECK_TIMEOUT_SEC=60`.
 3. Open the service, **Settings → Networking → Generate Domain**. Copy the address (for example `https://sandbox-workstation-production.up.railway.app`).
 4. Right-click the service on the canvas → **Attach volume**, mount path `/data`. Without it, everything is lost on each deploy.
 
