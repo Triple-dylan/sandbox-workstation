@@ -141,6 +141,7 @@ export class AgentEngine {
       const conversation = this.store.conversation(event.message.conversationId);
       if (conversation?.spaceId) this.scheduleMaintenance(conversation.spaceId);
     }
+    if (event.type === 'decided') this.scheduleMaintenance(event.spaceId);
     if (event.type === 'resource' && this.store.user(event.actorId)?.kind === 'human')
       this.scheduleMaintenance(event.resource.spaceId);
     if (event.type === 'resource') this.scheduleWatch(event.resource.id, event.actorId);
