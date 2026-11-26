@@ -52,7 +52,7 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
     await page.getByLabel('Workspace name').fill(startWorkspace);
     await page.getByRole('button', { name: 'Start', exact: true }).click();
   } else await page.getByRole('button', { name: 'Look around my private space first' }).click();
-  await page.getByRole('navigation', { name: 'Space' }).waitFor();
+  await page.getByRole('navigation', { name: 'Space', exact: true }).waitFor();
   return page;
 }
 const row = (page: Page, name: string) =>
