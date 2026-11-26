@@ -57,7 +57,17 @@ async function join(name: string, startWorkspace?: string): Promise<Page> {
 }
 const row = (page: Page, name: string) =>
   page.locator('.sidebar .list-row', { hasText: name }).first();
+/** While a page is open the list steps aside; like a person, rest the pointer on the thin rail to
+ * bring it out before using it. */
+const bringList = async (page: Page) => {
+  if (await page.locator('.shell.list-hidden').count()) await page.locator('.space-rail').hover();
+};
+const fromList = async (page: Page, name: string, options?: { button: 'right' }) => {
+  await bringList(page);
+  await row(page, name).click(options);
+};
 const newPage = async (page: Page, kind: string, title: string, mine = false) => {
+  await bringList(page);
   await page.getByRole('button', { name: 'New page', exact: true }).click();
   const form = page.getByRole('form', { name: 'New page' });
   await form.getByRole('radio', { name: new RegExp(`^${kind}`) }).click();
@@ -78,6 +88,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
 
   // Dylan adds Maya to his workspace.
   await dylan.locator('.space-name', { hasText: 'Launch' }).waitFor();
+  await bringList(dylan);
   await dylan.locator('.space-people').click();
   await dylan.getByRole('button', { name: 'Add Maya' }).click();
   await dylan.keyboard.press('Escape');
@@ -89,6 +100,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await maya.locator('.space-name', { hasText: 'Launch' }).waitFor();
 
   // A channel is made in the list, in Chats, where it then appears for everyone.
+  await bringList(dylan);
   await dylan.getByRole('button', { name: 'New channel', exact: true }).click();
   const channel = dylan.getByRole('form', { name: 'New channel' });
   await channel.getByLabel('Channel name').fill('design');
@@ -100,11 +112,11 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.tiptap').click();
   await dylan.keyboard.type('Boxes cost $58 for 50.');
   await dylan.getByText('Saved').waitFor();
-  await row(maya, 'Brief').click();
+  await fromList(maya, 'Brief');
   await maya.locator('.tiptap', { hasText: 'Boxes cost $58 for 50.' }).waitFor();
 
   // Pinning a page puts it at the top of everyone's list, marked for their agents.
-  await row(dylan, 'Brief').click({ button: 'right' });
+  await fromList(dylan, 'Brief', { button: 'right' });
   await dylan.getByRole('menuitem', { name: 'Pin for everyone and their agents' }).click();
   await maya
     .locator('.sidebar .list-row:has([aria-label="Pinned"])', { hasText: 'Brief' })
@@ -116,7 +128,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   assert.equal(await row(maya, 'Only for Dylan').count(), 0);
 
   // Dylan selects text and asks the space's agent to change it; Maya accepts the suggestion.
-  await row(dylan, 'Brief').click();
+  await fromList(dylan, 'Brief');
   // Clear the selection left from asking the agent, so its toolbar is out of the way.
   await dylan
     .locator('.tiptap p', { hasText: 'Boxes cost' })
@@ -201,7 +213,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.rail-answer').last().getByRole('button', { name: 'Share' }).click();
   await dylan.getByRole('menuitem', { name: /general/ }).click();
   await dylan.locator('.rail-shared', { hasText: 'general' }).waitFor();
-  await row(maya, 'general').click();
+  await fromList(maya, 'general');
   await maya.locator('.feed .msg', { hasText: 'from Dylan’s agent' }).waitFor();
   // ⌘J puts you in your agent's box; pressed there, it folds the rail to a slim strip.
   await dylan.keyboard.press('Control+j');
@@ -216,7 +228,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   // middle. Its settings are one click further, from the rail.
   await dylan.getByRole('button', { name: 'Close · ⌘J' }).click();
   await dylan.locator('.rail-strip').waitFor();
-  await row(dylan, "Dylan's agent").click();
+  await fromList(dylan, "Dylan's agent");
   await dylan.locator('.rail .rail-top').waitFor();
   await dylan.getByRole('button', { name: "Your agent's skills and instructions" }).click();
   await dylan.locator('.agent-page').waitFor();
@@ -237,7 +249,7 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.mouse.click(area.x + 400, area.y + 260);
   await dylan.locator('.piece textarea').fill('Ask about the van');
   await dylan.keyboard.press('Escape');
-  await row(maya, 'Board').click();
+  await fromList(maya, 'Board');
   const theirs = maya.locator('.piece', { hasText: 'Ask about the van' });
   await theirs.waitFor();
   // The canvas settles its view just after opening; measure once it has.
@@ -278,11 +290,11 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await dylan.locator('.embed.window .window-feed', { hasText: 'Said from the canvas.' }).waitFor();
 
   // A channel: Maya writes, Dylan sees it unread in the list and then in the feed.
-  await row(maya, 'general').click();
+  await fromList(maya, 'general');
   await maya.getByLabel('Message #general').fill('Stall is confirmed.');
   await maya.getByLabel('Message #general').press('Enter');
   await dylan.locator('.sidebar .list-row.unread', { hasText: 'general' }).waitFor();
-  await row(dylan, 'general').click();
+  await fromList(dylan, 'general');
   await dylan.locator('.feed .msg', { hasText: 'Stall is confirmed.' }).waitFor();
 
   // People and agents are tagged in the feed: "@" suggests them, and a tagged agent answers in the thread.
@@ -298,8 +310,10 @@ test('two people: shared pages, comments an agent resolves, a shared canvas, cha
   await maya.locator('.feed .msg.from-agent', { hasText: 'Launch' }).first().waitFor();
 
   // The graph shows Dylan's private page to Dylan only.
+  await bringList(dylan);
   await dylan.getByRole('button', { name: 'Graph', exact: true }).click();
   await dylan.locator('.graph-node.is-private', { hasText: 'Only for Dylan' }).waitFor();
+  await bringList(maya);
   await maya.getByRole('button', { name: 'Graph', exact: true }).click();
   await maya.locator('.graph-node', { hasText: 'Brief' }).waitFor();
   assert.equal(await maya.locator('.graph-node', { hasText: 'Only for Dylan' }).count(), 0);
