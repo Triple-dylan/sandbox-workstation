@@ -64,7 +64,8 @@ export function orientationFor(task: AgentTask) {
   return lines.join('\n');
 }
 
-/** Deterministic stand-in for a model. Everything it says is derived from the task; nothing is invented. */
+/** A deterministic runtime for the tests only; the app never answers with it. Everything it says is
+ * derived from the task; nothing is invented. */
 export const scriptedRuntime: AgentRuntime = {
   id: 'scripted',
   label: 'Scripted demo runtime',

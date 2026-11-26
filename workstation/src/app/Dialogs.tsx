@@ -195,7 +195,10 @@ export function Settings() {
         </button>
       </div>
       <p className="dialog-note">
-        Saved in this browser. Agents answer with {s.runtime.model || s.runtime.label}.
+        Saved in this browser.{' '}
+        {s.runtime.id === 'none'
+          ? 'Agents are not connected on this server yet: it needs an OpenAI key.'
+          : `Agents answer with ${s.runtime.model || s.runtime.label}.`}
       </p>
     </Dialog>
   );

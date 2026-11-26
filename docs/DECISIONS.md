@@ -4,6 +4,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-26
 
+- **No scripted agents anywhere.** Dylan, on seeing "scripted stand-in" in a test copy: "there should be no scripted agents anywhere". Without an OpenAI key the server's agents are "not connected": they say so and answer nothing. Over a daily allowance an agent says so and answers nothing; nothing stands in. `AGENT_RUNTIME=scripted` is gone. The scripted runtime remains only as a test fixture. *Supersedes* "scripted output is only a labelled fallback" below.
 - **pstack trimmed to 38 skills.** Dylan approved dropping 29 skills and 3 agents that duplicate Claude Code built-ins (`/code-review`, `/security-review`, `/simplify`, `/steward`), each other, or were niche (formal verification, TLA+ statecharts, benchmarking, parallel arenas). The 38 kept stay in `.claude/` so every harness has them; Claude sessions also reach them through Dylan's user-level resolver.
 - **Documents are edited live together.** Dylan chose live co-editing as the next piece. Everyone's typing merges as it happens (Yjs, the standard library for this, with TipTap's collaboration extension); two people in the same line both keep their words. Each document's shared history is kept in the database and relayed by the app's server, no third-party service. The page's Markdown is still saved for agents, search and history, taken from the merged text. An accepted suggestion or a restored version replaces the shared history and open editors start again from it. Undo is per person.
 

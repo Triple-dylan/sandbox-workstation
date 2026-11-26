@@ -24,7 +24,7 @@ These instructions apply to every harness (Claude Code, Codex, Cursor and any ot
 
 Rules:
 
-- Don't fake anything: no simulated people, agents, delivery or "working" states. Scripted agent output is labelled as scripted.
+- Don't fake anything: no simulated people, agents, delivery or "working" states. No scripted agents in the app: without a model, agents say they are not connected and answer nothing. The scripted runtime exists only for tests.
 - Every read goes through the server's access checks. Private stays private across chat, graph, search, presence and agent context.
 - Dylan does not run terminal commands. Give him something that opens (`npm run build:inpage` writes one HTML file), finish the work, and report plainly. A published preview page is only a way to look at a build; the code and decisions behind it must be on GitHub first.
 - Don't compartmentalise the interface: no summary pages that take over the view, no frames and separator lines boxing areas off, and nothing docked or fixed over content that scrolls. Check layouts while resizing the window.

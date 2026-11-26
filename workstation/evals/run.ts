@@ -15,7 +15,7 @@ if (!process.env.OPENAI_API_KEY?.trim()) {
   console.error('No OPENAI_API_KEY in the repo-root .env; nothing to evaluate.');
   process.exit(1);
 }
-const env = { ...process.env, AGENT_RUNTIME: '' };
+const env = process.env;
 
 type Case = { name: string; run: () => Promise<{ pass: boolean; detail: string }> };
 
