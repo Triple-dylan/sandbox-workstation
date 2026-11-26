@@ -84,6 +84,12 @@ test('live documents: two people typing at once both keep their words, and it su
   collab.watch(page.id, 'client-d', d.res as any);
   assert.equal(d.seen[0].seed, true);
   assert.equal(d.seen[0].body, '# Plan\n\nBudget, revised by Finance');
+  // The old connection closing afterwards leaves the new history alone.
+  c.res.emit('close');
+  const e = editor();
+  collab.watch(page.id, 'client-e', e.res as any);
+  assert.equal(e.seen[0].epoch, d.seen[0].epoch, 'still the new history');
+  assert.equal(e.seen[0].seed, false);
   // An edit still on its way from before the restart is dropped, not mixed into the new history.
   const stale = new Y.Doc();
   stale.getXmlFragment('default').insert(0, [new Y.XmlText('old text')]);

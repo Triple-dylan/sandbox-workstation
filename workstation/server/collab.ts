@@ -71,7 +71,9 @@ export class Collab {
     res.on('close', () => {
       room.viewers.delete(res);
       if (room.seeding?.client === client) room.seeding = null;
-      if (!room.viewers.size) {
+      // Only the room still in use is saved and let go: a replaced one's last viewer leaving must
+      // neither save the old text nor close the new history.
+      if (!room.viewers.size && this.rooms.get(resourceId) === room) {
         this.save(resourceId, room);
         this.rooms.delete(resourceId);
       }
@@ -110,6 +112,7 @@ export class Collab {
   private save(resourceId: Id, room: Room) {
     if (room.saveTimer) clearTimeout(room.saveTimer);
     room.saveTimer = null;
+    if (this.rooms.get(resourceId) !== room) return;
     if (!this.empty(room)) this.store.setDocState(resourceId, Y.encodeStateAsUpdate(room.doc));
   }
 
