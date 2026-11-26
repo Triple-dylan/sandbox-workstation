@@ -8,6 +8,7 @@ import type {
   Job,
   JobKind,
   Message,
+  Resource,
   User,
 } from '../../shared/types.ts';
 import {
@@ -142,9 +143,41 @@ export class AgentEngine {
       if (conversation?.spaceId) this.scheduleMaintenance(conversation.spaceId);
     }
     if (event.type === 'decided') this.scheduleMaintenance(event.spaceId);
-    if (event.type === 'resource' && this.store.user(event.actorId)?.kind === 'human')
+    if (event.type === 'resource' && this.store.user(event.actorId)?.kind === 'human') {
       this.scheduleMaintenance(event.resource.spaceId);
+      this.consolidateSource(event.resource, event.actorId);
+    }
     if (event.type === 'resource') this.scheduleWatch(event.resource.id, event.actorId);
+  }
+
+  private consolidated = new Set<Id>();
+  /**
+   * A file or import brought into your private space is raw material. Your agent reads it once and,
+   * if it holds something worth keeping, offers a page that organises it, in your private chat.
+   */
+  private consolidateSource(resource: Resource, actorId: Id) {
+    const space = this.store.space(resource.spaceId);
+    if (space?.kind !== 'personal' || space.ownerId !== actorId) return;
+    const raw =
+      !!resource.source || (resource.kind === 'asset' && !resource.body.startsWith('data:'));
+    if (!raw || resource.role || this.consolidated.has(resource.id)) return;
+    this.consolidated.add(resource.id);
+    const agent = this.store.personalAgent(actorId);
+    const chat = this.store.privateChat(actorId);
+    if (!agent || !chat) return;
+    this.track(
+      this.runJob(
+        agent,
+        chat,
+        'proactive',
+        `${resource.title} was just brought into your owner's private space${resource.source ? ` from ${resource.source.name}` : ''}. It is raw material for their context. If it holds something worth keeping, propose one "create-doc" page that organises it: what it is, the facts and decisions in it, and which existing pages it relates to (by exact title). Say in one line what you made. If it is not worth a page, skip.`,
+        null,
+        null,
+        space.id,
+        false,
+        [resource.id],
+      ).catch((error) => console.error('consolidating a source failed', error)),
+    );
   }
 
   /** A watched page changed: its agents check their line once the edits settle. */
@@ -392,8 +425,7 @@ export class AgentEngine {
   }
 
   scheduleMaintenance(spaceId: Id) {
-    const space = this.store.space(spaceId);
-    if (!space || space.kind !== 'project') return;
+    if (!this.store.space(spaceId)) return;
     clearTimeout(this.timers.get(spaceId));
     this.timers.set(
       spaceId,
@@ -406,8 +438,28 @@ export class AgentEngine {
     );
   }
 
-  /** Routine context upkeep: keep the orientation current, and run active delegations. */
+  /**
+   * Routine context upkeep: keep the orientation current, and run active delegations. In a
+   * workspace its own agent keeps "About <workspace>"; in a private space the owner's agent keeps
+   * "About you" from the pages there and the owner's private chats.
+   */
   private async maintain(spaceId: Id) {
+    const space = this.store.space(spaceId);
+    if (!space) return;
+    if (space.kind === 'personal') {
+      const agent = this.store.personalAgent(space.ownerId);
+      if (!agent || !this.store.ensureAboutYou(space.ownerId)) return;
+      await this.runJob(
+        agent,
+        null,
+        'maintenance',
+        'Keep "About you" current from what is in your private space and your private chats',
+        null,
+        null,
+        spaceId,
+      );
+      return;
+    }
     const agent = this.store.projectAgent(spaceId);
     if (!agent) return;
     await this.runJob(
@@ -444,10 +496,12 @@ export class AgentEngine {
     spaceId: Id,
     trigger: Message | null,
     relay = false,
+    focusOn: Id[] = [],
   ): AgentTask {
     const space = this.store.space(spaceId)!;
+    // Your agent answers from every space you're in, but keeps "About you" from your private space only.
     const spaces =
-      agent.role === 'personal'
+      agent.role === 'personal' && !(kind === 'maintenance' && space.kind === 'personal')
         ? this.store.memberSpaces(this.store.principal(agent.id))
         : [spaceId];
     const resources = spaces
@@ -469,11 +523,14 @@ export class AgentEngine {
     }));
     const shared =
       kind === 'maintenance' || (kind === 'delegation' && !conversation)
-        ? this.store
-            .snapshot(agent.id, [], { id: '', label: '' })
-            .conversations.filter(
-              (c) => c.spaceId === spaceId && (c.kind === 'channel' || c.kind === 'discussion'),
-            )
+        ? this.store.snapshot(agent.id, [], { id: '', label: '' }).conversations.filter(
+            (c) =>
+              c.spaceId === spaceId &&
+              (c.kind === 'channel' ||
+                c.kind === 'discussion' ||
+                // In a private space, what you told your agent is part of the raw material.
+                (space.kind === 'personal' && c.kind === 'agent-private')),
+          )
         : conversation && !relay
           ? [
               conversation,
@@ -510,6 +567,7 @@ export class AgentEngine {
         ? [conversation.resourceId]
         : []),
       ...(looking?.resourceIds ?? []),
+      ...focusOn,
     ];
     const focus = [...new Set(focusIds)]
       .map((id) => this.store.resource(id))
@@ -517,6 +575,11 @@ export class AgentEngine {
       .filter((r) => !['image', 'folder', 'arrow', 'plan'].includes(r.kind))
       .slice(0, 8)
       .map((r) => ({ title: r.title, kind: r.kind, body: this.readable(r).slice(0, 6000) }));
+    // Your agent brings what it keeps about you into your private chats in every workspace.
+    const aboutYou =
+      agent.role === 'personal' && agent.ownerId && space.kind !== 'personal'
+        ? this.store.ensureAboutYou(agent.ownerId)
+        : null;
     const colleagueSpace = looking?.spaceId ?? spaceId;
     const colleagues = this.store
       .projectAgents(colleagueSpace)
@@ -560,6 +623,10 @@ export class AgentEngine {
         orientation:
           orientation && this.store.canReadResource(agent.id, orientation)
             ? orientation.body
+            : null,
+        aboutYou:
+          aboutYou && !relay && this.store.canReadResource(agent.id, aboutYou)
+            ? aboutYou.body.slice(0, 8000)
             : null,
         resources: resources.map((r) => ({
           title: r.title,
@@ -610,6 +677,7 @@ export class AgentEngine {
     _assignmentId: Id | null = null,
     explicitSpaceId?: Id,
     relay: boolean | { askedBy: Id } = false,
+    focusOn: Id[] = [],
   ) {
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
@@ -622,6 +690,7 @@ export class AgentEngine {
       request,
       targetResourceId:
         trigger?.anchor?.resourceId ??
+        focusOn[0] ??
         (conversation?.kind === 'discussion' ? conversation.resourceId : null) ??
         // What the person was looking at when they asked: the page the agent is working on.
         (trigger ? (this.store.messageContext(trigger.id)?.resourceIds ?? []) : [])
@@ -634,7 +703,16 @@ export class AgentEngine {
       runtime: this.runtime.id,
     });
     this.store.setJob(job.id, 'running');
-    const task = this.buildTask(agent, kind, request, conversation, spaceId, trigger, !!relay);
+    const task = this.buildTask(
+      agent,
+      kind,
+      request,
+      conversation,
+      spaceId,
+      trigger,
+      !!relay,
+      focusOn,
+    );
     // Meaning-based search alongside keywords. Pages without vectors yet are embedded in the
     // background and still found by keyword this time; any embedding failure leaves keywords alone.
     const pages = this.searchable.get(task);
@@ -681,7 +759,8 @@ export class AgentEngine {
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       this.store.setJob(job.id, 'failed', { error: reason });
-      if (conversation && kind !== 'proactive' && kind !== 'maintenance')
+      // A source you brought in counts as asked: say it could not be read rather than go quiet.
+      if (conversation && kind !== 'maintenance' && (kind !== 'proactive' || focusOn.length))
         this.reply(
           agent,
           conversation,
@@ -841,6 +920,7 @@ export class AgentEngine {
         ...task.context.focus.map((f) => f.title),
         ...chats,
         ...task.context.pinned.map((p) => `${p.title} (pinned)`),
+        ...(task.context.aboutYou ? ['About you'] : []),
       ]),
     ].slice(0, 8);
   }

@@ -80,9 +80,11 @@ export function orientationFor(task: AgentTask) {
   const questions = said.filter((m) => m.text.trim().endsWith('?'));
   const steps = plan.filter((s) => !s.done);
   const lines = [
-    `# ${task.spaceName}`,
+    task.agent.role === 'personal' ? '# About you' : `# ${task.spaceName}`,
     '',
-    `_Kept current by ${task.agent.name} from the pages and chats everyone here can see._`,
+    task.agent.role === 'personal'
+      ? '_Kept by your agent from your private space and private chats._'
+      : `_Kept current by ${task.agent.name} from the pages and chats everyone here can see._`,
     '',
     '## Pages',
     ...(resources.length
