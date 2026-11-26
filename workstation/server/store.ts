@@ -239,6 +239,8 @@ const toApproval = (r: Row): Approval => ({
 export type ChangeEvent =
   | { type: 'message'; message: Message }
   | { type: 'resource'; resource: Resource; actorId: Id }
+  /** A message was marked Decided, or unmarked: the workspace summary lists decisions. */
+  | { type: 'decided'; spaceId: Id }
   | { type: 'other' };
 
 export class Store {
@@ -1490,7 +1492,9 @@ export class Store {
     if (!conversation || !this.canReadConversation(actorId, conversation))
       throw new AccessError('Not available.');
     this.run('update messages set resolved = ? where id = ?', resolved ? 1 : 0, messageId);
-    this.changed();
+    this.changed(
+      conversation.spaceId ? { type: 'decided', spaceId: conversation.spaceId } : undefined,
+    );
   }
   /** The stored context of a message: what its sender was looking at. */
   messageContext(messageId: Id) {

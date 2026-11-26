@@ -175,7 +175,7 @@ test('situation 4: discussing selected work anchors to the resource and respects
 });
 
 test('situation 5: delegating ongoing work creates an assignment that keeps context current', async () => {
-  const { app, store, engine, dylan, maya, general, agent, snap } = setup();
+  const { app, store, engine, dylan, maya, project, general, agent, snap } = setup();
   store.postMessage(dylan.id, {
     conversationId: general.id,
     text: 'Keep the orientation up to date',
@@ -187,10 +187,37 @@ test('situation 5: delegating ongoing work creates an assignment that keeps cont
   const assignment = view.assignments.find((a) => a.agentId === agent.id)!;
   assert.ok(assignment.active);
   assert.ok(view.messages.some((m) => m.authorId === agent.id && /On it/.test(m.text)));
-  store.postMessage(maya.id, { conversationId: general.id, text: 'We decided to launch in March' });
+  const decision = store.postMessage(maya.id, {
+    conversationId: general.id,
+    text: 'Launch in March',
+  });
+  store.postMessage(maya.id, { conversationId: general.id, text: 'We decided on blue, I think' });
+  store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Budget',
+    body: JSON.stringify({
+      rows: [
+        ['Item', 'Cost'],
+        ['Travel', '3400'],
+      ],
+    }),
+  });
+  await engine.idle();
+  // Marking a message Decided is enough on its own to bring the summary up to date.
+  store.resolveMessage(dylan.id, decision.id, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
   await engine.idle();
   const orientation = snap(dylan.id).resources.find((r) => r.role === 'orientation')!;
-  assert.match(orientation.body, /We decided to launch in March — Maya/);
+  // Only a message someone marked Decided counts as decided; saying "decided" does not.
+  const decided = orientation.body.split('## Decided')[1].split('##')[0];
+  assert.match(decided, /Launch in March · Maya/);
+  assert.doesNotMatch(decided, /blue/);
+  assert.match(orientation.body, /Maya: We decided on blue/);
+  // A sheet is named, not dumped as a grid.
+  assert.match(orientation.body, /\*\*Budget\*\* · sheet/);
+  assert.doesNotMatch(orientation.body, /Travel|\| A \|/);
+  assert.doesNotMatch(orientation.body, /project/i);
   assert.equal(orientation.updatedBy, agent.id);
   store.stopAssignment(dylan.id, assignment.id);
   assert.equal(snap(dylan.id).assignments[0].active, false);
