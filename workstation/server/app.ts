@@ -7,6 +7,7 @@ import { openDb } from './db.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
+import { Collab } from './collab.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -85,6 +86,7 @@ export function createApp(options: AppOptions) {
         : (options.embedder ?? undefined),
   });
   const connectors = new Connectors(store, env, options.providers);
+  const collab = new Collab(store);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
@@ -496,6 +498,27 @@ export function createApp(options: AppOptions) {
             )
           : store.setCell(me.id, segments[1], Number(input.row), Number(input.col), str('value')),
       );
+    if (segments[0] === 'collab' && segments[1]) {
+      const page = store.resource(segments[1]);
+      if (!page || page.kind !== 'doc' || !store.canReadResource(me.id, page))
+        throw new AccessError('Not available.');
+      if (method === 'GET') {
+        const client = new URL(req.url ?? '/', 'http://local').searchParams.get('client') ?? '';
+        if (!/^[\w-]{6,64}$/.test(client)) throw new InputError('Unknown editor.');
+        res.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-store',
+          connection: 'keep-alive',
+        });
+        collab.watch(page.id, client, res);
+        return;
+      }
+      if (method === 'POST') {
+        if (page.role === 'orientation') throw new AccessError('This page is kept by its agent.');
+        collab.update(page.id, str('client'), str('update'));
+        return send(res, 200, { ok: true });
+      }
+    }
     if (segments[0] === 'browser' && segments[1]) {
       const page = store.resource(segments[1]);
       if (!page || page.kind !== 'browser' || !store.canReadResource(me.id, page))
@@ -692,6 +715,10 @@ export function createApp(options: AppOptions) {
           200,
           store.updateResource(me.id, segments[1], {
             ...(typeof input.title === 'string' ? { title: input.title } : {}),
+            // Saved by a live editor: already in the shared history, so not an outside change.
+            ...(input.collab === true && typeof input.body === 'string'
+              ? (collab.noteSaved(segments[1], input.body), {})
+              : {}),
             // A browser page's contents are only ever what its browser shows.
             ...(typeof input.body === 'string' && store.resource(segments[1])?.kind !== 'browser'
               ? { body: ownLink(input.body, store.resource(segments[1])?.body ?? null) }
@@ -820,6 +847,7 @@ export function createApp(options: AppOptions) {
     engine,
     connectors,
     browsers,
+    collab,
     runtime,
     async close() {
       if (closed) return;
@@ -827,6 +855,7 @@ export function createApp(options: AppOptions) {
       clearInterval(heartbeat);
       engine.stop();
       connectors.close();
+      collab.stop();
       await browsers.stop();
       for (const res of streams.keys()) res.end();
       await new Promise((resolve) => server.close(resolve));

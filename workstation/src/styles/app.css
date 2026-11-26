@@ -6642,3 +6642,8 @@ select:focus-visible {
   font-size: 11.5px;
   color: var(--ink-3);
 }
+
+/* A document while its shared history arrives: a quiet space, not a flash of old text. */
+.doc-loading {
+  min-height: 40vh;
+}

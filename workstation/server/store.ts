@@ -1344,6 +1344,24 @@ export class Store {
     this.run('update resources set body = ? where id = ?', next, resourceId);
     this.changed();
   }
+  /** A document's shared edit history (Yjs), so live editing picks up where it left off. */
+  docState(resourceId: Id): Uint8Array | null {
+    const row = this.get('select state from doc_states where resource_id = ?', resourceId);
+    return row?.state ? new Uint8Array(row.state as Uint8Array) : null;
+  }
+  setDocState(resourceId: Id, state: Uint8Array | null) {
+    if (!state) {
+      this.run('delete from doc_states where resource_id = ?', resourceId);
+      return;
+    }
+    this.run(
+      `insert into doc_states values (?, ?, ?)
+       on conflict (resource_id) do update set state = excluded.state, updated_at = excluded.updated_at`,
+      resourceId,
+      state,
+      now(),
+    );
+  }
   /** A workspace's shared-browser sign-ins (cookies and site storage), kept between sessions. */
   browserState(spaceId: Id) {
     const row = this.get('select state from browser_states where space_id = ?', spaceId);
