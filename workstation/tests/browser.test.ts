@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
-import { guardProxy, isPrivateAddress, mayVisit } from '../server/browser/guard.ts';
+import { isPrivateAddress, mayVisit } from '../server/browser/guard.ts';
 import { addressFor } from '../server/browser/address.ts';
 
 const closing: (() => unknown)[] = [];
@@ -51,6 +51,8 @@ test('shared browser: private addresses are refused, and the address bar searche
   const inside = createServer((_req, res) => res.end('secret'));
   await new Promise<void>((r) => inside.listen(0, '127.0.0.1', r));
   closing.push(() => inside.close());
+  const guard = '../../browser-service/guard.ts';
+  const { guardProxy } = await import(guard);
   const proxy = await guardProxy();
   closing.push(proxy.close);
   const port = (inside.address() as AddressInfo).port;
@@ -72,7 +74,9 @@ test('shared browser: private addresses are refused, and the address bar searche
  */
 async function browserService() {
   try {
-    const { startService } = await import('../server/browser/service.ts');
+    // The service is its own package (browser-service/), installed only where it runs: CI or Railway.
+    const where = '../../browser-service/service.ts';
+    const { startService } = await import(where);
     const service = await startService({
       token: 'test-token-that-is-long-enough-123',
       port: 0,

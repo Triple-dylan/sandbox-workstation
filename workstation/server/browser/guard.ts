@@ -1,7 +1,8 @@
 import { BlockList, isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
 
-// Used by the app and by the browser service (browser-service/), so it depends on nothing else.
+// The app's first check on every address. The browser service (browser-service/guard.ts) checks
+// every connection again where Chrome runs; keep the blocked ranges in step with it.
 
 /**
  * Addresses the shared browser must never reach: this machine, the private network it sits on,
@@ -62,72 +63,4 @@ export async function mayVisit(raw: string, allow: (host: string) => boolean = (
   } catch {
     return false;
   }
-}
-
-/** The address to connect to for a host, or null if any of its addresses is private. */
-async function safeAddress(host: string, allow: (host: string) => boolean) {
-  const name = host.replace(/^\[|\]$/g, '').toLowerCase();
-  if (allow(name)) return name === 'localhost' ? '127.0.0.1' : name;
-  if (name === 'localhost' || name.endsWith('.localhost') || name.endsWith('.internal'))
-    return null;
-  if (isIP(name)) return isPrivateAddress(name) ? null : name;
-  try {
-    const answers = await lookup(name, { all: true });
-    if (!answers.length || answers.some((a) => isPrivateAddress(a.address))) return null;
-    return answers[0].address;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Every connection the shared browser makes goes through this proxy, which looks the name up
- * itself and connects only to public addresses. That covers redirects, sockets and a name that
- * changes its answer between the check and the connection.
- */
-export async function guardProxy(allow: (host: string) => boolean = () => false) {
-  const { createServer, request } = await import('node:http');
-  const { connect } = await import('node:net');
-  const server = createServer(async (req, res) => {
-    let target: URL;
-    try {
-      target = new URL(req.url ?? '');
-    } catch {
-      return void res.writeHead(400).end();
-    }
-    const address = target.protocol === 'http:' ? await safeAddress(target.hostname, allow) : null;
-    if (!address) return void res.writeHead(403).end('Blocked by the workspace browser.');
-    const upstream = request(
-      {
-        host: address,
-        port: Number(target.port) || 80,
-        path: `${target.pathname}${target.search}`,
-        method: req.method,
-        headers: { ...req.headers, host: target.host },
-      },
-      (answer) => {
-        res.writeHead(answer.statusCode ?? 502, answer.headers);
-        answer.pipe(res);
-      },
-    );
-    upstream.on('error', () => res.destroy());
-    req.pipe(upstream);
-  });
-  server.on('connect', async (req, socket, head) => {
-    const m = /^\[?([^\]]+?)\]?:(\d+)$/.exec(req.url ?? '');
-    socket.on('error', () => socket.destroy());
-    const address = m ? await safeAddress(m[1], allow) : null;
-    if (!m || !address) return void socket.end('HTTP/1.1 403 Forbidden\r\n\r\n');
-    const upstream = connect(Number(m[2]), address, () => {
-      socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
-      if (head.length) upstream.write(head);
-      upstream.pipe(socket);
-      socket.pipe(upstream);
-    });
-    upstream.on('error', () => socket.destroy());
-    socket.on('close', () => upstream.destroy());
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const port = (server.address() as { port: number }).port;
-  return { url: `http://127.0.0.1:${port}`, close: () => server.close() };
 }

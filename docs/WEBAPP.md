@@ -81,9 +81,9 @@ Railway redeploys when variables change.
 
 Chrome runs in a second Railway service, not in the app. In the same Railway project:
 
-1. **New → GitHub repo** → this repository. In the new service's **Settings**, set **Config file path** to `browser-service/railway.json` (it builds `browser-service/Dockerfile`). Give it at least 2 GB of memory.
-2. In its **Variables**, add `BROWSER_TOKEN` with a long random secret (24+ characters). Don't give it a public domain; the app reaches it on Railway's private network.
-3. In the app service's **Variables**, add `BROWSER_SERVICE_URL` = `ws://<browser service name>.railway.internal:3000/<the same BROWSER_TOKEN>`.
+1. **New → Empty service**, named `browser`, connected to this repository. In its **Settings**, set **Root Directory** to `/browser-service` (it builds that folder's `Dockerfile` on its own). Give it at least 2 GB of memory.
+2. In its **Variables**: `PORT=3000` and `BROWSER_TOKEN=${{ secret(48, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") }}` (Railway generates it). Don't give it a public domain; the app reaches it on Railway's private network.
+3. In the app service's **Variables**: `BROWSER_SERVICE_URL=ws://${{browser.RAILWAY_PRIVATE_DOMAIN}}:3000/${{browser.BROWSER_TOKEN}}`.
 
 The app keeps each workspace's sign-ins in its database; the browser service keeps nothing.
 
