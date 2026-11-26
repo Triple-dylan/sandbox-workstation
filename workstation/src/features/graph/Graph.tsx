@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Simulation } from 'd3-force';
 import { Compass, Folder, Lock } from 'lucide-react';
-import { KindIcon } from '../../app/util.tsx';
+import { KindIcon, ago, excerpt, kindName } from '../../app/util.tsx';
 import type { GraphFilter } from '../../app/saved.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Avatar, Character, agentState } from '../agents/Character.tsx';
@@ -144,7 +144,7 @@ export function Graph({
   selected?: string | null;
   onSelect: (resourceId: string | null) => void;
 }) {
-  const { s, space, ui, setUi, user } = useWorkspace();
+  const { s, space, ui, setUi, user, resource } = useWorkspace();
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [focus, setFocus] = useState<string | null>(null);
@@ -405,6 +405,26 @@ export function Graph({
           </span>
         );
       })}
+      {(() => {
+        // A quick look at a page while the pointer rests on it: what it is and how it starts.
+        const n = hover ? byId.get(hover) : undefined;
+        const page = n?.data.resourceId ? resource(n.data.resourceId) : undefined;
+        if (!n || !page || page.id === selected || dragging.current) return null;
+        const right = sx(n) > size.width - 300;
+        return (
+          <div
+            className={`graph-peek ${right ? 'to-left' : ''}`}
+            style={{ left: sx(n) + (right ? -n.radius - 14 : n.radius + 14), top: sy(n) }}
+            aria-hidden="true"
+          >
+            <strong>{page.title}</strong>
+            <small>
+              {kindName[page.kind]} · {ago(page.updatedAt)}
+            </small>
+            <p>{excerpt(page, 160) || 'Empty so far.'}</p>
+          </div>
+        );
+      })()}
       {visitors.map((p, i) => {
         const n = anchorFor(p.resourceId);
         const person = user(p.userId);

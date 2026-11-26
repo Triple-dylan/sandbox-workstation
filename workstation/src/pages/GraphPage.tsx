@@ -1,11 +1,10 @@
 import { useClickAway } from '../app/clickAway.ts';
 import { useRef, useState } from 'react';
-import { Columns2, SlidersHorizontal, Star, X } from 'lucide-react';
+import { SlidersHorizontal, Star, X } from 'lucide-react';
 import { useWorkspace } from '../app/workspace.tsx';
-import { api } from '../data/client.ts';
-import { KindIcon, ago, excerpt, kindName } from '../app/util.tsx';
 import { lastVisit, useSaved, writeSaved, type GraphFilter } from '../app/saved.ts';
 import { Graph } from '../features/graph/Graph.tsx';
+import { GraphPreview } from '../features/graph/GraphPreview.tsx';
 import { noFilter } from '../features/graph/tree.ts';
 
 const kinds: { id: GraphFilter['kind']; label: string }[] = [
@@ -25,7 +24,7 @@ const same = (a: GraphFilter, b: GraphFilter) =>
  * pages they came from instead of sending you somewhere else.
  */
 export function GraphPage() {
-  const { s, ui, setUi, space, resource, open, user, myChat, ask, run } = useWorkspace();
+  const { s, ui, setUi, space, resource, myChat, ask } = useWorkspace();
   const [filter, setFilter] = useState<GraphFilter>(noFilter);
   const [sinceVisit, setSinceVisit] = useState(false);
   const [naming, setNaming] = useState(false);
@@ -229,51 +228,7 @@ export function GraphPage() {
           </div>
         </div>
       )}
-      {page && (
-        <aside className="graph-card" aria-label={page.title}>
-          <header>
-            <KindIcon kind={page.kind} size={15} />
-            <strong className="truncate">{page.title}</strong>
-            <button aria-label="Close" onClick={() => setUi({ selection: [] })}>
-              <X size={13} />
-            </button>
-          </header>
-          <small>
-            {kindName[page.kind]} ·{' '}
-            {page.visibility === 'private' || space.kind === 'personal'
-              ? 'only you'
-              : `shared with ${space.name}`}
-            {' · '}
-            {user(page.updatedBy)?.name ?? 'someone'}, {ago(page.updatedAt)}
-          </small>
-          {page.kind === 'asset' && page.body.startsWith('data:') && (
-            <img src={page.body} alt={page.title} />
-          )}
-          <p>{excerpt(page, 220) || 'Empty so far.'}</p>
-          {page.source && (
-            <small>
-              Brought in from {page.source.name} · {page.source.type}
-            </small>
-          )}
-          <div>
-            <button className="primary" onClick={() => open({ type: 'page', id: page.id }, true)}>
-              <Columns2 size={13} /> Open beside
-            </button>
-            <button onClick={() => open({ type: 'page', id: page.id })}>Open</button>
-            {page.archived && (
-              <button
-                onClick={() =>
-                  void run(() =>
-                    api(`/resources/${page.id}`, { method: 'PATCH', body: { archived: false } }),
-                  )
-                }
-              >
-                Bring back
-              </button>
-            )}
-          </div>
-        </aside>
-      )}
+      {page && <GraphPreview page={page} onClose={() => setUi({ selection: [] })} />}
       {lit.length > 0 && (
         <p className="graph-lit">
           Lit: the {lit.length} page{lit.length === 1 ? '' : 's'} the last answer came from.
