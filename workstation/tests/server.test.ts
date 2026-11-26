@@ -294,6 +294,57 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
   await app.close();
 });
 
+test('openai runtime: waits and retries when rate limited, then says so plainly', async () => {
+  const busy = (message: string, headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify({ error: { message } }), { status: 429, headers });
+  const ok = () =>
+    new Response(
+      JSON.stringify({
+        usage: { total_tokens: 10 },
+        choices: [{ message: { content: JSON.stringify({ reply: 'After the wait' }) } }],
+      }),
+      { status: 200 },
+    );
+  const task = { request: 'hi', context: {} } as unknown as AgentTask;
+  const make = (answers: (() => Response)[], waits: number[]) => {
+    let calls = 0;
+    const runtime = createOpenAIRuntime({
+      apiKey: PLACEHOLDER_KEY,
+      dailyTokenLimit: 1e9,
+      usageToday: () => 0,
+      addUsage: () => {},
+      fetch: (async () => answers[Math.min(calls++, answers.length - 1)]()) as typeof fetch,
+      sleep: async (ms) => void waits.push(ms),
+    });
+    return { runtime, calls: () => calls };
+  };
+  const limited =
+    'Rate limit reached for gpt-6-luna in organization org-Abc123 on tokens per min (TPM). Please try again in 1.5s.';
+
+  // Told how long to wait: waits that long, then answers.
+  const waits: number[] = [];
+  const first = make(
+    [() => busy(limited), () => busy('slow down', { 'retry-after': '2' }), ok],
+    waits,
+  );
+  assert.equal((await first.runtime.run(task)).reply, 'After the wait');
+  assert.deepEqual(waits, [1600, 2000]);
+
+  // Still busy after every try: gives up in under a minute with a plain message and no account id.
+  const always = make([() => busy(limited)], []);
+  await assert.rejects(always.runtime.run(task), (error: Error) => {
+    assert.match(error.message, /per-minute limit\)\. Try again in a minute/);
+    assert.ok(!error.message.includes('org-'));
+    return true;
+  });
+  assert.ok(always.calls() > 1 && always.calls() <= 6);
+
+  // Out of credit: waiting won't help, so it is not retried.
+  const broke = make([() => busy('You exceeded your current quota (insufficient_quota)')], []);
+  await assert.rejects(broke.runtime.run(task), /out of credit/);
+  assert.equal(broke.calls(), 1);
+});
+
 test('http: sessions, CSRF header, auth and static path traversal', async () => {
   const app = createApp({
     dbPath: ':memory:',

@@ -4,6 +4,7 @@ Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
 ## 2026-11-26
 
+- **Agents wait out OpenAI's busy moments.** Dylan said yes to retrying after a test copy failed with OpenAI's per-minute limit (the key is shared). A rate-limited or 5xx call waits as long as OpenAI asks (or a growing pause) and tries again, up to 6 tries and 45 seconds; then the agent says plainly that OpenAI is busy, without account ids. Running out of credit is said at once, not retried. Search vectors retry the same way.
 - **pstack trimmed to 38 skills.** Dylan approved dropping 29 skills and 3 agents that duplicate Claude Code built-ins (`/code-review`, `/security-review`, `/simplify`, `/steward`), each other, or were niche (formal verification, TLA+ statecharts, benchmarking, parallel arenas). The 38 kept stay in `.claude/` so every harness has them; Claude sessions also reach them through Dylan's user-level resolver.
 - **Documents are edited live together.** Dylan chose live co-editing as the next piece. Everyone's typing merges as it happens (Yjs, the standard library for this, with TipTap's collaboration extension); two people in the same line both keep their words. Each document's shared history is kept in the database and relayed by the app's server, no third-party service. The page's Markdown is still saved for agents, search and history, taken from the merged text. An accepted suggestion or a restored version replaces the shared history and open editors start again from it. Undo is per person.
 
