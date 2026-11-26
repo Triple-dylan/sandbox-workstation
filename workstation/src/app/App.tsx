@@ -5,7 +5,6 @@ import { KindIcon, chatTitle } from './util.tsx';
 import { api, useSession } from '../data/client.ts';
 import { Join } from './Join.tsx';
 import { Sidebar } from './Sidebar.tsx';
-import { SpaceRail } from './SpaceRail.tsx';
 import { Rail } from './Rail.tsx';
 import { Find } from './Find.tsx';
 import { Pane } from '../pages/Pane.tsx';
@@ -41,14 +40,7 @@ function remembered(): Partial<Ui> {
         : {}),
       ...(['system', 'light', 'dark'].includes(saved.theme) ? { theme: saved.theme } : {}),
       ...(saved.prefs && typeof saved.prefs === 'object'
-        ? {
-            prefs: {
-              ...initialUi.prefs,
-              ...saved.prefs,
-              // Before the list hid itself on pages this was on or off; on becomes the new default.
-              list: saved.prefs.list === false ? 'hidden' : (saved.prefs.list ?? 'auto'),
-            },
-          }
+        ? { prefs: { ...initialUi.prefs, ...saved.prefs } }
         : {}),
       ...(typeof saved.split === 'number' && saved.split > 0.2 && saved.split < 0.8
         ? { split: saved.split }
@@ -165,25 +157,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   const panes = ui.panes.filter((t) => alive(t, s) && !isMyChat(t));
   const shownPanes: Target[] = panes.length ? panes : [firstTarget(s, space)];
   const active = Math.min(ui.active, shownPanes.length - 1);
-  // The list steps aside while you work on a page, unless you chose to keep it open.
-  const onPage = shownPanes[active]?.type === 'page';
-  const listShown = ui.prefs.list === 'shown' || (ui.prefs.list === 'auto' && !onPage);
-  const toggleList = useCallback(
-    () =>
-      setUi((old) => ({
-        peek: false,
-        prefs: { ...old.prefs, list: listShown ? (onPage ? 'auto' : 'hidden') : 'shown' },
-      })),
-    [listShown, onPage, setUi],
-  );
-  // Hidden, it slides out over the page while the pointer is on the left edge, and goes when it
-  // leaves; a short wait each way keeps a pointer passing by from flashing it.
-  const peekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const peekSoon = (on: boolean) => {
-    clearTimeout(peekTimer.current);
-    if (listShown) return;
-    peekTimer.current = setTimeout(() => setUi({ peek: on }), on ? 90 : 280);
-  };
   useEffect(() => {
     if (shownPanes.length !== ui.panes.length || active !== ui.active || space.id !== ui.spaceId)
       setUi({ panes: shownPanes, active, spaceId: space.id });
@@ -390,7 +363,8 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       const typing = (e.target as HTMLElement).closest?.(
         'input, textarea, select, [contenteditable="true"]',
       );
-      if (mod && e.key === '\\') (e.preventDefault(), toggleList());
+      if (mod && e.key === '\\')
+        (e.preventDefault(), setUi((old) => ({ prefs: { ...old.prefs, list: !old.prefs.list } })));
       if (mod && e.key === ',') (e.preventDefault(), setUi({ dialog: 'settings' }));
       if (mod && e.key === '/') (e.preventDefault(), setUi({ dialog: 'shortcuts' }));
       if (e.altKey && !mod && e.code === 'KeyN') (e.preventDefault(), setUi({ creating: true }));
@@ -402,7 +376,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         else if (ui.dialog) setUi({ dialog: null });
         else if (ui.creating) setUi({ creating: false });
         else if (ui.making) setUi({ making: null });
-        else if (ui.nav || ui.peek) setUi({ nav: false, peek: false });
+        else if (ui.nav) setUi({ nav: false });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -481,10 +455,9 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
       myAgent,
       myChat,
       ask,
-      list: { shown: listShown, toggle: toggleList },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s, ui, space, columns, notify, run, open, jump, closePane, ask, bring, listShown, toggleList],
+    [s, ui, space, columns, notify, run, open, jump, closePane, ask, bring],
   );
 
   const visible = columns === 1 ? [shownPanes[active]] : shownPanes;
@@ -531,7 +504,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
   return (
     <WorkspaceContext.Provider value={value}>
       <div
-        className={`shell ${ui.nav || ui.peek || ui.creating || ui.making ? 'nav-open' : ''} ${listShown ? '' : 'list-hidden'}`}
+        className={`shell ${ui.nav || ui.creating || ui.making ? 'nav-open' : ''} ${ui.prefs.list ? '' : 'list-hidden'}`}
         onDragOver={(e) => {
           const types = [...e.dataTransfer.types];
           // Something dragged from the list can be dropped on the middle to open it beside.
@@ -550,7 +523,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           if (dragged) {
             try {
               const t = JSON.parse(dragged) as Target;
-              if (!(e.target as HTMLElement).closest('.left')) open(t, true);
+              if (!(e.target as HTMLElement).closest('.sidebar')) open(t, true);
             } catch {
               // Not something from the list.
             }
@@ -561,14 +534,7 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
           void bring([...e.dataTransfer.files]);
         }}
       >
-        <div
-          className="left"
-          onMouseEnter={() => peekSoon(true)}
-          onMouseLeave={() => !menuAt && peekSoon(false)}
-        >
-          <SpaceRail />
-          <Sidebar />
-        </div>
+        <Sidebar />
         {ui.nav && (
           <button
             className="scrim"

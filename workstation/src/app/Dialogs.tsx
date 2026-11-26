@@ -140,13 +140,12 @@ export function Settings() {
       </div>
       {seg(
         'The list',
-        prefs.list,
+        prefs.list ? 'shown' : 'hidden',
         [
-          ['auto', 'Out of the way on pages'],
-          ['shown', 'Always shown'],
-          ['hidden', 'Only at the edge'],
+          ['shown', 'Shown'],
+          ['hidden', 'Hidden until asked'],
         ],
-        (v) => set({ list: v }),
+        (v) => set({ list: v === 'shown' }),
       )}
       {seg(
         "Teammates' cursors",

@@ -1,20 +1,11 @@
 import { useState } from 'react';
-import {
-  Lock,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Pin,
-  Plus,
-  Search,
-  Share2,
-  Users,
-} from 'lucide-react';
+import { ChevronDown, Lock, Pin, Plus, Search, Share2, Users } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character, agentState } from '../features/agents/Character.tsx';
 import { isPage } from '../../shared/types.ts';
 import type { Conversation, Resource, User } from '../../shared/types.ts';
 import { KindIcon, chatTitle, mentionsIn, unreadIn } from './util.tsx';
-import { sameTarget, useWorkspace, type Target } from './workspace.tsx';
+import { sameTarget, useWorkspace, type MenuItem, type Target } from './workspace.tsx';
 import { DRAG, atWork, waitingOn } from './scope.ts';
 import { seenAt } from './saved.ts';
 import { agentChat, talkTo } from './agentChat.ts';
@@ -31,14 +22,13 @@ import {
 const RECENT = 8;
 
 /**
- * The list beside the thin rail, in three parts: chats, pages and agents of the space picked in
- * the rail. Each part adds its own; people live behind the workspace's member count.
+ * The list on the left, in three parts: chats, pages and agents. Everything you can add starts
+ * from the one "New" button at the top; people live behind the workspace's member count.
  */
 export function Sidebar() {
   const ws = useWorkspace();
-  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu, list } = ws;
-  const kept = list.shown && !ui.peek;
-  const toggleList = list.toggle;
+  const { s, ui, setUi, space, open, run, user, resource, pick, notify, menu } = ws;
+  const [joining, setJoining] = useState<'space' | 'join' | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [all, setAll] = useState(false);
   const isOpen = (t: Target) => ui.panes.some((p) => sameTarget(p, t));
@@ -252,20 +242,33 @@ export function Sidebar() {
   return (
     <nav className="sidebar" aria-label="Space">
       <div className="space-head">
-        <div className="space-title">
-          <strong className="space-name truncate">
+        <button
+          className="space-name"
+          aria-label={`${space.name}. Switch workspace`}
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            menu({ clientX: r.left, clientY: r.bottom + 4, preventDefault: () => {} }, [
+              ...s.spaces.map((x) => ({
+                label: x.kind === 'personal' ? 'Your space' : x.name,
+                checked: x.id === space.id,
+                run: () =>
+                  x.id !== space.id &&
+                  setUi({ spaceId: x.id, panes: [], active: 0, selection: [] }),
+              })),
+              'line',
+              ...(s.mayStartWorkspace !== false
+                ? [{ label: 'New workspace', run: () => setJoining('space') }]
+                : []),
+              { label: 'Join with a link', run: () => setJoining('join') },
+            ] satisfies MenuItem[]);
+          }}
+        >
+          <strong className="truncate">
             {space.kind === 'personal' ? 'Your space' : space.name}
           </strong>
-          <button
-            className="list-keep"
-            aria-label={kept ? 'Hide the list' : 'Keep the list open'}
-            title={`${kept ? 'Hide the list' : 'Keep the list open'} (⌘\\)`}
-            aria-pressed={kept}
-            onClick={toggleList}
-          >
-            {kept ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
-          </button>
-        </div>
+          <ChevronDown size={14} />
+        </button>
         {shared ? (
           <button
             className="space-people"
@@ -280,8 +283,8 @@ export function Sidebar() {
           </span>
         )}
         {peopleOpen && shared && <PeoplePanel onClose={() => setPeopleOpen(false)} />}
-        {ui.making === 'workspace' && <NewWorkspace onClose={() => setUi({ making: null })} />}
-        {ui.making === 'join' && <JoinWorkspace onClose={() => setUi({ making: null })} />}
+        {joining === 'space' && <NewWorkspace onClose={() => setJoining(null)} />}
+        {joining === 'join' && <JoinWorkspace onClose={() => setJoining(null)} />}
         <div className="list-tools">
           <button
             className="list-find"
@@ -329,6 +332,27 @@ export function Sidebar() {
         {heading('Agents', 'New agent', () => setUi({ making: 'agent' }))}
         {ui.making === 'agent' && <NewAgent />}
         {agents.map(agentRow)}
+      </div>
+
+      <div className="list-foot">
+        <button
+          className="me"
+          aria-label={`${s.me.name}: settings and sign out`}
+          onClick={(e) =>
+            menu(e, [
+              { label: 'Settings', run: () => setUi({ dialog: 'settings' }) },
+              { label: 'Shortcuts', run: () => setUi({ dialog: 'shortcuts' }) },
+              'line',
+              {
+                label: 'Sign out',
+                run: () => void api('/logout', { body: {} }).then(() => location.reload()),
+              },
+            ])
+          }
+        >
+          <Actor user={s.me} jobs={s.jobs} size={22} />
+          <span className="truncate">{s.me.name}</span>
+        </button>
       </div>
     </nav>
   );
