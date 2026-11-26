@@ -99,7 +99,7 @@ export function Join({ onJoined }: { onJoined: () => void }) {
           </header>
         ) : byInvite ? (
           <header className="join-invite">
-            <h1>Sandbox Workstation</h1>
+            <h1>Sandbox</h1>
             <p>
               {closedDoor
                 ? 'This workstation is by invitation. Ask someone in it for an invite link.'

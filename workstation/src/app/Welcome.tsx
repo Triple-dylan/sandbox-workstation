@@ -111,7 +111,7 @@ export function SignIn({
     <Layout
       hero={
         <>
-          <h1>Sandbox Workstation</h1>
+          <h1>Sandbox</h1>
           <p className="welcome-lede">Where your team and its agents work on the same pages.</p>
           <ul className="welcome-points">
             <li>
