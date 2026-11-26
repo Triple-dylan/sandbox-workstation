@@ -36,4 +36,5 @@ jobs:
       - run: npm ci --prefix ../browser-service
       - run: npm test
       - run: npm run build
+      - run: npm run build:inpage
       - run: npm run test:e2e
