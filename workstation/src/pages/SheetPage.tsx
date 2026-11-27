@@ -327,9 +327,14 @@ export function SheetPage({ page }: { page: Resource }) {
   // Ask your agent about the chosen cells: the rail opens with them as what it reads.
   const askAbout = () => {
     if (!box) return;
+    // The quote is a short reminder for people; the agent gets the exact cells from the range.
     const cells = cellsIn(box, true).map((r) => r.join(' · '));
     setUi({
-      asking: { resourceId: page.id, quote: `${rangeName}: ${cells.join(' / ')}` },
+      asking: {
+        resourceId: page.id,
+        quote: `${rangeName}: ${cells.join(' / ')}`.slice(0, 120),
+        range: { top: box.top, left: box.left, bottom: box.bottom, right: box.right },
+      },
       railOpen: true,
     });
   };

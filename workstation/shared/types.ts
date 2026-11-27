@@ -213,7 +213,10 @@ export type Conversation = {
   pinnedIds: Id[];
 };
 
-export type Anchor = { resourceId: Id; quote: string };
+/** A block of cells on a sheet, counted from 0, corners included. */
+export type CellRange = { top: number; left: number; bottom: number; right: number };
+/** What a message is about: a quote from a page, and on a sheet the exact cells chosen. */
+export type Anchor = { resourceId: Id; quote: string; range?: CellRange };
 export type Message = {
   id: Id;
   conversationId: Id;

@@ -21,7 +21,15 @@ export type AgentTask = {
   /** Set on a retry: what was wrong with the previous answer, to fix this time. */
   feedback?: string;
   conversation: { kind: string; title: string };
-  anchor: { title: string; quote: string } | null;
+  anchor: {
+    title: string;
+    quote: string;
+    /** Cells chosen on a sheet: "B2:D40", the row naming the columns (if any), and the cells. */
+    range?: string;
+    header?: number | null;
+    columns?: { letter: string; name: string }[];
+    cells?: string;
+  } | null;
   context: {
     orientation: string | null;
     /** Your agent only: what it keeps about its owner in their private space ("About you"). */
