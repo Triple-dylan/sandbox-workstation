@@ -86,6 +86,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-27
 
+- Shared browser service: Playwright's server now listens on the service's machine only, behind a front door that lets through just the secret address. Before, anyone who could reach the service could ask Playwright's `/json` for the secret. `GET /healthz` reports whether Chrome is running, its memory and open pages (503 when Chrome is gone). Tested with a stand-in for Playwright's server, and in CI against real Chrome.
 - Shared browser service: closes pages nobody has used for 30 minutes (`PAGE_IDLE_MINUTES`; the app's own five-minute close stays), and logs a health line every minute with its memory against the limit, Chrome's memory, and how many pages are open in how many workspaces. If Chrome fails to start, the service no longer leaves its proxy running. Tested with a stand-in for Chrome and a made-up /proc; CI also runs it against real Chrome.
 
 ## Added 2026-11-26

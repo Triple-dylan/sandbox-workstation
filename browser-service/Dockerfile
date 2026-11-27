@@ -8,6 +8,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 RUN npx playwright install --with-deps chromium \
   && apt-get update && apt-get install -y --no-install-recommends xvfb \
   && rm -rf /var/lib/apt/lists/*
-COPY service.ts guard.ts pages.ts health.ts ./
+COPY service.ts guard.ts pages.ts health.ts front.ts ./
 EXPOSE 3000
 CMD ["node", "--disable-warning=ExperimentalWarning", "service.ts"]

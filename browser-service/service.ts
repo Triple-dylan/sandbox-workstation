@@ -3,12 +3,15 @@ import { chromium } from 'playwright-core';
 import { guardProxy } from './guard.ts';
 import { PageWatch } from './pages.ts';
 import { healthLine, readMemory } from './health.ts';
+import { startFront } from './front.ts';
 
 /**
  * The shared browser service: real Chrome on its own server, for the workstation app to drive
  * over a WebSocket. Nothing about it runs on the machines people use the app from.
  *
- * - The address includes a secret (BROWSER_TOKEN); without it nobody can connect.
+ * - The address includes a secret (BROWSER_TOKEN); without it nobody can connect. Playwright's own
+ *   server listens on this machine alone, behind a small front door (front.ts) that lets through
+ *   only the secret address and answers GET /healthz.
  * - Chrome is a normal, visible browser on a virtual screen (Xvfb): many sites refuse headless ones.
  * - Every connection Chrome makes goes through a proxy that refuses this server and private
  *   networks, checked at connection time, so a page can't be used to look inside the network.
@@ -48,8 +51,9 @@ export async function startService(options: {
   const server = await chromium
     .launchServer({
       headless: options.headless ?? false,
-      host: options.host ?? '::',
-      port: options.port,
+      // Only the front door below reaches it.
+      host: '127.0.0.1',
+      port: 0,
       wsPath: `/${options.token}`,
       env: { ...process.env, ...env },
       // Every connection, even to this machine, goes through the guard.
@@ -67,7 +71,7 @@ export async function startService(options: {
   // The service's own connection, only to watch: Chrome tells it about every page, whoever
   // opened it. It opens nothing itself.
   const watching = async () => {
-    const watcher = await chromium.connect(local(server.wsEndpoint()));
+    const watcher = await chromium.connect(server.wsEndpoint());
     const pages = new PageWatch(await watcher.newBrowserCDPSession(), {
       idleMs,
     });
@@ -79,8 +83,28 @@ export async function startService(options: {
     stopAll();
     throw error;
   });
-  const health = () =>
-    healthLine(readMemory({ chromePid: server.process().pid }), pages.counts(), pages.closedIdle);
+  const status = () => ({
+    memory: readMemory({ chromePid: server.process().pid }),
+    ...pages.counts(),
+    closedIdle: pages.closedIdle,
+  });
+  const health = () => {
+    const now = status();
+    return healthLine(now.memory, now, now.closedIdle);
+  };
+  const inside = new URL(server.wsEndpoint());
+  const front = await startFront({
+    token: options.token,
+    host: options.host ?? '::',
+    port: options.port,
+    target: { host: inside.hostname, port: Number(inside.port) },
+    health: () => ({ ok: watcher.isConnected(), ...status() }),
+  }).catch(async (error) => {
+    await watcher.close().catch(() => {});
+    await server.close().catch(() => {});
+    stopAll();
+    throw error;
+  });
   const timers: ReturnType<typeof setInterval>[] = [];
   if (idleMs) {
     let sweeping = false;
@@ -99,12 +123,14 @@ export async function startService(options: {
   for (const timer of timers) timer.unref();
 
   return {
-    endpoint: server.wsEndpoint(),
+    endpoint: front.endpoint,
+    port: front.port,
     /** What the health line would say now. */
     health,
     pages,
     async close() {
       for (const timer of timers) clearInterval(timer);
+      await front.close();
       await watcher.close().catch(() => {});
       await server.close();
       stopAll();
@@ -116,11 +142,6 @@ const minutes = (ms: number) => {
   const n = Math.round(ms / 60_000);
   return n === 1 ? '1 minute' : n ? `${n} minutes` : 'under a minute';
 };
-
-/** The service's address as seen from inside the service (it listens on every address). */
-function local(endpoint: string) {
-  return endpoint.replace(/^ws:\/\/(\[::\]|0\.0\.0\.0)(?=:)/, 'ws://127.0.0.1');
-}
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const token = process.env.BROWSER_TOKEN ?? '';
