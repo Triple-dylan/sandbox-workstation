@@ -67,11 +67,22 @@ test('shared browser: a tab the browser service closes is announced; one a perso
     for (let i = 0; i < 200 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
     assert.ok(check(), typeof what === 'string' ? what : what());
   };
+  // What the page was told, briefly, for when a wait runs out.
+  const story = () =>
+    seen
+      .filter((m) => m.t !== 'frame' && m.t !== 'pointers')
+      .map((m) =>
+        m.t === 'state'
+          ? `state ${m.tabs.map((tab: any) => tab.url).join(' ')}`
+          : m.t === 'titles'
+            ? `titles ${Object.values(m.titles).join('|')}`
+            : `${m.t} ${m.text ?? ''}`,
+      )
+      .join('; ');
   const titles = () => seen.filter((m) => m.t === 'titles').at(-1)?.titles ?? {};
   await until(
     () => Object.values(titles()).includes('Quote b'),
-    () =>
-      `both tabs have loaded (last seen: ${JSON.stringify(seen.filter((m) => m.t !== 'frame').slice(-3))})`,
+    () => `both tabs have loaded (seen: ${story()})`,
   );
   const tabs = seen.filter((m) => m.t === 'state').at(-1).tabs;
   assert.equal(tabs.length, 2);
@@ -83,7 +94,10 @@ test('shared browser: a tab the browser service closes is announced; one a perso
   assert.equal(seen.filter((m) => m.t === 'notice').length, 0);
 
   // The service closes the one left once nobody has used it: the page says what happened.
-  await until(() => seen.some((m) => m.t === 'notice'), 'the closing is announced');
+  await until(
+    () => seen.some((m) => m.t === 'notice'),
+    () => `the closing is announced (seen: ${story()})`,
+  );
   const notices = seen.filter((m) => m.t === 'notice');
   assert.equal(notices.length, 1);
   assert.match(
