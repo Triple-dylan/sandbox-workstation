@@ -13,6 +13,7 @@ import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
+import { handOverProject } from './handover.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
@@ -411,6 +412,12 @@ export function createApp(options: AppOptions) {
       store.removeMember(me.id, segments[1], segments[3]);
       return send(res, 200, { ok: true });
     }
+    if (segments[0] === 'projects' && segments[2] === 'owner' && !segments[3] && method === 'POST')
+      return send(
+        res,
+        200,
+        handOverProject(store, me.id, segments[1], str('userId'), str('confirm')),
+      );
     if (segments[0] === 'projects' && segments[1] && !segments[2] && method === 'PATCH')
       return send(res, 200, store.renameProject(me.id, segments[1], str('name')));
     if (segments[0] === 'projects' && segments[1] && !segments[2] && method === 'DELETE') {
