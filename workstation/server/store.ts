@@ -3,6 +3,9 @@ import { MAX_COLS, MAX_ROWS, readRange, readSheet } from '../shared/sheet.ts';
 import { readOp, runOp } from '../shared/sheetOps.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
+import type { Sql } from './sql/index.ts';
+import { sqliteSql } from './sql/sqlite.ts';
+import { passageVectors, type PassageVectors } from './sql/vectors.ts';
 import {
   CANVAS_KINDS,
   ORB_FORMS,
@@ -248,10 +251,19 @@ export class Store {
   version = 0;
   private listeners = new Set<(event: ChangeEvent) => void>();
   readonly db: Db;
+  /**
+   * The same database through the async layer (`server/sql/`). Methods move onto it in batches;
+   * once all have, Postgres can stand in for SQLite here.
+   */
+  readonly sql: Sql;
+  /** Search vectors of pages' passages. Callers pass only pages the asker may read. */
+  readonly vectors: PassageVectors;
   /** Invitation only: people outside your spaces are not visible and cannot be messaged. */
   closed = false;
   constructor(db: Db, options: { closed?: boolean } = {}) {
     this.db = db;
+    this.sql = sqliteSql(db);
+    this.vectors = passageVectors(this.sql);
     this.closed = !!options.closed;
     // Earlier versions kept loose pieces on one board per space. They now live on a canvas page.
     const loose = this.all(
@@ -2640,54 +2652,6 @@ export class Store {
     );
   }
 
-  /** When the stored search vectors of a page were made (its updatedAt then), if any. */
-  vectorStamp(resourceId: Id) {
-    const row = this.get(
-      'select stamp from passage_vectors where resource_id = ? limit 1',
-      resourceId,
-    );
-    return row ? String(row.stamp) : null;
-  }
-  replaceVectors(resourceId: Id, stamp: string, rows: { text: string; vector: Float32Array }[]) {
-    this.db.exec('begin immediate');
-    try {
-      this.run('delete from passage_vectors where resource_id = ?', resourceId);
-      rows.forEach((row, i) =>
-        this.run(
-          'insert into passage_vectors values (?, ?, ?, ?, ?)',
-          resourceId,
-          i,
-          stamp,
-          row.text,
-          new Uint8Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength),
-        ),
-      );
-      this.db.exec('commit');
-    } catch (error) {
-      this.db.exec('rollback');
-      throw error;
-    }
-  }
-  /** Stored search vectors for these pages. Callers pass only pages the asker may read. */
-  vectorsFor(resourceIds: Id[]) {
-    if (!resourceIds.length) return [];
-    const rows = this.db
-      .prepare(
-        `select * from passage_vectors where resource_id in (${resourceIds.map(() => '?').join(',')})`,
-      )
-      .all(...resourceIds) as Record<string, unknown>[];
-    return rows.map((row) => {
-      const bytes = row.vector as Uint8Array;
-      return {
-        resourceId: String(row.resource_id),
-        stamp: String(row.stamp),
-        text: String(row.text),
-        vector: new Float32Array(
-          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-        ),
-      };
-    });
-  }
   /** Tokens agents used today for one space or on behalf of one person. */
   agentUsageToday(scope: 'space' | 'person', key: Id) {
     const row = this.get(

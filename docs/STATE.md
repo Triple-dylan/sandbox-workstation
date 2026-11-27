@@ -87,7 +87,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - First step of the move to Postgres (plan: SQLite stays the default until the store has moved over): `server/sql/` runs queries through one async interface with a SQLite backend and a Postgres backend, and keeps a Postgres copy of the schema that brings itself up to date when a server starts. CI runs a Postgres with pgvector; tests check both backends the same way and fail if a table or column is added to SQLite and not to Postgres. Nothing in the app uses it yet.
-- Search vectors on Postgres (`server/sql/vectors.ts`): stored as pgvector values with an HNSW index. Searches over up to 500 pages compare every passage; larger searches go through the index and keep only the pages asked about. On SQLite they are compared one by one as before. Tested on both, with the same results. Not wired into agents' search yet.
+- Search vectors on Postgres (`server/sql/vectors.ts`): stored as pgvector values with an HNSW index. Searches over up to 500 pages compare every passage; larger searches go through the index and keep only the pages asked about. On SQLite they are compared one by one as before. Tested on both, with the same results. Agents' meaning search now goes through it (still on SQLite).
 
 ## Added 2026-11-26
 
