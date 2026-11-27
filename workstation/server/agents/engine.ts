@@ -1,5 +1,6 @@
 import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
 import { rangeTable, readSheet } from '../../shared/sheet.ts';
+import { readOp, writeOp } from '../../shared/sheetOps.ts';
 import { isPage } from '../../shared/types.ts';
 import type { ChangeEvent, Store } from '../store.ts';
 import type {
@@ -818,13 +819,26 @@ export class AgentEngine {
       const target =
         result.proposal.kind === 'edit-doc'
           ? anchored
-          : result.proposal.kind === 'edit-cells'
+          : result.proposal.kind === 'edit-cells' || result.proposal.kind === 'sheet-ops'
             ? this.sheetNamed(agent, result.proposal.title, anchored)
             : result.proposal.kind === 'create-doc'
               ? canvas?.id
               : null;
       const needsTarget =
-        result.proposal.kind === 'edit-doc' || result.proposal.kind === 'edit-cells';
+        result.proposal.kind === 'edit-doc' ||
+        result.proposal.kind === 'edit-cells' ||
+        result.proposal.kind === 'sheet-ops';
+      // An operation is stored with its cells named, so it reads the same when decided later.
+      if (result.proposal.kind === 'sheet-ops' && target) {
+        const chosen = this.chosenCells(agent, trigger);
+        const op = readOp(
+          result.proposal.body,
+          chosen && this.store.resource(target)?.title.toLowerCase() === chosen.title.toLowerCase()
+            ? chosen.range
+            : null,
+        );
+        if (typeof op !== 'string') result.proposal = { ...result.proposal, body: writeOp(op) };
+      }
       if (!needsTarget || target) {
         approvalId = this.store.createApproval(job, {
           ...result.proposal,
@@ -911,6 +925,15 @@ export class AgentEngine {
   }
 
   /** The sheet a proposed change names, by title, among those the agent can read; the one in question first. */
+  /** The cells the person chose on a sheet, when the request was anchored to them. */
+  private chosenCells(agent: User, trigger: Message | null) {
+    const anchor = trigger?.anchor;
+    const sheet = anchor?.range ? this.store.resource(anchor.resourceId) : null;
+    if (!anchor?.range || !sheet || sheet.kind !== 'sheet') return null;
+    if (!this.store.canReadResource(agent.id, sheet)) return null;
+    return { title: sheet.title, range: anchor.range };
+  }
+
   private sheetNamed(agent: User, title: string, inQuestion: Id | null): Id | null {
     const sheets = this.store
       .memberSpaces(agent.id)
@@ -1005,6 +1028,11 @@ export class AgentEngine {
           .map((r) => r.title.toLowerCase()),
       ),
       colleagues: task.context.colleagues.map((c) => c.name),
+      sheetRows: (title) => {
+        const id = this.sheetNamed(agent, title, targetId);
+        return id ? readSheet(this.store.resource(id)?.body).rows : null;
+      },
+      chosen: this.chosenCells(agent, trigger),
     };
     const problems = problemsWith(first, ctx);
     if (!problems.length) return first;

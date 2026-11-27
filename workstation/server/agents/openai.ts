@@ -40,6 +40,7 @@ export const answerSchema = {
             'create-doc',
             'edit-doc',
             'edit-cells',
+            'sheet-ops',
             'create-agent',
             'add-step',
             'create-skill',

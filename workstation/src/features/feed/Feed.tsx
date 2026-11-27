@@ -16,6 +16,8 @@ import { proposalText } from '../agents/proposal.ts';
 import { addressed, markMentions, mentions as mentionsMe, useMentions } from './mentions.tsx';
 import { DRAG, pagesNamed } from '../../app/scope.ts';
 import { cellEdits, colName, evaluate } from '../../../shared/formula.ts';
+import { readSheet } from '../../../shared/sheet.ts';
+import { readOp, runOp } from '../../../shared/sheetOps.ts';
 import { REACTIONS } from '../../../shared/types.ts';
 import type { Conversation, Id, Message, Proposal, Resource, User } from '../../../shared/types.ts';
 
@@ -32,6 +34,39 @@ export function agentsIn(conversation: Conversation, users: User[]) {
       u.role === 'project' &&
       !u.retired &&
       u.spaceId === conversation.spaceId,
+  );
+}
+
+/** What a suggested sheet operation would do to the sheet as it is now. */
+function sheetOpOutcome(p: Proposal, page: Resource | null | undefined) {
+  if (!page) return { ok: false as const, error: 'The sheet is not available.' };
+  const op = readOp(p.body, null);
+  if (typeof op === 'string') return { ok: false as const, error: op };
+  return runOp(readSheet(page.body).rows, op);
+}
+
+/** A suggested pivot, sort, filter or total, in one line, worked out on the sheet as it is now. */
+function SheetOpSays({
+  proposal,
+  page,
+  done,
+}: {
+  proposal: Proposal;
+  page: Resource | null | undefined;
+  done: boolean;
+}) {
+  if (done) return null;
+  const r = sheetOpOutcome(proposal, page);
+  if (!r.ok)
+    return <p className="approval-body">It can't run on the sheet as it is now: {r.error}</p>;
+  return (
+    <p className="approval-body">
+      {r.summary}
+      {r.overwrites.length > 0 &&
+        ` It writes over ${r.overwrites.slice(0, 4).join(', ')}${r.overwrites.length > 4 ? ` and ${r.overwrites.length - 4} more` : ''}.`}
+      {/"op"\s*:\s*"(pivot|total)"/.test(proposal.body) &&
+        ' Every number is a formula over the data, so it keeps up when the data changes.'}
+    </p>
   );
 }
 
@@ -58,6 +93,14 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
           'Shown on the sheet',
         );
       else open({ type: 'page', id: page.id }, true);
+    } else if (a.proposal.kind === 'sheet-ops') {
+      const area = sheetOpOutcome(a.proposal, page);
+      if (area.ok && area.area)
+        jump(
+          { resourceId: page.id, rows: [area.area.top, area.area.bottom] },
+          'Shown on the sheet',
+        );
+      else open({ type: 'page', id: page.id }, true);
     } else if (a.proposal.kind === 'edit-doc')
       jump({ resourceId: page.id, quote: a.proposal.title });
     else open({ type: 'page', id: page.id }, true);
@@ -79,6 +122,8 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
         />
       ) : a.proposal.kind === 'edit-cells' ? (
         <CellChanges proposal={a.proposal} page={page} done={a.status !== 'pending'} />
+      ) : a.proposal.kind === 'sheet-ops' ? (
+        <SheetOpSays proposal={a.proposal} page={page} done={a.status !== 'pending'} />
       ) : a.proposal.kind === 'edit-doc' ? (
         <p className="diff">
           <del>{a.proposal.title}</del>
@@ -104,9 +149,10 @@ export function ApprovalCard({ approvalId }: { approvalId: Id }) {
                 <Check size={13} /> {words.yes}
               </button>
               {editable && <button onClick={() => setEditing(a.proposal.body)}>Edit first</button>}
-              {page && (a.proposal.kind === 'edit-cells' || a.proposal.kind === 'edit-doc') && (
-                <button onClick={showMe}>Show me</button>
-              )}
+              {page &&
+                (a.proposal.kind === 'edit-cells' ||
+                  a.proposal.kind === 'edit-doc' ||
+                  a.proposal.kind === 'sheet-ops') && <button onClick={showMe}>Show me</button>}
               <button onClick={() => decide('declined')}>{words.no}</button>
             </>
           )}

@@ -1,5 +1,6 @@
 import { cellEdits } from '../../shared/formula.ts';
-import type { JobKind } from '../../shared/types.ts';
+import { readOp, runOp } from '../../shared/sheetOps.ts';
+import type { CellRange, JobKind, Proposal } from '../../shared/types.ts';
 import type { AgentResult } from './runtime.ts';
 
 /** What an answer is checked against: only things the agent was actually given. */
@@ -12,7 +13,26 @@ export type CheckContext = {
   colleagues: string[];
   /** Titles of the sheets the agent may change, lower-cased. */
   sheets: Set<string>;
+  /** A sheet's cells by its title, for working out what a sheet-ops proposal would do. */
+  sheetRows?: (title: string) => string[][] | null;
+  /** The cells the person chose, when the request is anchored on a sheet. */
+  chosen?: { title: string; range: CellRange } | null;
 };
+
+/** What is wrong with a sheet-ops proposal, or null when it would run. */
+export function sheetOpProblem(p: Proposal, ctx: CheckContext): string | null {
+  const rows = ctx.sheetRows?.(p.title) ?? null;
+  if (!ctx.sheets.has(p.title.trim().toLowerCase()) || !rows)
+    return `"${p.title}" is not a sheet you were given. For "sheet-ops", "title" is a sheet's exact title.`;
+  const chosen =
+    ctx.chosen && ctx.chosen.title.toLowerCase() === p.title.trim().toLowerCase()
+      ? ctx.chosen.range
+      : null;
+  const op = readOp(p.body, chosen);
+  if (typeof op === 'string') return `Your sheet-ops body: ${op}`;
+  const result = runOp(rows, op);
+  return result.ok ? null : `Your sheet-ops on "${p.title}" cannot run: ${result.error}`;
+}
 
 /**
  * Problems with a model's answer that the model can fix if told. Each is written as an
@@ -53,6 +73,10 @@ export function problemsWith(result: AgentResult, ctx: CheckContext): string[] {
         'The "body" of your edit-cells is not one change per line like "B3 = 2800". Write only lines of a cell and its value.',
       );
   }
+  if (p?.kind === 'sheet-ops') {
+    const problem = sheetOpProblem(p, ctx);
+    if (problem) problems.push(problem);
+  }
   if (result.handoff) {
     const to = result.handoff.to.toLowerCase();
     if (!ctx.colleagues.some((c) => c.toLowerCase() === to))
@@ -90,6 +114,15 @@ export function keepOnlyValid(result: AgentResult, ctx: CheckContext): AgentResu
   ) {
     delete out.proposal;
     notes.push("I couldn't put that change to the sheet together, so I haven't suggested it.");
+  }
+  if (out.proposal?.kind === 'sheet-ops') {
+    const problem = sheetOpProblem(out.proposal, ctx);
+    if (problem) {
+      delete out.proposal;
+      notes.push(
+        `I couldn't set that up on the sheet: ${problem.replace(/^Your sheet-ops[^:]*: /, '')}`,
+      );
+    }
   }
   if (
     out.handoff &&

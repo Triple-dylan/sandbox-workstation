@@ -1,5 +1,6 @@
 import { cellEdits, colName } from '../shared/formula.ts';
 import { MAX_COLS, MAX_ROWS, readRange, readSheet } from '../shared/sheet.ts';
+import { readOp, runOp } from '../shared/sheetOps.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
@@ -2206,6 +2207,14 @@ export class Store {
     if (approval.proposal.kind === 'edit-cells') {
       const edits = cellEdits(approval.proposal.undo);
       if (edits) this.setCells(actorId, page.id, edits);
+    } else if (approval.proposal.kind === 'sheet-ops') {
+      const before = JSON.parse(approval.proposal.undo) as {
+        edits?: { row: number; col: number; value: string }[];
+        filter?: unknown;
+      };
+      if (before.edits?.length) this.setCells(actorId, page.id, before.edits);
+      if ('filter' in before)
+        this.setSheetLayout(actorId, page.id, { filter: before.filter ?? null });
     } else if (approval.proposal.kind === 'edit-doc') {
       if (!page.body.includes(approval.proposal.body))
         throw new InputError('The page has changed since; undo it by hand.');
@@ -2254,6 +2263,8 @@ export class Store {
     if (decision === 'approved' && typeof edited === 'string') {
       if (approval.proposal.kind === 'edit-cells' && !cellEdits(edited))
         throw new InputError('Write one change per line, like B3 = 2800.');
+      if (approval.proposal.kind === 'sheet-ops' && typeof readOp(edited, null) === 'string')
+        throw new InputError('That operation could not be read.');
       if (!edited.trim()) throw new InputError('There is nothing left to apply.');
       approval.proposal = { ...approval.proposal, body: edited.slice(0, 20_000) };
       this.run(
@@ -2328,6 +2339,39 @@ export class Store {
         approvalId,
       );
       this.setCells(actorId, sheet.id, edits);
+      resultResourceId = sheet.id;
+    }
+    if (decision === 'approved' && approval.proposal.kind === 'sheet-ops') {
+      // Worked out again on the sheet as it is now, so it is right even if cells changed since.
+      const sheet = this.resource(approval.proposal.resourceId ?? '');
+      if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
+        throw new AccessError('Not available.');
+      const op = readOp(approval.proposal.body, null);
+      if (typeof op === 'string') throw new InputError('This change could not be read. Ask again.');
+      const body = readSheet(sheet.body);
+      const result = runOp(body.rows, op);
+      if (!result.ok) throw new InputError(`The sheet has changed since: ${result.error}`);
+      approval.proposal = {
+        ...approval.proposal,
+        undo: JSON.stringify(
+          result.filter !== undefined
+            ? { filter: body.filter ?? null }
+            : {
+                edits: result.edits.map((e) => ({
+                  ...e,
+                  value: body.rows[e.row]?.[e.col] ?? '',
+                })),
+              },
+        ),
+      };
+      this.run(
+        'update approvals set proposal = ? where id = ?',
+        json(approval.proposal),
+        approvalId,
+      );
+      if (result.filter !== undefined)
+        this.setSheetLayout(actorId, sheet.id, { filter: result.filter });
+      else if (result.edits.length) this.setCells(actorId, sheet.id, result.edits);
       resultResourceId = sheet.id;
     }
     if (decision === 'approved' && approval.proposal.kind === 'add-step')

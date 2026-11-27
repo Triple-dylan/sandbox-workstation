@@ -1,5 +1,6 @@
 import { keepOnlyValid, problemsWith } from '../server/agents/checks.ts';
-import { cellEdits } from '../shared/formula.ts';
+import { cellEdits, evaluate } from '../shared/formula.ts';
+import { readSheet } from '../shared/sheet.ts';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
@@ -1953,6 +1954,87 @@ test('sheet ranges: the agent gets the chosen cells as a table with column names
   assert.equal(
     anchor.cells,
     'row | Region (A) | Amount (B)\n3 | North | 1200\n4 | South | 600 (=B3/2)',
+  );
+});
+
+test('sheet ops: an agent asks for a pivot of the chosen cells; code writes it; a bad one is sent back once', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      seen.push(task);
+      // First try names a column that is not there; the retry fixes it.
+      const of = task.feedback ? 'Amount' : 'Revenue';
+      return {
+        reply: 'A pivot of amount by region.',
+        proposal: {
+          kind: 'sheet-ops',
+          title: 'Sales',
+          body: JSON.stringify({ op: 'pivot', rows: ['Region'], values: [{ fn: 'sum', of }] }),
+        },
+      };
+    },
+  };
+  const { store, engine, dylan, general, agent, project, snap } = setup(runtime);
+  const rows = [
+    ['Region', 'Amount'],
+    ['North', '100'],
+    ['South', '50'],
+    ['North', '25'],
+  ];
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Sales',
+    body: JSON.stringify({ rows }),
+  });
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'pivot this by region',
+    addressedTo: agent.id,
+    anchor: {
+      resourceId: sheet.id,
+      quote: 'A1:B4',
+      range: { top: 0, left: 0, bottom: 3, right: 1 },
+    },
+  });
+  await engine.idle();
+  assert.match(seen[1].feedback, /no column "Revenue"/);
+  const approval = snap(dylan.id).approvals.find((a) => a.proposal.kind === 'sheet-ops')!;
+  assert.equal(approval.proposal.resourceId, sheet.id);
+  assert.equal(
+    JSON.parse(approval.proposal.body).range,
+    'A1:B4',
+    'the chosen cells are stored by name',
+  );
+  assert.equal(
+    readSheet(store.resource(sheet.id)!.body).rows[0][3] ?? '',
+    '',
+    'nothing written yet',
+  );
+
+  store.decideApproval(dylan.id, approval.id, 'approved');
+  const made = readSheet(store.resource(sheet.id)!.body).rows;
+  assert.deepEqual(
+    [0, 1, 2, 3].map((r) => [made[r][3], evaluate(made, r, 4)]),
+    [
+      ['Region', 'Sum of Amount'],
+      ['North', '125'],
+      ['South', '50'],
+      ['Total', '175'],
+    ],
+  );
+  store.undoApproval(dylan.id, approval.id);
+  const undone = readSheet(store.resource(sheet.id)!.body).rows;
+  assert.deepEqual(
+    undone.map((r) => r.slice(0, 2)),
+    rows,
+  );
+  assert.ok(
+    undone.every((r) => r.slice(2).every((c) => c === '')),
+    'the pivot is gone',
   );
 });
 
