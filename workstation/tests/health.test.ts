@@ -2,7 +2,13 @@ import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app.ts';
-import { mountFor, parseMountinfo, storageInfo, storageWarning } from '../server/storage.ts';
+import {
+  databaseReads,
+  mountFor,
+  parseMountinfo,
+  storageInfo,
+  storageWarning,
+} from '../server/storage.ts';
 
 // A container with no volume: / is the overlay, /data is just a folder on it.
 const NO_VOLUME = [
@@ -80,4 +86,38 @@ test('healthz: reports whether the database is kept, and stays 200 either way', 
   assert.equal(body.persistent, false);
   assert.equal(body.storage, 'memory');
   assert.equal(typeof body.version, 'number');
+});
+
+test('healthz: answers 503 when the database stops answering', async () => {
+  const app = createApp({ dbPath: ':memory:', staticDir: null });
+  opened.push(app);
+  await new Promise<void>((done) => app.server.listen(0, '127.0.0.1', done));
+  const { port } = app.server.address() as AddressInfo;
+  assert.equal((await fetch(`http://127.0.0.1:${port}/healthz`)).status, 200);
+  // Stand in for a database that has gone away (a lost volume, a locked or corrupt file).
+  const db = app.store.db as { prepare: unknown };
+  const prepare = db.prepare;
+  db.prepare = () => {
+    throw new Error('disk I/O error');
+  };
+  after(() => {
+    db.prepare = prepare;
+  });
+  const res = await fetch(`http://127.0.0.1:${port}/healthz`);
+  assert.equal(res.status, 503);
+  const body = (await res.json()) as Record<string, unknown>;
+  assert.equal(body.ok, false);
+  assert.match(String(body.error), /database/);
+});
+
+test('storage: databaseReads is false when a read throws', () => {
+  assert.equal(databaseReads({ prepare: () => ({ get: () => 1 }) }), true);
+  assert.equal(
+    databaseReads({
+      prepare: () => {
+        throw new Error('database is locked');
+      },
+    }),
+    false,
+  );
 });
