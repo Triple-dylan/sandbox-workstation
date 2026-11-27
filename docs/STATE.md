@@ -121,6 +121,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
 - No real accounts or hosting yet; `docs/WEBAPP.md` lists what a hosted version still needs. PDF import is not built. Text size changes the base size; some small labels stay fixed.
 - No Claude runtime on the local server yet (OpenAI only there).
+- Select-and-ask is built for sheets only (pivot, sort, filter, total). Charts, and the same pattern on documents, canvas, chat, decks and the graph, are steps 6–8 of `docs/SELECT-AND-ASK.md`.
 
 ## Checks
 
