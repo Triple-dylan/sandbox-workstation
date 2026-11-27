@@ -325,12 +325,23 @@ export type Routine = {
 export type Proposal = {
   /** edit-doc: title is the exact text to replace in the page, body is what replaces it. */
   /** edit-cells: title is the sheet's exact title, body is one change per line, like "B3 = 2800". */
-  kind: 'create-doc' | 'create-agent' | 'add-step' | 'edit-doc' | 'edit-cells' | 'create-skill';
+  /** sheet-ops: title is the sheet's exact title, body is one operation as JSON (shared/sheetOps.ts). */
+  kind:
+    | 'create-doc'
+    | 'create-agent'
+    | 'add-step'
+    | 'edit-doc'
+    | 'edit-cells'
+    | 'sheet-ops'
+    | 'create-skill';
   title: string;
   body: string;
   /** edit-doc and edit-cells: the page to change. create-doc: the canvas to put the new page on, if any. */
   resourceId?: Id;
-  /** edit-cells, once applied: the cells as they were, in the same form, so it can be undone. */
+  /**
+   * edit-cells, once applied: the cells as they were, in the same form, so it can be undone.
+   * sheet-ops: JSON, {"edits": [...]} or {"filter": ...}, of what was there before.
+   */
   undo?: string;
 };
 export type Approval = {

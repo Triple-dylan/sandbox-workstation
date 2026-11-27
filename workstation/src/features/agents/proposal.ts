@@ -12,6 +12,21 @@ export function proposalText(p: Proposal, pageTitle?: string) {
       yes: 'Apply',
       no: 'Decline',
     };
+  if (p.kind === 'sheet-ops') {
+    const op = (/"op"\s*:\s*"([a-z-]+)"/.exec(p.body)?.[1] ?? 'change') as string;
+    const what: Record<string, string> = {
+      pivot: 'A pivot',
+      sort: 'Sorting',
+      filter: 'A filter',
+      'clear-filter': 'Clearing the filter',
+      total: 'A totals row',
+    };
+    return {
+      title: `${what[op] ?? 'A change'}${pageTitle ? ` on ${pageTitle}` : ''}`,
+      yes: 'Apply',
+      no: 'Decline',
+    };
+  }
   if (p.kind === 'edit-doc')
     return {
       title: `Suggested edit${pageTitle ? ` to ${pageTitle}` : ''}`,
