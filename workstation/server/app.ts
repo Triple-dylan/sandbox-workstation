@@ -9,6 +9,7 @@ import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
+import { Mcp } from './mcp.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -89,18 +90,18 @@ export function createApp(options: AppOptions) {
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
   const seats = new Seats(store);
+  const mcp = new Mcp(store, seats);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
     allowHosts: options.browserHosts,
   });
   // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
-  const callback = (req: IncomingMessage, provider: string) => {
-    const origin =
-      env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
-      `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
-    return `${origin}/api/connect/${provider}/callback`;
-  };
+  const origin = (req: IncomingMessage) =>
+    env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
+    `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
+  const callback = (req: IncomingMessage, provider: string) =>
+    `${origin(req)}/api/connect/${provider}/callback`;
   const staticDir =
     options.staticDir === undefined
       ? fileURLToPath(new URL('../dist/', import.meta.url))
@@ -860,6 +861,8 @@ export function createApp(options: AppOptions) {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
       if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
+      // Outside agents sign in here with their seat's token (server/mcp.ts).
+      if (path === '/mcp') return await mcp.handle(req, res, origin(req));
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {
@@ -880,12 +883,14 @@ export function createApp(options: AppOptions) {
     browsers,
     collab,
     seats,
+    mcp,
     runtime,
     async close() {
       if (closed) return;
       closed = true;
       clearInterval(heartbeat);
       engine.stop();
+      mcp.stop();
       connectors.close();
       collab.stop();
       await browsers.stop();
