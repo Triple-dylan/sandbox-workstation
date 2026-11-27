@@ -28,6 +28,8 @@ export class PageWatch {
   private open = new Map<string, Open>();
   /** Pages this service has closed for being idle, since it started. */
   closedIdle = 0;
+  /** Pages closed to bring memory back under the limit, since it started. */
+  closedForMemory = 0;
 
   constructor(
     session: BrowserSession,
@@ -75,9 +77,23 @@ export class PageWatch {
   async closeIdle(): Promise<number> {
     if (!this.idleMs) return 0;
     const now = this.now();
+    const idle = [...this.open].filter(([, page]) => now - page.usedAt >= this.idleMs);
+    const closed = await this.close(idle.map(([id]) => id));
+    this.closedIdle += closed;
+    return closed;
+  }
+
+  /** Closes the page used longest ago, to give memory back. Says whether one was closed. */
+  async closeLeastUsed(): Promise<boolean> {
+    const oldest = [...this.open].sort(([, a], [, b]) => a.usedAt - b.usedAt)[0];
+    const closed = oldest ? await this.close([oldest[0]]) : 0;
+    this.closedForMemory += closed;
+    return closed > 0;
+  }
+
+  private async close(targetIds: string[]) {
     let closed = 0;
-    for (const [targetId, page] of [...this.open]) {
-      if (now - page.usedAt < this.idleMs) continue;
+    for (const targetId of targetIds) {
       this.open.delete(targetId);
       const ok = await this.session
         .send('Target.closeTarget', { targetId })
@@ -85,7 +101,6 @@ export class PageWatch {
         .catch(() => false);
       if (ok) closed++;
     }
-    this.closedIdle += closed;
     return closed;
   }
 }

@@ -37,6 +37,7 @@ export function healthLine(
   memory: Memory,
   pages: { pages: number; workspaces: number },
   closedIdle: number,
+  closedForMemory = 0,
 ) {
   const parts = [
     memory.used === null
@@ -48,6 +49,9 @@ export function healthLine(
       pages.workspaces === 1 ? 'workspace' : 'workspaces'
     }`,
     `${closedIdle} idle ${closedIdle === 1 ? 'page' : 'pages'} closed`,
+    closedForMemory
+      ? `${closedForMemory} ${closedForMemory === 1 ? 'page' : 'pages'} closed to free memory`
+      : null,
   ];
   return `health: ${parts.filter(Boolean).join(', ')}`;
 }
@@ -111,3 +115,8 @@ function treeSize(proc: string, root: number) {
 
 /** Linux's page size on the machines this runs on (x86-64 and arm64 servers). */
 const PAGE = 4096;
+
+/** How full the container is, 0 to 1, when Linux says both what it uses and its limit. */
+export function fullness(memory: Memory) {
+  return memory.used !== null && memory.limit ? memory.used / memory.limit : null;
+}
