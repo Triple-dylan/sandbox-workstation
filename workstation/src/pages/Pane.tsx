@@ -1,5 +1,5 @@
 import { useClickAway } from '../app/clickAway.ts';
-import { useRef, useState } from 'react';
+import { Suspense, lazy, useRef, useState } from 'react';
 import {
   Archive,
   Columns2,
@@ -19,16 +19,21 @@ import { KindIcon, ago, chatTitle, kindName } from '../app/util.tsx';
 import { useWorkspace, type Target } from '../app/workspace.tsx';
 import { agentLabel, atWork, usedIn } from '../app/scope.ts';
 import type { Resource, User } from '../../shared/types.ts';
-import { DocPage } from './DocPage.tsx';
-import { SheetPage } from './SheetPage.tsx';
-import { DeckPage } from './DeckPage.tsx';
-import { CanvasPage } from './CanvasPage.tsx';
 import { ChatPage } from './ChatPage.tsx';
-import { GraphPage } from './GraphPage.tsx';
 import { WhoPage } from './WhoPage.tsx';
 import { agentsIn } from '../features/feed/Feed.tsx';
-import { AssetPage } from './AssetPage.tsx';
-import { BrowserPage } from './BrowserPage.tsx';
+
+// Each kind of page loads when one is first opened, so a first visit downloads only what a chat
+// needs: the editor, canvas, graph and sheet code stay out of the opening download.
+const DocPage = lazy(() => import('./DocPage.tsx').then((m) => ({ default: m.DocPage })));
+const SheetPage = lazy(() => import('./SheetPage.tsx').then((m) => ({ default: m.SheetPage })));
+const DeckPage = lazy(() => import('./DeckPage.tsx').then((m) => ({ default: m.DeckPage })));
+const CanvasPage = lazy(() => import('./CanvasPage.tsx').then((m) => ({ default: m.CanvasPage })));
+const GraphPage = lazy(() => import('./GraphPage.tsx').then((m) => ({ default: m.GraphPage })));
+const AssetPage = lazy(() => import('./AssetPage.tsx').then((m) => ({ default: m.AssetPage })));
+const BrowserPage = lazy(() =>
+  import('./BrowserPage.tsx').then((m) => ({ default: m.BrowserPage })),
+);
 
 /** Who can open a page, and the way to change it. Only its owner changes it. */
 function ShareBox({ page, close }: { page: Resource; close: () => void }) {
@@ -486,15 +491,17 @@ export function Pane({
         {popover === 'menu' && page && <PageMenu page={page} close={() => setPopover(null)} />}
       </header>
       <div className="pane-body">
-        {page?.kind === 'doc' && <DocPage key={page.id} page={page} />}
-        {page?.kind === 'sheet' && <SheetPage key={page.id} page={page} />}
-        {page?.kind === 'deck' && <DeckPage key={page.id} page={page} />}
-        {page?.kind === 'asset' && <AssetPage key={page.id} page={page} />}
-        {page?.kind === 'browser' && <BrowserPage key={page.id} page={page} />}
-        {page?.kind === 'canvas' && <CanvasPage key={page.id} page={page} active={active} />}
-        {chat && <ChatPage key={chat.id} chat={chat} />}
-        {target.type === 'graph' && <GraphPage />}
-        {who && <WhoPage key={who.id} who={who} />}
+        <Suspense fallback={null}>
+          {page?.kind === 'doc' && <DocPage key={page.id} page={page} />}
+          {page?.kind === 'sheet' && <SheetPage key={page.id} page={page} />}
+          {page?.kind === 'deck' && <DeckPage key={page.id} page={page} />}
+          {page?.kind === 'asset' && <AssetPage key={page.id} page={page} />}
+          {page?.kind === 'browser' && <BrowserPage key={page.id} page={page} />}
+          {page?.kind === 'canvas' && <CanvasPage key={page.id} page={page} active={active} />}
+          {chat && <ChatPage key={chat.id} chat={chat} />}
+          {target.type === 'graph' && <GraphPage />}
+          {who && <WhoPage key={who.id} who={who} />}
+        </Suspense>
       </div>
     </section>
   );
