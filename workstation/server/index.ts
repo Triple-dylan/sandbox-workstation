@@ -3,6 +3,7 @@ import { networkInterfaces } from 'node:os';
 import { loadEnv } from './env.ts';
 import { createApp } from './app.ts';
 import { storageFor, storageWarning } from './storage.ts';
+import { backupOptions, scheduleBackups } from './backup.ts';
 
 loadEnv();
 const port = Number(process.env.PORT ?? 4174);
@@ -10,6 +11,8 @@ const host = process.env.HOST ?? '127.0.0.1';
 const dbPath =
   process.env.WORKSTATION_DB ?? fileURLToPath(new URL('../data/workstation.db', import.meta.url));
 const app = createApp({ dbPath, staticDir: process.env.STATIC === 'off' ? null : undefined });
+// Nightly copies of the database beside it (see server/backup.ts); off for an in-memory database.
+const backups = scheduleBackups(dbPath, backupOptions(dbPath, process.env));
 
 app.server.listen(port, host, () => {
   const address = app.server.address();
@@ -29,5 +32,6 @@ app.server.listen(port, host, () => {
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
+    backups.stop();
     app.close().finally(() => process.exit(0));
   });

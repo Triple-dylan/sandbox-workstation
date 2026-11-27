@@ -26,7 +26,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 6. **Relay for window sharing.** Across office networks, direct browser-to-browser connections often fail; a TURN relay is needed.
 7. **Retrieval at scale.** Keyword ranking is still rebuilt in memory and vectors are compared by brute force, which is fine for thousands of passages; a large corpus wants a vector index (pgvector with Postgres). PDF import is not built.
 8. **Limits and abuse.** Upload size policy. (Agent spend limits per space and per person, and a per-person rate, are done.)
-9. **Operations.** Backups, error reporting, and a way to delete a person's data. Owners can delete a workspace, but its rows are only closed off, not purged.
+9. **Operations.** Error reporting, and a way to delete a person's data. Nightly backups exist (a copy of the database in `backups/` beside it, last 7 kept); they live on the same volume, so they guard against bad writes, not against losing the volume. Owners can delete a workspace, but its rows are only closed off, not purged.
 
 ## Suggested order
 
@@ -68,6 +68,7 @@ In the service, **Variables**, add:
 | `OPENAI_API_KEY` | your OpenAI key. Without it, agents say they are not connected and answer nothing |
 | `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 10000000 per day for the whole server |
 | `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 3000000, 1000000 and 20 |
+| `BACKUP_KEEP`, `BACKUP_HOUR`, `BACKUP_DIR`, `BACKUPS` | optional; nightly database copies. Defaults: keep 7, at 3:00 UTC, in `backups/` beside the database. `BACKUPS=off` turns them off |
 
 Railway redeploys when variables change.
 
