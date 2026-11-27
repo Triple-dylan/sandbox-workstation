@@ -37,7 +37,7 @@ export function purgeDeletedWorkspaces(
 }
 
 /**
- * Removes a space and everything in it, in one transaction. Also removes the agents that
+ * Removes a space and everything in it, all or nothing. Also removes the agents that
  * belonged to it and any one-to-one chats people had with them.
  */
 export function wipeSpace(db: Db, spaceId: Id) {
@@ -107,12 +107,21 @@ export function wipeSpace(db: Db, spaceId: Id) {
     [`delete from users where id in ${each}`, JSON.stringify(agents)],
     ['delete from spaces where id = ?', spaceId],
   ];
-  db.exec('begin');
-  try {
+  atomically(db, () => {
     for (const [sql, ...args] of steps) db.prepare(sql).run(...args);
-    db.exec('commit');
+  });
+}
+
+/** Runs the changes all or nothing. A savepoint, so it can sit inside a larger change. */
+export function atomically(db: Db, change: () => void) {
+  const name = `change_${Math.random().toString(36).slice(2)}`;
+  db.exec(`savepoint ${name}`);
+  try {
+    change();
+    db.exec(`release ${name}`);
   } catch (error) {
-    db.exec('rollback');
+    db.exec(`rollback to ${name}`);
+    db.exec(`release ${name}`);
     throw error;
   }
 }

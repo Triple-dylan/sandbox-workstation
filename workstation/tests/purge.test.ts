@@ -218,3 +218,19 @@ test('purge: the server purges on start, using its environment', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('purge: a purge that fails part way leaves the workspace as it was', () => {
+  const { store, dylan, launch } = setup();
+  store.deleteProject(dylan.id, launch.id, 'Launch');
+  const rows = () => (store.db.prepare('select count(*) n from resources').get() as any).n;
+  const before = rows();
+  // A trigger that refuses to drop the space row makes the last step fail.
+  store.db.exec(
+    `create trigger keep_space before delete on spaces begin select raise(abort, 'kept'); end`,
+  );
+  assert.throws(() => purgeDeletedWorkspaces(store.db, { afterDays: 0 }), /kept/);
+  assert.equal(rows(), before, 'its pages are all still there');
+  assert.ok(store.space(launch.id));
+  store.db.exec('drop trigger keep_space');
+  assert.deepEqual(purgeDeletedWorkspaces(store.db, { afterDays: 0 }), [launch.id]);
+});
