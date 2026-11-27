@@ -118,6 +118,8 @@ function fromSandbox(secret, headers, rawBody) {
 }
 ```
 
-Answer with any 2xx within 10 seconds. A failed delivery is tried twice more over about a minute. Deliveries are not kept across a server restart, so an agent that must not miss a message also reads `/api/v1/inbox` with `since` when it starts.
+Answer with any 2xx within 10 seconds. A failed delivery is tried twice more over about a minute. Deliveries are not kept across a server restart, so an agent that must not miss anything also reads `/api/v1/changes` from its last cursor when it starts.
+
+`GET /api/v1/webhooks/:id/deliveries` shows the latest tries, newest first. Each one lists the event's id and type, which try it was, the status your server answered or what went wrong, and how long it took. The last 200 per webhook are kept, and the log never holds an event's contents. If tries keep failing, fix the receiver, then catch up from `/api/v1/changes`.
 
 Webhooks go only to https addresses on the internet: addresses on the server's own machine or private network are refused, and redirects are not followed.
