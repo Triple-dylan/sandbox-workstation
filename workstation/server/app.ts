@@ -14,7 +14,7 @@ import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
-import { readSheet } from '../shared/sheet.ts';
+import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
 
 const COOKIE = 'sw_session';
@@ -434,7 +434,13 @@ export function createApp(options: AppOptions) {
           delegate: input.delegate === true,
           anchor:
             input.anchor && typeof input.anchor.resourceId === 'string'
-              ? { resourceId: input.anchor.resourceId, quote: String(input.anchor.quote ?? '') }
+              ? {
+                  resourceId: input.anchor.resourceId,
+                  quote: String(input.anchor.quote ?? ''),
+                  ...(readRange(input.anchor.range)
+                    ? { range: readRange(input.anchor.range)! }
+                    : {}),
+                }
               : null,
           replyTo: str('replyTo') || null,
           sharedFrom: str('sharedFrom') || null,

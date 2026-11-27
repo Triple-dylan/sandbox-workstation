@@ -1,5 +1,5 @@
 import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
-import { readSheet } from '../../shared/sheet.ts';
+import { rangeTable, readSheet } from '../../shared/sheet.ts';
 import { isPage } from '../../shared/types.ts';
 import type { ChangeEvent, Store } from '../store.ts';
 import type {
@@ -632,7 +632,16 @@ export class AgentEngine {
         : { kind: conversation?.kind ?? 'none', title: conversation?.title ?? '' },
       anchor:
         anchorResource && trigger?.anchor
-          ? { title: anchorResource.title, quote: trigger.anchor.quote }
+          ? {
+              title: anchorResource.title,
+              quote: trigger.anchor.quote,
+              // Cells chosen on a sheet go as a table read fresh from the sheet, not as the quote.
+              ...(anchorResource.kind === 'sheet' &&
+              trigger.anchor.range &&
+              this.store.canReadResource(agent.id, anchorResource)
+                ? rangeTable(readSheet(anchorResource.body).rows, trigger.anchor.range)
+                : {}),
+            }
           : null,
       context: {
         orientation:
