@@ -26,6 +26,10 @@ The service runs in 2 GB, and every open page in Chrome costs memory, so it look
   the last person leaves; this catches any page that slips past that. `PAGE_IDLE_MINUTES` changes
   the time, and `0` turns it off. Someone reading one page for half an hour without clicking
   anywhere will see that tab close too.
+- **Memory is capped.** One page's scripts can use at most 512 MB, so a runaway page fails on its
+  own instead of taking the service down. When the container passes 85% of its limit, the page
+  used longest ago is closed, one page at a time and checked again every 15 seconds, until it is
+  back under. `MEMORY_HIGH_PERCENT` changes the threshold, and `0` turns it off.
 - **A health line every minute** in the service's log, for example
   `health: memory 900 MB of 2048 MB, Chrome 550 MB, service 60 MB, 5 pages open in 2 workspaces, 3 idle pages closed`.
   Memory is the container's own count against its limit; Chrome's figure adds up its processes and
