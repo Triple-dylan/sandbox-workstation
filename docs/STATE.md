@@ -72,7 +72,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-24
 
-- Every agent runs on `gpt-6-luna`; there is no model setting.
+- Every agent runs on `gpt-6-luna`; there is no model setting. When OpenAI can't answer (busy after the retries, out of credit, or unreachable), Claude Sonnet 5.5 answers once through the Nous key (`NOUS_API_KEY`). The reply is tagged "Claude Sonnet 5.5 · OpenAI unavailable", and its tokens and dollars go to `provider_usage`, which no screen shows yet. Checked live on 2026-11-27 with OpenAI forced out of credit: the embargo question was answered from the page in 4s for $0.0067.
 - Answer checks: agents answer in a strict JSON shape (falls back to plain JSON mode if the model refuses it; gpt-6-luna accepts it). Each answer is checked against what the agent was given: cited pages must exist, a proposed edit must quote text that is really on the page, a handoff must name a real colleague, and a question must get a reply. A fixable problem gets one retry with the problem spelled out; anything still wrong is left out and the reply says so.
 - Live quality checks: `npm run eval` in `workstation/` runs six realistic cases against the real model and scores them (grounded numbers and sources, finding by meaning, admitting what is missing, exact edits, honouring decided messages, no private text in channels). Needs `OPENAI_API_KEY`; not part of CI. First run 2026-11-24: 6/6.
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.

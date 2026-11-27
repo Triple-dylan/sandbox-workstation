@@ -151,6 +151,7 @@ export function createApp(options: AppOptions) {
     id: runtime.id,
     label: runtime.label,
     ...(runtime.model ? { model: runtime.model } : {}),
+    ...(runtime.fallback ? { fallback: runtime.fallback } : {}),
   };
 
   const cookie = (req: IncomingMessage) =>
