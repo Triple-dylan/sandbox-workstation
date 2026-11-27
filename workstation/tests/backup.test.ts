@@ -299,3 +299,47 @@ test('the health line says how old the newest backup is', async () => {
     t.done();
   }
 });
+
+test('owners can take a backup now, and nobody else can', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sw-backup-now-'));
+  const dbPath = join(dir, 'workstation.db');
+  const app = createApp({
+    dbPath,
+    staticDir: null,
+    runtime: scriptedRuntime,
+    env: { BACKUP_OWNERS: 'owner@example.com' },
+  });
+  try {
+    await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const post = (userId: string, headers: Record<string, string> = { 'x-workstation': '1' }) =>
+      fetch(`${base}/api/backup`, {
+        method: 'POST',
+        headers: { ...headers, cookie: `sw_session=${app.store.createSession(userId)}` },
+      });
+    const folder = join(dir, 'backups');
+
+    assert.equal((await post(other.id)).status, 403);
+    // Without the app's own header (a form posted from another site), nothing happens.
+    assert.equal((await post(owner.id, {})).status, 403);
+    assert.deepEqual(listBackups(folder), []);
+
+    const first = await post(owner.id);
+    assert.equal(first.status, 200);
+    const made = await first.json();
+    assert.match(made.name, /^backup-\d{4}-\d{2}-\d{2}T\d{6}Z\.db$/);
+    assert.ok(made.bytes > 0);
+    assert.deepEqual(
+      listBackups(folder).map((b) => b.name),
+      [made.name],
+    );
+    // Pressed again within a minute: the same copy, not another.
+    assert.equal((await (await post(owner.id)).json()).name, made.name);
+    assert.equal(listBackups(folder).length, 1);
+  } finally {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

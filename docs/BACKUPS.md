@@ -12,6 +12,8 @@ To check they are running, open `https://<your address>/healthz`: `backups.newes
 
 Sign in with an email listed in `BACKUP_OWNERS` and open `https://<your address>/api/backup`. It downloads the newest copy.
 
+To take a copy now (for example before a risky change), an owner sends `POST /api/backup` from the signed-in app. It answers with the new copy's name, which you can then restore by name. A copy taken within the last minute is returned instead of taking another. On-demand copies count toward the 7 kept, so several in a row push out the oldest nightly ones.
+
 ## Restoring
 
 A restore is staged while the server runs and put in place the next time it starts, before anything opens the database. This is because on Railway the server is the only thing running in its container, so it cannot be stopped first.

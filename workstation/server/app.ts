@@ -315,6 +315,19 @@ export function createApp(options: AppOptions) {
       );
       return;
     }
+    // Back up now: an owner takes a copy on demand, for example before a risky change.
+    if (path === '/api/backup' && method === 'POST') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can take backups.');
+      // A copy from the last minute is returned as it is rather than taking another.
+      const recent = listBackups(backups.dir)[0];
+      const fresh =
+        recent && Date.now() - Date.parse(recent.takenAt) < 60_000
+          ? recent
+          : backupNow(options.dbPath, backups);
+      return send(res, 200, { name: fresh.name, takenAt: fresh.takenAt, bytes: fresh.bytes });
+    }
     if (path === '/api/snapshot' && method === 'GET')
       return send(res, 200, {
         ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
