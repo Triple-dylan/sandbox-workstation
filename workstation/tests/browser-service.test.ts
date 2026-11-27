@@ -13,7 +13,10 @@ after(async () => {
   for (const [i, close] of closing.entries()) {
     const t = Date.now();
     const done = await Promise.race([
-      Promise.resolve(close()).then(() => 'done', (e) => `failed ${e}`),
+      Promise.resolve(close()).then(
+        () => 'done',
+        (e) => `failed ${e}`,
+      ),
       new Promise((r) => setTimeout(() => r('HUNG'), 10_000)),
     ]);
     console.error(`DIAG close ${i} ${String(close).slice(0, 60)}: ${done} in ${Date.now() - t} ms`);
