@@ -510,6 +510,7 @@ On the agent dropdown: "Idk if the agent drop down makes a ton of sense. I think
 
 2026-11-25, on the private chat: "seeing private agent chat responses having a save a a page option for both a draft suggestion but also for just normal responses. needds to be thought through more. private chat could still do a better job at sharing context, interacting with other agents, and just nromal user to agent interactions. not the best currently"
 
+2026-11-26, on a test copy showing "scripted stand-in": "also the your agent - says scripted standin. there should be no scripted agents anywhere"
 2026-11-26, on the left rail: "on the ui front - I think we can bring back the two layered left rail. the thin left rail containing channel and private access. the current left rail containing everything within a given channel or group. the main left rail should auto hide when someone is working on a page unless they decide to manually open it, but usually it should operate how the claude harness left rail does when collapsed. mouse hover over the area brings it"
 2026-11-26, on agents and context: "we should probably make sure that a users agent follows them at teh account level and space agents are dedicated to a space. someones personal agent should be able to compile their personal context in their private section, and using that context in private convos across sapces. understand?"
 

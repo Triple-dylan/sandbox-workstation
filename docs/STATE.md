@@ -15,7 +15,7 @@ _Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
 
 - **No setup:** `npm run build:inpage` (in `workstation/`) writes `dist-inpage/workstation.html`, one page with the client and the real server inside it. It opens on a labelled example space: a go-to-market launch run across product, product marketing and marketing (an invented product and people). One person at a time; data stays in that browser.
 - **Several people:** `npm ci && npm start` in `workstation/`, then http://127.0.0.1:4174. `HOST=0.0.0.0 npm start` lets others on a trusted network join.
-- **Live agents.** In the published in-page build, agents answer with Claude through the page itself, on the viewer's account, with no key stored. On the local server they use the key in the root `.env` (`OPENAI_API_KEY`). Where neither is available they fall back to scripted replies and say so on the message.
+- **Live agents.** In the published in-page build, agents answer with Claude through the page itself, on the viewer's account, with no key stored. On the server they use `OPENAI_API_KEY`. Without a key, agents say they are not connected and answer nothing; over a daily allowance they say so and answer nothing. No scripted reply stands in anywhere.
 
 ## The structure
 
