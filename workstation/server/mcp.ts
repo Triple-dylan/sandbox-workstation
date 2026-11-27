@@ -157,11 +157,22 @@ export class Mcp {
       // The seat may have been retired or taken out a moment ago: look again for every call.
       const current = this.store.user(seat.id);
       if (!current || current.retired) return rpcError(id, -32001, 'This agent is retired.');
+      const args =
+        params?.arguments && typeof params.arguments === 'object' ? params.arguments : {};
+      // Its owner sees what it read and wrote on its page (Seats.activity).
+      const log = (ok: boolean, detail?: string) =>
+        this.seats.record(current.id, {
+          tool: tool.name,
+          wrote: !tool.readOnly,
+          ok,
+          pageId: args.page_id,
+          chatId: args.chat_id,
+          spaceId: args.workspace_id,
+          detail: detail ?? (tool.name === 'search' ? args.query : ''),
+        });
       try {
-        const result = tool.run(
-          current,
-          params?.arguments && typeof params.arguments === 'object' ? params.arguments : {},
-        );
+        const result = tool.run(current, args);
+        log(true);
         return rpcResult(id, {
           content: [
             {
@@ -177,11 +188,14 @@ export class Mcp {
           error instanceof ToolError ||
           error instanceof AccessError ||
           error instanceof InputError
-        )
+        ) {
+          log(false, (error as Error).message);
           return rpcResult(id, {
             content: [{ type: 'text', text: (error as Error).message }],
             isError: true,
           });
+        }
+        log(false, 'Server error.');
         console.error('mcp tool failed', error);
         return rpcError(id, -32603, 'Server error.');
       }

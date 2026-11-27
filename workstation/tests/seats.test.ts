@@ -205,5 +205,10 @@ test('http: seat routes need the owner signed in and the app header', async () =
   });
   assert.equal(revoked.status, 200);
   assert.equal(app.seats.agentForToken(extra.token), null);
+  const log = await fetch(`${base}/api/seats/${made.seat.agent.id}/activity`, {
+    headers: { cookie },
+  });
+  assert.equal(log.status, 200);
+  assert.deepEqual(await log.json(), []);
   await app.close();
 });

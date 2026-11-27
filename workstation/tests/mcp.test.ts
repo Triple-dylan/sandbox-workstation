@@ -265,3 +265,50 @@ test('mcp: a seat at work shows on the page it says, and stops when done', async
   assert.equal(activity().length, 0);
   assert.ok((await call('working_on', {})).isError);
 });
+
+test('mcp: its owner sees what the seat read and wrote, and nothing they could not see', async () => {
+  const { store, seats, dylan, maya, launch, seat, call } = await setup();
+  const plan = store.createResource(maya.id, {
+    spaceId: launch.id,
+    kind: 'doc',
+    title: 'Plan',
+    body: 'Ship on Friday.',
+  });
+  const notes = store.createResource(maya.id, {
+    spaceId: launch.id,
+    kind: 'doc',
+    title: 'Maya only',
+    body: 'Private',
+    visibility: 'private',
+  });
+  store.setGrant(maya.id, notes.id, seat.agent.id, true);
+  const general = (await call('list_chats', { workspace_id: launch.id })).data.find(
+    (c: any) => c.title === '#general',
+  );
+  await call('read_page', { page_id: plan.id });
+  await call('read_page', { page_id: notes.id });
+  await call('search', { query: 'friday' });
+  await call('post_message', { chat_id: general.id, text: 'Read the plan.' });
+  await call('read_page', { page_id: 'nope' });
+
+  const log = seats.activity(dylan.id, seat.agent.id);
+  assert.deepEqual(
+    log.map((a) => a.tool),
+    ['read_page', 'post_message', 'search', 'read_page', 'read_page', 'list_chats'],
+    'newest first',
+  );
+  const [failed, posted, searched, secret, read] = log;
+  assert.equal(failed.ok, false);
+  assert.match(failed.detail, /\w/);
+  assert.equal(posted.wrote, true);
+  assert.equal(posted.chat?.id, general.id);
+  assert.equal(searched.detail, 'friday');
+  assert.equal(searched.wrote, false);
+  // Maya opened her page to the seat alone: its owner sees that it read something, not what.
+  assert.equal(secret.hidden, true);
+  assert.equal(secret.page, null);
+  assert.deepEqual(read.page, { id: plan.id, title: 'Plan' });
+  assert.ok(!JSON.stringify(log).includes('Ship on Friday'), 'never what it read');
+  // Only its owner sees the log.
+  assert.throws(() => seats.activity(maya.id, seat.agent.id), /Not available/);
+});

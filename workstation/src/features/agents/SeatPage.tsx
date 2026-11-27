@@ -240,8 +240,103 @@ export function SeatPage({ who }: { who: User }) {
               {retiring ? 'Click again to retire' : 'Retire this agent'}
             </button>
           )}
+
+          <h3>What it did</h3>
+          <SeatLog agentId={who.id} />
         </section>
       </div>
+    </div>
+  );
+}
+
+type Activity = {
+  id: string;
+  at: string;
+  tool: string;
+  wrote: boolean;
+  ok: boolean;
+  page: { id: Id; title: string } | null;
+  chat: { id: Id; title: string } | null;
+  workspace: { id: Id; name: string } | null;
+  hidden: boolean;
+  detail: string;
+};
+
+/** Each MCP tool as a few words, ahead of what it was about. */
+const DID: Record<string, string> = {
+  whoami: 'Checked who it is',
+  list_workspaces: 'Listed its workspaces',
+  list_pages: 'Listed pages',
+  read_page: 'Read',
+  search: 'Searched for',
+  list_chats: 'Listed chats',
+  read_chat: 'Read',
+  inbox: 'Checked its inbox',
+  post_message: 'Posted in',
+  suggest_edit: 'Suggested an edit to',
+  suggest_cells: 'Suggested changes to',
+  suggest_page: 'Suggested a new page',
+  suggestion_status: 'Checked on a suggestion',
+  working_on: 'Working on',
+};
+const SHOWN = 30;
+
+/**
+ * What the seat read and wrote through the MCP server, newest first, for its owner. Something
+ * opened to it that you can't see yourself is shown as such, never named.
+ */
+function SeatLog({ agentId }: { agentId: Id }) {
+  const { open } = useWorkspace();
+  const [log, setLog] = useState<Activity[] | null>(null);
+  const [all, setAll] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const load = () =>
+      api<Activity[]>(`/seats/${agentId}/activity`).then(
+        (rows) => live && setLog(rows),
+        () => live && setLog([]),
+      );
+    void load();
+    // Its calls don't change anything you are looking at, so this looks again now and then.
+    const timer = setInterval(() => void load(), 20_000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [agentId]);
+  if (!log) return null;
+  if (log.length === 0) return <p className="feed-empty">Nothing yet. It hasn't signed in.</p>;
+  return (
+    <div className="seat-log">
+      {(all ? log : log.slice(0, SHOWN)).map((a) => (
+        <p key={a.id} className={`seat-log-row${a.ok ? '' : ' failed'}`}>
+          <span className={a.wrote ? 'wrote' : undefined}>
+            {DID[a.tool] ?? a.tool}{' '}
+            {a.page ? (
+              <button className="link" onClick={() => open({ type: 'page', id: a.page!.id }, true)}>
+                {a.page.title || 'Untitled'}
+              </button>
+            ) : a.chat ? (
+              <button className="link" onClick={() => open({ type: 'chat', id: a.chat!.id }, true)}>
+                {a.chat.title || 'a chat'}
+              </button>
+            ) : a.hidden ? (
+              <i>something you can't see</i>
+            ) : a.tool === 'search' ? (
+              <q>{a.detail}</q>
+            ) : a.workspace ? (
+              <>in {a.workspace.name}</>
+            ) : null}
+            {!a.ok && <small> · didn't work{a.detail ? `: ${a.detail}` : ''}</small>}
+          </span>
+          <time>{ago(a.at)}</time>
+        </p>
+      ))}
+      {log.length > SHOWN && (
+        <button className="plain" onClick={() => setAll((v) => !v)}>
+          {all ? 'Show recent only' : `Show all ${log.length}`}
+        </button>
+      )}
     </div>
   );
 }
