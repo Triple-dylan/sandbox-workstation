@@ -87,6 +87,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - First step of the move to Postgres (plan: SQLite stays the default until the store has moved over): `server/sql/` runs queries through one async interface with a SQLite backend and a Postgres backend, and keeps a Postgres copy of the schema that brings itself up to date when a server starts. CI runs a Postgres with pgvector; tests check both backends the same way and fail if a table or column is added to SQLite and not to Postgres. Nothing in the app uses it yet.
+- Every query in the store is now also valid Postgres (`insert or ignore` became `on conflict do nothing`, `collate nocase` became `lower(name)`, the usage counters name their table). A test asks Postgres to parse and plan each query in `server/store.ts`, so new ones stay portable.
 
 ## Added 2026-11-26
 

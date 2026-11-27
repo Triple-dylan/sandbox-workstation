@@ -531,7 +531,12 @@ export class Store {
   }
   acceptInvite(userId: Id, token: string) {
     const row = this.liveInvite(token);
-    this.run('insert or ignore into members values (?, ?, ?)', row.space_id, userId, 'member');
+    this.run(
+      'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
+      row.space_id,
+      userId,
+      'member',
+    );
     this.run('update invites set uses = uses + 1 where token = ?', row.token);
     this.changed();
     return this.space(row.space_id)!;
@@ -614,7 +619,12 @@ export class Store {
     const who = this.user(userId);
     if (!who || !this.isMember(userId, resource.spaceId))
       throw new InputError('They are not in this space.');
-    if (on) this.run('insert or ignore into grants values (?, ?)', resourceId, userId);
+    if (on)
+      this.run(
+        'insert into grants (resource_id, user_id) values (?, ?) on conflict do nothing',
+        resourceId,
+        userId,
+      );
     else this.run('delete from grants where resource_id = ? and user_id = ?', resourceId, userId);
     this.changed();
   }
@@ -687,7 +697,12 @@ export class Store {
     if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
     if (this.closed && !this.memberSpaces(actorId).some((id) => this.isMember(userId, id)))
       throw new InputError('Invite them with a link instead.');
-    this.run('insert or ignore into members values (?, ?, ?)', spaceId, userId, 'member');
+    this.run(
+      'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
+      spaceId,
+      userId,
+      'member',
+    );
     this.changed();
   }
   /** A workspace its owner manages: renaming, removing people and deleting are theirs alone. */
@@ -1576,7 +1591,11 @@ export class Store {
     if (!resource || !this.canReadResource(actorId, resource) || resource.visibility !== 'space')
       throw new InputError('Only shared pages can be pinned.');
     if (on)
-      this.run('insert or ignore into channel_pins values (?, ?)', conversationId, resourceId);
+      this.run(
+        'insert into channel_pins (conversation_id, resource_id) values (?, ?) on conflict do nothing',
+        conversationId,
+        resourceId,
+      );
     else
       this.run(
         'delete from channel_pins where conversation_id = ? and resource_id = ?',
@@ -2388,7 +2407,11 @@ export class Store {
         name: approval.proposal.title,
         body: approval.proposal.body,
       });
-      this.run('insert or ignore into agent_skills values (?, ?)', approval.agentId, skill.id);
+      this.run(
+        'insert into agent_skills (agent_id, skill_id) values (?, ?) on conflict do nothing',
+        approval.agentId,
+        skill.id,
+      );
     }
     // An agent asked for by conversation joins the roster only once a person approves it.
     if (decision === 'approved' && approval.proposal.kind === 'create-agent')
@@ -2435,7 +2458,7 @@ export class Store {
   }
   skillsIn(spaceId: Id) {
     return this.all(
-      'select * from skills where space_id = ? and deleted = 0 order by name collate nocase',
+      'select * from skills where space_id = ? and deleted = 0 order by lower(name)',
       spaceId,
     ).map((r) => this.toSkill(r));
   }
@@ -2498,13 +2521,18 @@ export class Store {
     if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
     if (on && agent.role === 'project' && skill.spaceId !== agent.spaceId)
       throw new InputError('A shared agent can only use skills shared with its space.');
-    if (on) this.run('insert or ignore into agent_skills values (?, ?)', agentId, skillId);
+    if (on)
+      this.run(
+        'insert into agent_skills (agent_id, skill_id) values (?, ?) on conflict do nothing',
+        agentId,
+        skillId,
+      );
     else this.run('delete from agent_skills where agent_id = ? and skill_id = ?', agentId, skillId);
     this.changed();
   }
   skillsOf(agentId: Id) {
     return this.all(
-      'select s.* from agent_skills a join skills s on s.id = a.skill_id where a.agent_id = ? and s.deleted = 0 order by s.name collate nocase',
+      'select s.* from agent_skills a join skills s on s.id = a.skill_id where a.agent_id = ? and s.deleted = 0 order by lower(s.name)',
       agentId,
     ).map((r) => this.toSkill(r));
   }
@@ -2634,7 +2662,7 @@ export class Store {
   }
   addUsage(tokens: number) {
     this.run(
-      'insert into usage values (?, ?) on conflict (day) do update set tokens = tokens + excluded.tokens',
+      'insert into usage (day, tokens) values (?, ?) on conflict (day) do update set tokens = usage.tokens + excluded.tokens',
       now().slice(0, 10),
       Math.max(0, Math.round(tokens)),
     );
@@ -2701,7 +2729,7 @@ export class Store {
   addAgentUsage(spaceId: Id, personId: Id | null, tokens: number) {
     const add = (scope: string, key: Id) =>
       this.run(
-        'insert into agent_usage values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = tokens + excluded.tokens',
+        'insert into agent_usage (day, scope, key, tokens) values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = agent_usage.tokens + excluded.tokens',
         now().slice(0, 10),
         scope,
         key,
