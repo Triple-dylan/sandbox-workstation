@@ -118,6 +118,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - Self-hosting: `compose.yaml` runs the app and the browser service on one machine with the database on a named volume; `docs/SELF-HOST.md` has the steps. Checked with Docker locally: the app starts in invite mode, the setup code lets the first person in, and they are still there after the container is recreated. The browser service image was not built here.
+- CI builds both Docker images and runs `compose.yaml` end to end (`.github/workflows/compose.yml`): `/healthz`, invite mode with the setup code, the app reaching the browser service, and a person surviving a recreate of the app's container. It runs when the images, compose file or server change, and on every merge to `main`.
 
 ## Known gaps
 
