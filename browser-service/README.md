@@ -4,12 +4,18 @@ The workstation's shared browser runs here: real Chrome on its own Railway servi
 app over a WebSocket. Nothing browser-related runs on the app's server or on anyone's computer.
 
 Everything it needs is in this folder (`service.ts`, `guard.ts`, `pages.ts`, `health.ts`,
-`Dockerfile`), so Railway builds
+`front.ts`, `Dockerfile`), so Railway builds
 it on its own with **Root Directory** set to `/browser-service`. Its other settings live in Railway
 (Restart Policy: On Failure), not in a file.
 
 Settings: `BROWSER_TOKEN` (a long random secret, 24+ characters) and `PORT` (Railway sets it).
 The app connects with `BROWSER_SERVICE_URL=ws://<service>.railway.internal:<port>/<BROWSER_TOKEN>`.
+
+Playwright's own server listens on the service's machine alone. `PORT` is a small front door
+(`front.ts`) that lets through only a connection to `/<BROWSER_TOKEN>` and answers `GET /healthz`
+with whether Chrome is running, its memory and how many pages are open (200, or 503 when Chrome
+is gone). Everything else gets a 404; in particular Playwright's `/json`, which would otherwise
+tell anyone who asks the secret address. Railway's health check can point at `/healthz`.
 
 ## Staying inside its memory
 
