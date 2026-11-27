@@ -24,15 +24,23 @@ export function readSheet(body: string | null | undefined): SheetBody {
  */
 export function shiftFormula(text: string, rows: number, cols: number): string {
   if (!text.startsWith('=') || (!rows && !cols)) return text;
-  return text.replace(
-    /(?<![A-Za-z$])(\$?)([A-Za-z]{1,2})(\$?)(\d{1,3})(?![\w(])/g,
-    (_whole, fc, c, fr, r) => {
-      const col = fc ? colIndex(c) : colIndex(c) + cols;
-      const row = fr ? Number(r) : Number(r) + rows;
-      if (col < 0 || row < 1) return '#REF';
-      return `${fc}${colName(col)}${fr}${row}`;
-    },
-  );
+  // Text in quotes ("North", ">100") is left alone; only the references between them move.
+  return text
+    .split(/("(?:[^"]|"")*")/)
+    .map((part) =>
+      part.startsWith('"')
+        ? part
+        : part.replace(
+            /(?<![A-Za-z$])(\$?)([A-Za-z]{1,2})(\$?)(\d{1,3})(?![\w(])/g,
+            (_whole, fc, c, fr, r) => {
+              const col = fc ? colIndex(c) : colIndex(c) + cols;
+              const row = fr ? Number(r) : Number(r) + rows;
+              if (col < 0 || row < 1) return '#REF';
+              return `${fc}${colName(col)}${fr}${row}`;
+            },
+          ),
+    )
+    .join('');
 }
 
 /** A number shown the way its column asks. Text, and errors, are shown as they are. */

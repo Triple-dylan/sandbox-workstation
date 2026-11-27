@@ -33,6 +33,36 @@ test('sheets: formulas move when pasted or filled, unless fixed with $', () => {
   assert.equal(evaluate([['2', '=A1*$A$1']], 0, 1), '4');
 });
 
+test('sheets: SUMIF, COUNTIF, AVERAGEIF and their S forms, with text and comparisons', () => {
+  const rows = [
+    ['Region', 'Rep', 'Amount'],
+    ['North', 'Ana', '1,200'],
+    ['South', 'Ben', '800'],
+    ['north', 'Ben', '400'],
+    ['East', 'Ana', 'n/a'],
+    ['North', 'Cy', '=C2/2'],
+    ['North'],
+  ];
+  const at = (formula: string) => evaluate([...rows, [formula]], rows.length, 0);
+  assert.equal(at('=SUMIF(A2:A7, "North", C2:C7)'), '2200');
+  assert.equal(at('=SUMIF(A2:A7, A2, C2:C7)'), '2200', 'a condition can be a cell');
+  assert.equal(at('=COUNTIF(A2:A7, "North")'), '4');
+  assert.equal(at('=COUNTIF(C2:C7, ">500")'), '3');
+  assert.equal(at('=COUNTIF(A2:A7, "<>North")'), '2');
+  assert.equal(at('=AVERAGEIF(B2:B7, "Ben", C2:C7)'), '600');
+  assert.equal(at('=SUMIFS(C2:C7, A2:A7, "North", B2:B7, "Ana")'), '1200');
+  assert.equal(at('=COUNTIFS(A2:A7, "North", C2:C7, ">=600")'), '2');
+  assert.equal(at('=AVERAGEIFS(C2:C7, A2:A7, "South")'), '800');
+  assert.equal(at('=SUMIF(C2:C7, ">500")'), '2600', 'no sum range sums the tested cells');
+  assert.equal(at('=COUNTIF(B2:B7, "")'), '1', 'an empty condition finds empty cells');
+  assert.equal(at('=AVERAGEIF(A2:A7, "West", C2:C7)'), '#DIV');
+  assert.equal(at('=SUMIFS(C2:C7, A2:A6, "North")'), '#SIZE');
+  assert.equal(at('=SUMIF(A2:A7)'), '#ERR');
+  assert.equal(at('=SUM(C2:C3)+COUNTIF(A2:A7, "South")'), '2001', 'mixes with other maths');
+  // Quoted text never moves when a formula is copied; the references do.
+  assert.equal(shiftFormula('=SUMIF(A2:A7, "B2", C2:C7)', 1, 0), '=SUMIF(A3:A8, "B2", C3:C8)');
+});
+
 test('sheets: the clipboard round trip with Excel, number formats, and sorting', () => {
   const block = [
     ['Item', 'Note'],
