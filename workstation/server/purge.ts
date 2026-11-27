@@ -37,6 +37,66 @@ export function purgeDeletedWorkspaces(
 }
 
 /**
+ * Purges every deleted page (and arrow, card or other thing on a page) whose grace period is over,
+ * in workspaces that are still open. A page counts as deleted from its last change, which is when
+ * it was deleted. One with anything inside it that is live, or deleted more recently, waits until
+ * that is due too, so nothing (even something restored later) points at a page that no longer
+ * exists. Returns the ids it purged.
+ */
+export function purgeDeletedPages(db: Db, options: { afterDays?: number; now?: Date } = {}): Id[] {
+  const afterDays = options.afterDays ?? PURGE_AFTER_DAYS;
+  const cutoff = new Date((options.now ?? new Date()).getTime() - afterDays * 86_400_000);
+  const due = (
+    db
+      .prepare(
+        `select r.id from resources r join spaces s on s.id = r.space_id
+         where r.deleted = 1 and r.updated_at <= ? and s.deleted_at is null
+           and not exists (select 1 from resources c where c.parent_id = r.id
+                           and (c.deleted = 0 or c.updated_at > ?))`,
+      )
+      .all(cutoff.toISOString(), cutoff.toISOString()) as { id: Id }[]
+  ).map((r) => r.id);
+  if (due.length) atomically(db, () => wipeResources(db, due));
+  return due;
+}
+
+/** Removes these resources and everything hanging off them: history, chats about them, pins. */
+function wipeResources(db: Db, resourceIds: Id[]) {
+  const each = '(select value from json_each(?))';
+  const resources = JSON.stringify(resourceIds);
+  const discussions = JSON.stringify(
+    (
+      db.prepare(`select id from conversations where resource_id in ${each}`).all(resources) as {
+        id: Id;
+      }[]
+    ).map((r) => r.id),
+  );
+  const steps: [string, ...string[]][] = [
+    [
+      `delete from reactions where message_id in (select id from messages where conversation_id in ${each})`,
+      discussions,
+    ],
+    [`delete from messages where conversation_id in ${each}`, discussions],
+    [`delete from participants where conversation_id in ${each}`, discussions],
+    [`delete from reads where conversation_id in ${each}`, discussions],
+    [
+      `delete from channel_pins where conversation_id in ${each} or resource_id in ${each}`,
+      discussions,
+      resources,
+    ],
+    [`delete from conversations where id in ${each}`, discussions],
+    [`delete from revisions where resource_id in ${each}`, resources],
+    [`delete from placements where resource_id in ${each}`, resources],
+    [`delete from grants where resource_id in ${each}`, resources],
+    [`delete from passage_vectors where resource_id in ${each}`, resources],
+    [`delete from doc_states where resource_id in ${each}`, resources],
+    [`delete from watches where resource_id in ${each}`, resources],
+    [`delete from resources where id in ${each}`, resources],
+  ];
+  for (const [sql, ...args] of steps) db.prepare(sql).run(...args);
+}
+
+/**
  * Removes a space and everything in it, all or nothing. Also removes the agents that
  * belonged to it and any one-to-one chats people had with them.
  */
