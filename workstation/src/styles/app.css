@@ -390,6 +390,91 @@ button.danger {
   position: absolute;
   pointer-events: none;
 }
+/* Agents at work circle the node they are working on; each keeps its place on the ring. */
+.graph-orbit {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 6;
+}
+/* The path they travel: faint, so a node with work going on reads at a glance. */
+.graph-orbit::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--ring) * -1);
+  top: calc(var(--ring) * -1);
+  width: calc(var(--ring) * 2);
+  height: calc(var(--ring) * 2);
+  border-radius: 50%;
+  border: 1px dashed var(--ink-3);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.graph-orbit-arm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  transform: rotate(calc(var(--turn) * 1turn));
+  animation: graph-orbit 14s linear infinite;
+}
+.graph-orbiter {
+  position: absolute;
+  left: var(--ring);
+  top: 0;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  border-radius: 50%;
+}
+.graph-orbiter:focus-visible {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 2px;
+}
+.graph-orbiter-upright {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  transform: rotate(calc(var(--turn) * -1turn));
+  animation: graph-orbit-upright 14s linear infinite;
+}
+.graph-orbit.held .graph-orbit-arm,
+.graph-orbit.held .graph-orbiter-upright {
+  animation-play-state: paused;
+}
+.graph-doing {
+  z-index: 9;
+  width: 240px;
+}
+@keyframes graph-orbit {
+  from {
+    transform: rotate(calc(var(--turn) * 1turn));
+  }
+  to {
+    transform: rotate(calc((var(--turn) + 1) * 1turn));
+  }
+}
+@keyframes graph-orbit-upright {
+  from {
+    transform: rotate(calc(var(--turn) * -1turn));
+  }
+  to {
+    transform: rotate(calc((var(--turn) + 1) * -1turn));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graph-orbit-arm,
+  .graph-orbiter-upright {
+    animation: none;
+  }
+}
 .markdown {
   font-size: 14px;
   line-height: 1.5;
