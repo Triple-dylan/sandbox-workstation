@@ -373,7 +373,10 @@ export class Store {
     this.changed();
     return this.user(userId)!;
   }
-  createAgent(name: string, scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' }) {
+  createAgent(
+    name: string,
+    scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' | 'outside' },
+  ) {
     const agentId = id();
     const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
@@ -412,9 +415,9 @@ export class Store {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
     const allowed =
-      agent.role === 'personal'
-        ? agent.ownerId === actorId
-        : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+      agent.role === 'project'
+        ? !!agent.spaceId && this.isMember(actorId, agent.spaceId)
+        : agent.ownerId === actorId;
     if (!allowed) throw new AccessError('Not available.');
     const name = patch.name === undefined ? agent.name : patch.name.trim().slice(0, 40);
     if (!name) throw new InputError('Give the agent a name.');
@@ -1703,7 +1706,14 @@ export class Store {
       conversation.spaceId
     ) {
       if (this.isMember(userId, conversation.spaceId))
-        agents.push(...this.projectAgents(conversation.spaceId));
+        agents.push(
+          ...this.projectAgents(conversation.spaceId),
+          // Agent seats that joined this space: a message to one waits for it to read.
+          ...this.all(
+            `select u.* from members m join users u on u.id = m.user_id where m.space_id = ? and u.kind = 'agent' and u.role = 'outside' and u.retired = 0 order by u.created_at`,
+            conversation.spaceId,
+          ).map(toUser),
+        );
     }
     return agents;
   }
