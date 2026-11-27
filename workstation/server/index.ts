@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { loadEnv } from './env.ts';
 import { createApp } from './app.ts';
+import { storageFor, storageWarning } from './storage.ts';
 import { backupOptions, scheduleBackups } from './backup.ts';
 import { applyPendingRestore } from './restore.ts';
 
@@ -26,8 +27,10 @@ app.server.listen(port, host, () => {
         if (net.family === 'IPv4' && !net.internal)
           console.log(`  on your network: http://${net.address}:${actual}`);
   console.log(
-    `Agents: ${app.runtime.label}${app.runtime.model ? ` (${app.runtime.model})` : ''}. Data: ${dbPath === ':memory:' ? 'in memory' : dbPath}`,
+    `Agents: ${app.runtime.label}${app.runtime.model ? ` (${app.runtime.model})` : ''}${app.runtime.fallback ? `, ${app.runtime.fallback} if OpenAI is unavailable` : ''}. Data: ${dbPath === ':memory:' ? 'in memory' : dbPath}`,
   );
+  const warning = storageWarning(dbPath, storageFor(dbPath));
+  if (warning) console.warn(warning);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
