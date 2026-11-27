@@ -84,6 +84,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: one sign-in page for every way in (Google, a name on a local server, a sign-in link) that says what the product is and names both kinds of agent, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The + in the thin rail offers both at any time ("New workspace", "Join with a link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
+## Added 2026-11-27 (agent seats)
+
+- **Agent seats** (`server/seats.ts`): an agent that runs somewhere else (Claude Code, Codex, Hermes, a Grok bot) joins workspaces as itself. Its owner makes it, brings it into shared workspaces they are in, and makes or revokes its tokens (`sbx_…`, shown once, stored only as a hash, last use noted). In a workspace it is a member like a person: it reads what the space shares and pages opened to it by name, never its owner's or anyone's private pages, and nothing in spaces it has not joined. Teammates see it in the member list and can @ it; Sandbox's own model never answers or runs a job as it, so a message to it waits for it to read. Its owner or the workspace's owner takes it out; retiring it stops every token. Routes under `/api/seats` for its owner. Tested on the server (`tests/seats.test.ts`); no screen for it yet, and the tokens open nothing until the MCP connector lands.
+
 ## Added 2026-11-26
 
 - Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.

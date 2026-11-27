@@ -283,7 +283,8 @@ export class AgentEngine {
     const addressed = message.addressedTo ? this.store.user(message.addressedTo) : agentInPrivate;
     const delegate = message.delegated;
     const request = message.text;
-    if (addressed?.kind === 'agent' && addressed.retired) return;
+    // An agent seat answers from wherever it runs; Sandbox's own model never speaks for it.
+    if (addressed?.kind === 'agent' && (addressed.retired || addressed.role === 'outside')) return;
     if (addressed?.kind === 'agent') {
       const looking = this.store.messageContext(message.id)?.spaceId;
       const spaceId =
@@ -616,7 +617,7 @@ export class AgentEngine {
       kind,
       agent: {
         name: agent.name,
-        role: agent.role ?? 'project',
+        role: agent.role === 'personal' ? 'personal' : 'project',
         front: agent.role === 'project' && this.store.projectAgent(spaceId)?.id === agent.id,
         purpose: agent.purpose ?? '',
         approvals: agent.approvals ?? 'ask',
@@ -704,6 +705,7 @@ export class AgentEngine {
     relay: boolean | { askedBy: Id } = false,
     focusOn: Id[] = [],
   ) {
+    if (agent.role === 'outside') return;
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
     if (conversation && !relay && !this.store.canReadConversation(agent.id, conversation)) return;

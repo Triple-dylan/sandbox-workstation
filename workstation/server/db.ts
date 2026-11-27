@@ -118,6 +118,10 @@ create table if not exists agent_usage (
   day text not null, scope text not null, key text not null, tokens integer not null,
   primary key (day, scope, key)
 );
+create table if not exists agent_tokens (
+  id text primary key, token_hash text not null unique, agent_id text not null, label text not null,
+  created_at text not null, last_used_at text, revoked integer not null default 0
+);
 `;
 
 export type Db = DatabaseSync;

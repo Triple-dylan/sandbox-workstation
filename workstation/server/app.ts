@@ -8,6 +8,7 @@ import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
+import { Seats, seatsApi } from './seats.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -87,6 +88,7 @@ export function createApp(options: AppOptions) {
   });
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
+  const seats = new Seats(store);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
@@ -338,6 +340,8 @@ export function createApp(options: AppOptions) {
     const input = method === 'GET' ? {} : await body(req);
     const str = (key: string) => (typeof input[key] === 'string' ? (input[key] as string) : '');
     const segments = path.split('/').slice(2);
+    const seatResult = seatsApi(seats, me, method, segments, input);
+    if (seatResult !== undefined) return send(res, 200, seatResult);
     if (path === '/api/presence' && method === 'POST') {
       setPresence(me.id, {
         spaceId: str('spaceId') || null,
@@ -875,6 +879,7 @@ export function createApp(options: AppOptions) {
     connectors,
     browsers,
     collab,
+    seats,
     runtime,
     async close() {
       if (closed) return;
