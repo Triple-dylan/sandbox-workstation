@@ -25,7 +25,8 @@ export type User = {
   id: Id;
   name: string;
   color: string;
-  kind: 'human' | 'agent';
+  /** deleted: a person who deleted their data; shown as "Deleted person" where their shared work stays. */
+  kind: 'human' | 'agent' | 'deleted';
   character?: Character;
   /** Agents only: whose personal agent this is, or which project it serves. */
   ownerId?: Id;

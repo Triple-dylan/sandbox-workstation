@@ -26,7 +26,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 6. **Relay for window sharing.** Across office networks, direct browser-to-browser connections often fail; a TURN relay is needed.
 7. **Retrieval at scale.** Keyword ranking is still rebuilt in memory and vectors are compared by brute force, which is fine for thousands of passages; a large corpus wants a vector index (pgvector with Postgres). PDF import is not built.
 8. **Limits and abuse.** Upload size policy. (Agent spend limits per space and per person, and a per-person rate, are done.)
-9. **Operations.** Backups, error reporting, and a way to delete a person's data. (Deleted workspaces are purged after 30 days, `PURGE_AFTER_DAYS`.)
+9. **Operations.** Backups and error reporting. (Deleted workspaces are purged after 30 days, `PURGE_AFTER_DAYS`; a person can delete their data, server side so far.)
 
 ## Suggested order
 

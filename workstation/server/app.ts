@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
+import { deleteMyData } from './erase.ts';
 import { PURGE_EVERY_MS, purgeAfterDays, purgeDeletedWorkspaces } from './purge.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
@@ -297,6 +298,12 @@ export function createApp(options: AppOptions) {
     if (!me) return send(res, 401, { error: 'Sign in first.' });
     if (path === '/api/logout' && method === 'POST') {
       store.endSession(cookie(req));
+      return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
+    }
+    // Deletes everything that is theirs and signs them out everywhere. They type their name first.
+    if (path === '/api/me/delete' && method === 'POST') {
+      deleteMyData(store, me.id, String((await body(req)).confirm ?? ''));
+      for (const [stream, userId] of streams) if (userId === me.id) stream.end();
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
     }
     if (path === '/api/snapshot' && method === 'GET')
