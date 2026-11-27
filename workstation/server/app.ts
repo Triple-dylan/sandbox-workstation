@@ -4,7 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
-import { storageFor } from './storage.ts';
+import { databaseReads, storageFor } from './storage.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
@@ -857,8 +857,15 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
-      if (path === '/healthz')
-        return send(res, 200, { ok: true, version: store.version, ...storageFor(options.dbPath) });
+      if (path === '/healthz') {
+        const ok = databaseReads(store.db);
+        const body = { ok, version: store.version, ...storageFor(options.dbPath) };
+        return send(
+          res,
+          ok ? 200 : 503,
+          ok ? body : { ...body, error: 'The database is not answering.' },
+        );
+      }
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {

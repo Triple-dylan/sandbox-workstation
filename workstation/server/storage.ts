@@ -81,3 +81,13 @@ export function storageWarning(dbPath: string, info: StorageInfo): string | null
     `so everything is lost on the next deploy. Attach a volume there (see docs/WEBAPP.md).`
   );
 }
+
+/** Whether the database answers a read that touches the file. Used by /healthz. */
+export function databaseReads(db: { prepare(sql: string): { get(): unknown } }): boolean {
+  try {
+    db.prepare('select count(*) from sqlite_master').get();
+    return true;
+  } catch {
+    return false;
+  }
+}
