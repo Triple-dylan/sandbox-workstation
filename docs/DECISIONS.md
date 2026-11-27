@@ -2,6 +2,10 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-27
+
+- **When OpenAI can't answer, Claude Sonnet 5.5 answers through Dylan's Nous key.** After the OpenAI account hit its usage cap for hours on 2026-11-26, Dylan said: "we can also use my hermes api as a fallback, it has 30 dollar lifetime on this key". He wants it used only when OpenAI cannot answer, never as a setting. Nous has retired its own Hermes models (Hermes-4-70B and 4-405B return "retired"; 4.3-36B is not found), so the key is used on Nous's multi-model router. OpenAI models on that router were ruled out because they share OpenAI's outages (`openai/gpt-6-luna` there was returning 503). Dylan ruled out Haiku ("eh lets not use haiku"). From a strict-JSON test of Sonnet 5.5, Gemini 4 Hydrogen, DeepSeek V4 Pro, Qwen4 Max and GLM-5.3, he chose "Claude Sonnet 5.5". It was the only one that answered strictly from the page; DeepSeek, the cheapest, added a weekday the page never gave. It costs about $0.008 per answer, roughly 3,700 answers on the $30. The fallback is tried after OpenAI's retries (429 or 5xx), at once when OpenAI is out of credit, or when OpenAI can't be reached. It is asked once. Its replies are labelled "Claude Sonnet 5.5 · OpenAI unavailable", and its tokens and dollars are recorded. Search vectors stay on OpenAI with no fallback.
+
 ## 2026-11-26
 
 - **The graph's page preview is a panel beside it that shows the whole page.** Dylan: "document preview and viewing when on the graph still needs a lot of work", then "bigger preview. open beside and open is bad language to use, unclear for users". Choosing a page opens a full-height, resizable panel that renders it (documents formatted, sheets as tables, decks as slides, boards by what is on them). Buttons say where they go: "Go to page" and "Show next to the graph", plus "Ask about it". Hovering a page shows its title and first lines.
