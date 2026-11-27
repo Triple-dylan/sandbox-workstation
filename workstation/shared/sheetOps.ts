@@ -451,3 +451,95 @@ export function columnsOf(rows: string[][], source: CellRange): { col: number; n
   const f = frame(rows, trimRange(rows, source));
   return [...f.names].map(([col, name]) => ({ col, name: name || colName(col) }));
 }
+
+const OPS = ['pivot', 'sort', 'filter', 'clear-filter', 'total'] as const;
+
+/** "A1:E25" (or "B3") as a range; null when it is not one. */
+export function parseRange(text: string): CellRange | null {
+  const m = /^\$?([A-Za-z]{1,2})\$?(\d{1,3})(?::\$?([A-Za-z]{1,2})\$?(\d{1,3}))?$/.exec(
+    text.trim(),
+  );
+  if (!m) return null;
+  const a = { r: Number(m[2]) - 1, c: colIndex(m[1]) };
+  const b = m[3] ? { r: Number(m[4]) - 1, c: colIndex(m[3]) } : a;
+  const r = {
+    top: Math.min(a.r, b.r),
+    left: Math.min(a.c, b.c),
+    bottom: Math.max(a.r, b.r),
+    right: Math.max(a.c, b.c),
+  };
+  return r.top < 0 || r.bottom >= MAX_ROWS || r.right >= MAX_COLS ? null : r;
+}
+
+/**
+ * An operation as an agent writes it: one JSON object, the cells named as "range": "A1:E25"
+ * (or left out, meaning the cells the person chose). A string back says what is wrong with it.
+ */
+export function readOp(text: string, chosen: CellRange | null): SheetOp | string {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return 'The "body" of sheet-ops is not one JSON object.';
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return 'The "body" of sheet-ops is not one JSON object.';
+  if (!OPS.includes(raw.op as (typeof OPS)[number]))
+    return `"op" must be one of ${OPS.join(', ')}.`;
+  if (raw.op === 'clear-filter') return { op: 'clear-filter' };
+  const given = raw.range ?? raw.source;
+  let source: CellRange | null = null;
+  if (typeof given === 'string') source = parseRange(given);
+  else if (given && typeof given === 'object') {
+    const g = given as CellRange;
+    source = [g.top, g.left, g.bottom, g.right].every((n) => Number.isInteger(n) && n >= 0)
+      ? { top: g.top, left: g.left, bottom: g.bottom, right: g.right }
+      : null;
+  } else source = chosen;
+  if (!source)
+    return given
+      ? `"${String(given)}" is not a range like "A1:E25".`
+      : 'Say which cells with "range", like "A1:E25".';
+  const text_ = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+  if (raw.op === 'pivot') {
+    const rows = Array.isArray(raw.rows) ? raw.rows.map(text_) : raw.rows ? [text_(raw.rows)] : [];
+    const values = (Array.isArray(raw.values) ? raw.values : []).map((v) => ({
+      fn: text_((v as { fn?: unknown }).fn).toLowerCase() as Fn,
+      of: text_((v as { of?: unknown }).of),
+    }));
+    return {
+      op: 'pivot',
+      source,
+      rows,
+      columns: raw.columns ? text_(raw.columns) : null,
+      values,
+      at: raw.at ? text_(raw.at) : null,
+    };
+  }
+  if (raw.op === 'sort') {
+    const by = (Array.isArray(raw.by) ? raw.by : raw.by ? [raw.by] : []).map((b) =>
+      typeof b === 'string'
+        ? { column: b, descending: false }
+        : {
+            column: text_((b as { column?: unknown }).column),
+            descending: !!(b as { descending?: unknown }).descending,
+          },
+    );
+    return { op: 'sort', source, by };
+  }
+  if (raw.op === 'filter')
+    return { op: 'filter', source, column: text_(raw.column), test: text_(raw.test) };
+  return {
+    op: 'total',
+    source,
+    fn: (text_(raw.fn).toLowerCase() || 'sum') as Fn,
+    columns: Array.isArray(raw.columns) ? raw.columns.map(text_) : null,
+  };
+}
+
+/** An operation written back out the way it is stored on a proposal: the range by name. */
+export function writeOp(op: SheetOp): string {
+  if (op.op === 'clear-filter') return JSON.stringify(op);
+  const { source, ...rest } = op;
+  return JSON.stringify({ ...rest, range: rangeName(source) });
+}
