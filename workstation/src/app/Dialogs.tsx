@@ -196,6 +196,12 @@ export function Settings() {
           See them all
         </button>
       </div>
+      <div className="setting">
+        <span>My data</span>
+        <a className="plain" href="/api/me/export" download>
+          Download
+        </a>
+      </div>
       <DeleteMyData />
       <p className="dialog-note">
         Saved in this browser.{' '}

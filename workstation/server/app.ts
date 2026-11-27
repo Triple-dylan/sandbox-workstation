@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
 import { deleteMyData } from './erase.ts';
+import { exportMyData } from './export.ts';
 import { PURGE_EVERY_MS, purgeAfterDays, purgeDeletedWorkspaces } from './purge.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
@@ -301,6 +302,10 @@ export function createApp(options: AppOptions) {
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
     }
     // Deletes everything that is theirs and signs them out everywhere. They type their name first.
+    if (path === '/api/me/export' && method === 'GET')
+      return send(res, 200, exportMyData(store, me.id), {
+        'content-disposition': `attachment; filename="my-data-${new Date().toISOString().slice(0, 10)}.json"`,
+      });
     if (path === '/api/me/delete' && method === 'POST') {
       deleteMyData(store, me.id, String((await body(req)).confirm ?? ''));
       for (const [stream, userId] of streams) if (userId === me.id) stream.end();
