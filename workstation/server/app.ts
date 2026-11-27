@@ -315,6 +315,19 @@ export function createApp(options: AppOptions) {
       );
       return;
     }
+    // What Settings shows an owner: the newest copy and how many are kept. Refused for anyone else.
+    if (path === '/api/backups' && method === 'GET') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can see its backups.');
+      const kept = listBackups(backups.dir);
+      const newest = kept[0];
+      return send(res, 200, {
+        count: kept.length,
+        keep: backups.keep,
+        newest: newest ? { name: newest.name, takenAt: newest.takenAt, bytes: newest.bytes } : null,
+      });
+    }
     // Back up now: an owner takes a copy on demand, for example before a risky change.
     if (path === '/api/backup' && method === 'POST') {
       if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
