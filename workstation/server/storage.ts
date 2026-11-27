@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 
 /**
  * Whether the database will survive a redeploy. A container's own disk (overlay)
@@ -53,9 +53,15 @@ export function storageInfo(dbPath: string, mountinfo?: string): StorageInfo {
       return { persistent: null, storage: 'unknown' };
     }
   }
-  const mount = mountFor(dirname(resolve(dbPath)), parseMountinfo(text));
+  const mount = mountFor(folderOf(dbPath), parseMountinfo(text));
   if (!mount) return { persistent: null, storage: 'unknown' };
   return { persistent: !THROWN_AWAY.has(mount.fs), storage: mount.fs };
+}
+
+// The folder that holds the database, as an absolute path. (Only dirname, join and sep:
+// the in-page build stands in for node:path with just those.)
+function folderOf(dbPath: string) {
+  return dirname(dbPath.startsWith('/') ? dbPath : join(process.cwd(), dbPath));
 }
 
 const cache = new Map<string, StorageInfo>();
@@ -71,7 +77,7 @@ export function storageFor(dbPath: string): StorageInfo {
 export function storageWarning(dbPath: string, info: StorageInfo): string | null {
   if (info.persistent !== false || dbPath === ':memory:') return null;
   return (
-    `Warning: ${dirname(resolve(dbPath))} is on storage that is thrown away (${info.storage}), ` +
+    `Warning: ${folderOf(dbPath)} is on storage that is thrown away (${info.storage}), ` +
     `so everything is lost on the next deploy. Attach a volume there (see docs/WEBAPP.md).`
   );
 }
