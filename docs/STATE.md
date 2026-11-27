@@ -86,6 +86,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-27
 
+- Shared browser: when the browser service closes a tab (unused for a while, or memory running low), everyone on the Browser page gets a note naming the tab and why tabs close. A tab someone closes, or a sign-in popup that closes itself within a minute, gets none. Tested in CI against the real service; not yet seen in the app.
 - Shared browser service: closes pages nobody has used for 30 minutes (`PAGE_IDLE_MINUTES`; the app's own five-minute close stays), and logs a health line every minute with its memory against the limit, Chrome's memory, and how many pages are open in how many workspaces. If Chrome fails to start, the service no longer leaves its proxy running. Tested with a stand-in for Chrome and a made-up /proc; CI also runs it against real Chrome.
 
 ## Added 2026-11-26
