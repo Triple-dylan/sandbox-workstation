@@ -69,6 +69,7 @@ In the service, **Variables**, add:
 | `OPENAI_DAILY_TOKEN_LIMIT` | optional; default 10000000 per day for the whole server |
 | `AGENT_SPACE_DAILY_TOKENS`, `AGENT_PERSON_DAILY_TOKENS`, `AGENT_REQUESTS_PER_MINUTE` | optional; defaults 3000000, 1000000 and 20 |
 | `BACKUP_KEEP`, `BACKUP_HOUR`, `BACKUP_DIR`, `BACKUPS` | optional; nightly database copies. Defaults: keep 7, at 3:00 UTC, in `backups/` beside the database. `BACKUPS=off` turns them off |
+| `BACKUP_OWNERS` | optional; emails of the people who run this copy. Signed in with one of them, `https://<your address>/api/backup` downloads the newest backup. Unset, nobody can |
 
 Railway redeploys when variables change.
 

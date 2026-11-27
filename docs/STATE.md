@@ -115,6 +115,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - Nightly backups: the server copies its database (`VACUUM INTO`) every night at 3:00 UTC into `backups/` beside it, keeping the last 7, and takes one soon after starting when the newest is over a day old. Half-written copies never count. Settings in `docs/WEBAPP.md`. Tested: the copy opens with the data as it was, later writes don't reach it, old copies are pruned, a failure is logged and the app carries on.
+- Backup download: `/api/backup` sends the newest backup to someone signed in with an email in `BACKUP_OWNERS` (taking one first if there is none); anyone else gets a refusal, and with it unset nobody can download.
 
 ## Known gaps
 

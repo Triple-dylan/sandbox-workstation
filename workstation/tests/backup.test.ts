@@ -4,7 +4,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AddressInfo } from 'node:net';
 import { openDb } from '../server/db.ts';
+import { createApp } from '../server/app.ts';
+import { scriptedRuntime } from '../server/agents/scripted.ts';
 import {
   backupNow,
   backupOptions,
@@ -168,5 +171,84 @@ test('a failed backup is logged and the app carries on', async () => {
     assert.match(errors[0], /^Backup failed: /);
   } finally {
     t.done();
+  }
+});
+
+test('only the people who run the server can download the newest backup', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sw-backup-app-'));
+  const dbPath = join(dir, 'workstation.db');
+  const app = createApp({
+    dbPath,
+    staticDir: null,
+    runtime: scriptedRuntime,
+    env: { BACKUP_OWNERS: ' Owner@Example.com ' },
+  });
+  try {
+    await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const named = app.store.createHuman('Sam');
+    const get = (userId?: string) =>
+      fetch(`${base}/api/backup`, {
+        headers: userId ? { cookie: `sw_session=${app.store.createSession(userId)}` } : {},
+      });
+
+    assert.equal((await get()).status, 401);
+    assert.equal((await get(other.id)).status, 403);
+    assert.equal((await get(named.id)).status, 403);
+
+    // With no copy yet, one is taken now and sent.
+    const first = await get(owner.id);
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('content-type'), 'application/vnd.sqlite3');
+    assert.match(
+      first.headers.get('content-disposition') ?? '',
+      /^attachment; filename="sandbox-backup-\d{4}-\d{2}-\d{2}T\d{6}Z\.db"$/,
+    );
+    const bytes = Buffer.from(await first.arrayBuffer());
+    assert.equal(bytes.subarray(0, 15).toString(), 'SQLite format 3');
+    const saved = listBackups(join(dir, 'backups'));
+    assert.equal(saved.length, 1);
+    assert.equal(bytes.length, saved[0].bytes);
+
+    // Later downloads send the newest nightly copy rather than making more.
+    backupNow(
+      dbPath,
+      { dir: join(dir, 'backups'), keep: 7, hour: 3 },
+      new Date('2099-01-01T03:00:00Z'),
+    );
+    const second = await get(owner.id);
+    assert.match(second.headers.get('content-disposition') ?? '', /2099-01-01T030000Z/);
+    await second.arrayBuffer();
+    assert.equal(listBackups(join(dir, 'backups')).length, 2);
+  } finally {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backup download is off without owners, or with backups off', async () => {
+  for (const env of [{}, { BACKUPS: 'off', BACKUP_OWNERS: 'owner@example.com' }]) {
+    const dir = mkdtempSync(join(tmpdir(), 'sw-backup-off-'));
+    const app = createApp({
+      dbPath: join(dir, 'workstation.db'),
+      staticDir: null,
+      runtime: scriptedRuntime,
+      env,
+    });
+    try {
+      await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+      const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+      const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+      const res = await fetch(`${base}/api/backup`, {
+        headers: { cookie: `sw_session=${app.store.createSession(owner.id)}` },
+      });
+      assert.equal(res.status, 'BACKUPS' in env ? 404 : 403);
+      assert.deepEqual(listBackups(join(dir, 'backups')), []);
+    } finally {
+      await app.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 });
