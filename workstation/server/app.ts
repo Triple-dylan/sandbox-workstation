@@ -4,6 +4,7 @@ import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
+import { PURGE_EVERY_MS, purgeAfterDays, purgeDeletedWorkspaces } from './purge.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
@@ -147,6 +148,18 @@ export function createApp(options: AppOptions) {
   const heartbeat = setInterval(() => {
     for (const res of streams.keys()) res.write(': keepalive\n\n');
   }, 25_000);
+  // Deleted workspaces are purged for good once their grace period is over: now, then every few hours.
+  const purge = () => {
+    try {
+      const purged = purgeDeletedWorkspaces(store.db, { afterDays: purgeAfterDays(env) });
+      if (purged.length) console.log(`Purged ${purged.length} deleted workspace(s).`);
+    } catch (error) {
+      console.error('purge failed', error);
+    }
+  };
+  purge();
+  const purgeTimer = setInterval(purge, PURGE_EVERY_MS);
+  purgeTimer.unref();
   const runtimeInfo = {
     id: runtime.id,
     label: runtime.label,
@@ -880,6 +893,7 @@ export function createApp(options: AppOptions) {
       if (closed) return;
       closed = true;
       clearInterval(heartbeat);
+      clearInterval(purgeTimer);
       engine.stop();
       connectors.close();
       collab.stop();
