@@ -34,7 +34,7 @@ type Ask = { label: string; ask: string };
 
 /** The few things worth doing with what is on screen, one click each. */
 const ASKS: Record<
-  'selection' | 'pieces' | 'doc' | 'sheet' | 'deck' | 'canvas' | 'chat' | 'space',
+  'selection' | 'cells' | 'pieces' | 'doc' | 'sheet' | 'deck' | 'canvas' | 'chat' | 'space',
   Ask[]
 > = {
   selection: [
@@ -45,6 +45,25 @@ const ASKS: Record<
       ask: 'Is this right? Check it against our pages and say what supports or contradicts it.',
     },
     { label: 'Find support for it', ask: 'Find what in our pages supports this, and quote it.' },
+  ],
+  // Cells chosen on a sheet: numbers to explain and check, not prose to rewrite.
+  cells: [
+    {
+      label: 'Explain these numbers',
+      ask: 'Explain what these cells show and how each one is worked out.',
+    },
+    {
+      label: 'Check the maths',
+      ask: 'Check these cells: are the numbers and formulas right? Name any cell that looks wrong and why.',
+    },
+    {
+      label: 'What is driving this',
+      ask: 'What is driving these numbers? Name the rows behind them, biggest first.',
+    },
+    {
+      label: 'Suggest a fix',
+      ask: 'If anything in these cells looks off, suggest the cell changes that would fix it.',
+    },
   ],
   pieces: [
     {
@@ -303,7 +322,9 @@ export function Rail({ docked }: { docked: boolean }) {
   const suggestions =
     ASKS[
       asking
-        ? 'selection'
+        ? resource(asking.resourceId)?.kind === 'sheet'
+          ? 'cells'
+          : 'selection'
         : ui.selection.length && page?.kind === 'canvas'
           ? 'pieces'
           : chat
@@ -651,7 +672,7 @@ export function Rail({ docked }: { docked: boolean }) {
           <small>
             <i className={working ? 'on' : ''} />
             {status}
-            {s.runtime.id === 'scripted' ? ' · scripted stand-in' : ''}
+            {s.runtime.id === 'none' ? ' · not connected on this server' : ''}
           </small>
         </span>
         <button
@@ -741,7 +762,7 @@ export function Rail({ docked }: { docked: boolean }) {
               </li>
               <li>Workspace agents are shared by the team and never see your private space.</li>
             </ul>
-            <p>Select text on any page to ask about just that part.</p>
+            <p>Select text on a page, or cells on a sheet, to ask about just that part.</p>
           </section>
         )}
         {thread.length > latest.length && (

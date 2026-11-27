@@ -1,5 +1,6 @@
 import { colIndex, colName, evaluate, sheetText, toNumber } from '../../shared/formula.ts';
 import { readSheet } from '../../shared/sheet.ts';
+import { isPage } from '../../shared/types.ts';
 import type { ChangeEvent, Store } from '../store.ts';
 import type {
   BrowserBody,
@@ -18,7 +19,6 @@ import {
   type AgentRuntime,
   type AgentTask,
 } from './runtime.ts';
-import { scriptedRuntime } from './scripted.ts';
 import { AnswerCache, Retriever } from './retrieve.ts';
 import { VectorIndex, type Embedder } from './embed.ts';
 import { keepOnlyValid, problemsWith, type CheckContext } from './checks.ts';
@@ -68,12 +68,13 @@ export class AgentEngine {
   }
 
   /**
-   * Checks the spend guardrails before a model is called. Over a daily allowance, the agent says so
-   * and the labelled stand-in answers; asking too fast gets no answer at all.
+   * Checks the spend guardrails before a model is called. Over a daily allowance, or asking too fast,
+   * the agent says so and answers nothing.
    */
   private guard(spaceName: string, spaceId: Id, personId: Id | null) {
     const limits = this.options.limits;
-    if (!limits || this.runtime === scriptedRuntime) return;
+    // The tests' scripted runtime costs nothing, so it is never metered or checked.
+    if (!limits || this.runtime.id === 'scripted') return;
     if (personId) {
       const cutoff = Date.now() - 60_000;
       const times = (this.recentAsks.get(personId) ?? []).filter((t) => t > cutoff);
@@ -457,6 +458,14 @@ export class AgentEngine {
         null,
         null,
         spaceId,
+        false,
+        // Your private space is small and all of it is your context: read its pages in full,
+        // newest first, rather than the one-line directory a workspace's upkeep works from.
+        this.store
+          .resourcesIn(spaceId)
+          .filter((r) => isPage(r.kind) && !r.archived && !r.role)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+          .map((r) => r.id),
       );
       return;
     }
@@ -549,7 +558,13 @@ export class AgentEngine {
           : [];
     const recent = shared
       .flatMap((c) => this.store.messages(c.id, 40))
-      .filter((m) => this.store.user(m.authorId)?.kind === 'human' || kind !== 'maintenance')
+      .filter(
+        (m) =>
+          kind !== 'maintenance' ||
+          this.store.user(m.authorId)?.kind === 'human' ||
+          // What your agent answered you is part of your context too.
+          (space.kind === 'personal' && m.authorId === agent.id),
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .slice(-30)
       .map((m) => ({
@@ -731,8 +746,6 @@ export class AgentEngine {
       }
     }
     let result;
-    let runtime = this.runtime;
-    let note = '';
     try {
       // The same request about unchanged pages was answered a moment ago: reuse it.
       const cacheable = kind === 'ask' || kind === 'instruction';
@@ -750,29 +763,14 @@ export class AgentEngine {
       const remembered = cacheable ? this.answers.get(key) : undefined;
       const requester =
         trigger && this.store.user(trigger.authorId)?.kind === 'human' ? trigger.authorId : null;
-      try {
-        if (!remembered) this.guard(task.spaceName, spaceId, requester);
-        result = remembered ?? (await this.runtime.run(task));
-        if (!remembered) {
-          if (result.tokens) this.store.addAgentUsage(spaceId, requester, result.tokens);
-          result = await this.checked(
-            result,
-            task,
-            agent,
-            conversation,
-            trigger,
-            spaceId,
-            requester,
-          );
-        }
-        if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
-          this.answers.set(key, result);
-      } catch (error) {
-        if (!(error instanceof BudgetExceeded) || this.runtime === scriptedRuntime) throw error;
-        runtime = scriptedRuntime;
-        note = `\n\n_${error.message} Answered by the scripted runtime instead._`;
-        result = await scriptedRuntime.run(task);
+      if (!remembered) this.guard(task.spaceName, spaceId, requester);
+      result = remembered ?? (await this.runtime.run(task));
+      if (!remembered) {
+        if (result.tokens) this.store.addAgentUsage(spaceId, requester, result.tokens);
+        result = await this.checked(result, task, agent, conversation, trigger, spaceId, requester);
       }
+      if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
+        this.answers.set(key, result);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       this.store.setJob(job.id, 'failed', { error: reason });
@@ -784,7 +782,7 @@ export class AgentEngine {
           trigger,
           `I couldn't finish that: ${reason}`,
           job,
-          runtime.id,
+          this.runtime.id,
           undefined,
           [],
           relay,
@@ -850,9 +848,9 @@ export class AgentEngine {
         agent,
         conversation,
         trigger,
-        (result.reply || 'I drafted a proposal for review.') + note,
+        result.reply || 'I drafted a proposal for review.',
         job,
-        runtime.id,
+        this.runtime.id,
         approvalId,
         sourceIds,
         relay,
@@ -975,7 +973,7 @@ export class AgentEngine {
     spaceId: Id,
     requester: Id | null,
   ): Promise<AgentResult> {
-    if (this.runtime === scriptedRuntime) return first;
+    if (this.runtime.id === 'scripted') return first;
     const targetId = this.pageInQuestion(conversation, trigger);
     const target = targetId ? this.store.resource(targetId) : null;
     const ctx: CheckContext = {

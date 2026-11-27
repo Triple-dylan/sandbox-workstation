@@ -15,4 +15,4 @@ npm ci
 npm start      # http://127.0.0.1:4174
 ```
 
-Agents run on a free scripted runtime by default. To use OpenAI, `cp .env.example .env` here in the repo root and set `OPENAI_API_KEY`.
+Agents need an OpenAI key: `cp .env.example .env` here in the repo root and set `OPENAI_API_KEY`. Without it agents say they are not connected and answer nothing.

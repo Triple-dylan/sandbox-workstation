@@ -3,6 +3,7 @@ export const AGENT_MODEL = 'gpt-6-luna';
 
 import { readResult, taskPrompt } from './prompt.ts';
 import { BudgetExceeded, type AgentResult, type AgentRuntime, type AgentTask } from './runtime.ts';
+import { plainDetail, sendWithRetry, type Sleep } from './retry.ts';
 
 type Options = {
   apiKey: string;
@@ -11,6 +12,8 @@ type Options = {
   addUsage: (tokens: number) => void;
   fetch?: typeof fetch;
   baseUrl?: string;
+  /** How to wait between tries when OpenAI is busy; tests pass one that does not really wait. */
+  sleep?: Sleep;
 };
 
 /**
@@ -74,23 +77,27 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
       if (options.usageToday() >= options.dailyTokenLimit)
         throw new BudgetExceeded(`Daily token budget of ${options.dailyTokenLimit} reached.`);
       const send = () =>
-        request(`${baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            authorization: `Bearer ${options.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: AGENT_MODEL,
-            response_format: format(),
-            max_completion_tokens: 900,
-            messages: [
-              // The whole prompt in one message, steady parts first, so the provider's prefix cache applies.
-              { role: 'user', content: taskPrompt(task) },
-            ],
-          }),
-          signal: AbortSignal.timeout(45_000),
-        });
+        sendWithRetry(
+          () =>
+            request(`${baseUrl}/chat/completions`, {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                authorization: `Bearer ${options.apiKey}`,
+              },
+              body: JSON.stringify({
+                model: AGENT_MODEL,
+                response_format: format(),
+                max_completion_tokens: 900,
+                messages: [
+                  // The whole prompt in one message, steady parts first, so the provider's prefix cache applies.
+                  { role: 'user', content: taskPrompt(task) },
+                ],
+              }),
+              signal: AbortSignal.timeout(45_000),
+            }),
+          options.sleep,
+        );
       let response = await send();
       if (response.status === 400 && strict) {
         const text = await response.clone().text();
@@ -103,7 +110,7 @@ export function createOpenAIRuntime(options: Options): AgentRuntime {
         // Never include request headers or the key; status and a short API message only.
         let detail = '';
         try {
-          detail = String(((await response.json()) as any)?.error?.message ?? '').slice(0, 160);
+          detail = plainDetail(String(((await response.json()) as any)?.error?.message ?? ''));
         } catch {}
         throw new Error(`OpenAI request failed (${response.status})${detail ? `: ${detail}` : ''}`);
       }

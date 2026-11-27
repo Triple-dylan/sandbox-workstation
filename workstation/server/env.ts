@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Store } from './store.ts';
 import type { AgentLimits, AgentRuntime } from './agents/runtime.ts';
-import { scriptedRuntime } from './agents/scripted.ts';
 import { createOpenAIRuntime } from './agents/openai.ts';
 import { createOpenAIEmbedder, type Embedder } from './agents/embed.ts';
 
@@ -27,7 +26,7 @@ export const DEFAULT_DAILY_TOKENS = 10_000_000;
 /** Meaning-based search uses OpenAI embeddings whenever agents use OpenAI. */
 export function selectEmbedder(env: NodeJS.ProcessEnv): Embedder | undefined {
   const key = env.OPENAI_API_KEY?.trim();
-  if (!key || env.AGENT_RUNTIME === 'scripted') return undefined;
+  if (!key) return undefined;
   return createOpenAIEmbedder({ apiKey: key });
 }
 
@@ -44,9 +43,21 @@ export function agentLimits(env: NodeJS.ProcessEnv): AgentLimits {
   };
 }
 
+/** Without a key, agents are not connected: they say so and answer nothing. Nothing stands in. */
+export const notConnected: AgentRuntime = {
+  id: 'none',
+  label: 'Not connected',
+  run: () =>
+    Promise.reject(
+      new Error(
+        'agents are not connected on this server yet: it needs an OpenAI key (OPENAI_API_KEY).',
+      ),
+    ),
+};
+
 export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntime {
   const key = env.OPENAI_API_KEY?.trim();
-  if (!key || env.AGENT_RUNTIME === 'scripted') return scriptedRuntime;
+  if (!key) return notConnected;
   const limit = Number(env.OPENAI_DAILY_TOKEN_LIMIT);
   return createOpenAIRuntime({
     apiKey: key,
