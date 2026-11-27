@@ -9,6 +9,7 @@ import { openDb } from '../server/db.ts';
 import { createApp } from '../server/app.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import {
+  backupHealth,
   backupNow,
   backupOptions,
   isDue,
@@ -250,5 +251,51 @@ test('backup download is off without owners, or with backups off', async () => {
       await app.close();
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+});
+
+test('the health line says how old the newest backup is', async () => {
+  const t = tempDb();
+  try {
+    const options = { dir: join(t.dir, 'backups'), keep: 7, hour: 3 };
+    assert.deepEqual(backupHealth(null), {});
+    assert.deepEqual(backupHealth(options), {
+      backups: { count: 0, newest: null, ageHours: null, stale: true },
+    });
+    backupNow(t.dbPath, options, new Date('2026-11-26T03:00:00Z'));
+    backupNow(t.dbPath, options, new Date('2026-11-27T03:00:00Z'));
+    assert.deepEqual(backupHealth(options, new Date('2026-11-27T15:30:00Z')), {
+      backups: { count: 2, newest: '2026-11-27T03:00:00Z', ageHours: 12.5, stale: false },
+    });
+    // A missed night shows as stale.
+    assert.deepEqual(backupHealth(options, new Date('2026-11-28T06:00:00Z')).backups, {
+      count: 2,
+      newest: '2026-11-27T03:00:00Z',
+      ageHours: 27,
+      stale: true,
+    });
+
+    const app = createApp({ dbPath: t.dbPath, staticDir: null, runtime: scriptedRuntime, env: {} });
+    try {
+      await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+      const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+      const health = await (await fetch(`${base}/healthz`)).json();
+      assert.equal(health.ok, true);
+      assert.equal(health.backups.count, 2);
+      assert.equal(health.backups.newest, '2026-11-27T03:00:00Z');
+      assert.ok(!JSON.stringify(health).includes(t.dir), 'no paths on the public health line');
+    } finally {
+      await app.close();
+    }
+    const memory = createApp({ dbPath: ':memory:', staticDir: null, runtime: scriptedRuntime });
+    try {
+      await new Promise<void>((resolve) => memory.server.listen(0, '127.0.0.1', resolve));
+      const base = `http://127.0.0.1:${(memory.server.address() as AddressInfo).port}`;
+      assert.equal((await (await fetch(`${base}/healthz`)).json()).backups, undefined);
+    } finally {
+      await memory.close();
+    }
+  } finally {
+    t.done();
   }
 });

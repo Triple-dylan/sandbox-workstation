@@ -14,7 +14,7 @@ import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
-import { backupNow, backupOptions, listBackups } from './backup.ts';
+import { backupHealth, backupNow, backupOptions, listBackups } from './backup.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
@@ -884,7 +884,8 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
-      if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
+      if (path === '/healthz')
+        return send(res, 200, { ok: true, version: store.version, ...backupHealth(backups) });
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {

@@ -83,6 +83,30 @@ export function isDue(dir: string, now = new Date()): boolean {
   return !newest || now.getTime() - Date.parse(newest.takenAt) >= DAY_MS;
 }
 
+/** A copy older than this means a nightly backup was missed. */
+const STALE_HOURS = 26;
+
+/**
+ * What `/healthz` says about backups: how many are kept, when the newest was taken and how old it
+ * is. No paths, since the health line is public. Nothing when backups are off.
+ */
+export function backupHealth(options: BackupOptions | null, now = new Date()) {
+  if (!options) return {};
+  const kept = listBackups(options.dir);
+  const newest = kept[0];
+  const ageHours = newest
+    ? Math.round(((now.getTime() - Date.parse(newest.takenAt)) / 3_600_000) * 10) / 10
+    : null;
+  return {
+    backups: {
+      count: kept.length,
+      newest: newest?.takenAt ?? null,
+      ageHours,
+      stale: ageHours === null || ageHours > STALE_HOURS,
+    },
+  };
+}
+
 type Log = Pick<Console, 'log' | 'error'>;
 
 /**
