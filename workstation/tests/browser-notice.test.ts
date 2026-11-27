@@ -55,7 +55,16 @@ test('shared browser: a tab the browser service closes is announced; one a perso
   const page = store.createResource(priya.id, {
     spaceId: project.id,
     kind: 'browser',
-    body: JSON.stringify({ tabs: [{ url: `${url}/a` }, { url: `${url}/b` }], active: 0 }),
+    body: '',
+  });
+  // A Browser page starts on a search engine; this one had two tabs open last time.
+  store.setBrowserBody(page.id, {
+    tabs: [
+      { url: `${url}/a`, title: '' },
+      { url: `${url}/b`, title: '' },
+    ],
+    active: 0,
+    text: '',
   });
   const seen: any[] = [];
   const res = Object.assign(new EventEmitter(), {
