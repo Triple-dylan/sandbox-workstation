@@ -2640,6 +2640,25 @@ export class Store {
     );
   }
 
+  /** What a provider other than OpenAI (the fallback) used, per UTC day: tokens and dollars. */
+  addProviderUsage(provider: string, tokens: number, dollars: number) {
+    this.run(
+      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = tokens + excluded.tokens, dollars = dollars + excluded.dollars',
+      now().slice(0, 10),
+      provider,
+      Math.max(0, Math.round(tokens)),
+      Math.max(0, dollars),
+    );
+  }
+  /** Everything a provider has used since this database began. */
+  providerUsage(provider: string) {
+    const row = this.get(
+      'select coalesce(sum(tokens), 0) as tokens, coalesce(sum(dollars), 0) as dollars from provider_usage where provider = ?',
+      provider,
+    );
+    return { tokens: Number(row?.tokens ?? 0), dollars: Number(row?.dollars ?? 0) };
+  }
+
   /** When the stored search vectors of a page were made (its updatedAt then), if any. */
   vectorStamp(resourceId: Id) {
     const row = this.get(
