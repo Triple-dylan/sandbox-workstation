@@ -1821,7 +1821,11 @@ export class Store {
       text,
       json(
         request.anchor
-          ? { resourceId: request.anchor.resourceId, quote: request.anchor.quote.slice(0, 280) }
+          ? {
+              resourceId: request.anchor.resourceId,
+              quote: request.anchor.quote.slice(0, 280),
+              ...(request.anchor.range ? { range: request.anchor.range } : {}),
+            }
           : null,
       ),
       addressedTo,

@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type {
+  Anchor,
   Conversation,
   Id,
   PageKind,
@@ -36,7 +37,7 @@ export type Ui = {
   /** Your agent's rail on the right. Closed, it is a slim strip one click (or ⌘J) away. */
   railOpen: boolean;
   /** Text you picked on a page to ask your agent about. */
-  asking: { resourceId: Id; quote: string } | null;
+  asking: Anchor | null;
   /** Words to start the rail's box with, like "@Finance ", when asking from somewhere else. */
   railText: string | null;
   /** A spot to bring into view and light briefly: a quoted line, rows of a sheet, a piece of a board. */

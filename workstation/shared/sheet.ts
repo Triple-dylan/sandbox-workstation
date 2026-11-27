@@ -1,9 +1,81 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { colIndex, colName, evaluate, toNumber } from './formula.ts';
-import type { SheetBody, SheetFormat } from './types.ts';
+import type { CellRange, SheetBody, SheetFormat } from './types.ts';
 
 export const MAX_ROWS = 500;
 export const MAX_COLS = 52;
+
+/** A range sent from a browser, checked: four whole numbers inside the sheet, corners in order. */
+export function readRange(input: unknown): CellRange | null {
+  const r = input as Partial<CellRange> | null;
+  if (!r || typeof r !== 'object') return null;
+  const ok = (n: unknown, max: number): n is number =>
+    Number.isInteger(n) && (n as number) >= 0 && (n as number) < max;
+  if (
+    !ok(r.top, MAX_ROWS) ||
+    !ok(r.bottom, MAX_ROWS) ||
+    !ok(r.left, MAX_COLS) ||
+    !ok(r.right, MAX_COLS)
+  )
+    return null;
+  if (r.top > r.bottom || r.left > r.right) return null;
+  return { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
+}
+
+/** "B2:D40", or "B2" for one cell. */
+export const rangeName = (r: CellRange) =>
+  r.top === r.bottom && r.left === r.right
+    ? `${colName(r.left)}${r.top + 1}`
+    : `${colName(r.left)}${r.top + 1}:${colName(r.right)}${r.bottom + 1}`;
+
+/**
+ * Whether a block's first row names its columns: every cell in it is text, and some row below
+ * holds a number. Then "Region", "Amount" can be used in place of column letters.
+ */
+export function hasHeader(rows: string[][], r: CellRange): boolean {
+  if (r.bottom === r.top) return false;
+  const shown = (row: number, col: number) => evaluate(rows, row, col).trim();
+  for (let c = r.left; c <= r.right; c++) {
+    const v = shown(r.top, c);
+    if (!v || toNumber(v) !== null) return false;
+  }
+  for (let row = r.top + 1; row <= r.bottom; row++)
+    for (let c = r.left; c <= r.right; c++) if (toNumber(shown(row, c)) !== null) return true;
+  return false;
+}
+
+/**
+ * The cells chosen on a sheet as an agent reads them: where they are, what each column is called,
+ * and every row with its sheet row number. Formulas show what they work out to.
+ */
+export function rangeTable(rows: string[][], r: CellRange, limit = 200) {
+  const headed = hasHeader(rows, r);
+  const columns = Array.from({ length: r.right - r.left + 1 }, (_, i) => {
+    const col = r.left + i;
+    return { letter: colName(col), name: headed ? evaluate(rows, r.top, col).trim() : '' };
+  });
+  const lines: string[] = [];
+  const first = headed ? r.top + 1 : r.top;
+  for (let row = first; row <= r.bottom && lines.length < limit; row++) {
+    const values = columns.map((_, i) => {
+      const col = r.left + i;
+      const raw = rows[row]?.[col] ?? '';
+      return raw.startsWith('=') ? `${evaluate(rows, row, col)} (${raw})` : raw;
+    });
+    if (values.some((v) => v.trim())) lines.push(`${row + 1} | ${values.join(' | ')}`);
+  }
+  const total = r.bottom - first + 1;
+  return {
+    range: rangeName(r),
+    header: headed ? r.top + 1 : null,
+    columns,
+    cells: [
+      `row | ${columns.map((c) => (c.name ? `${c.name} (${c.letter})` : c.letter)).join(' | ')}`,
+      ...lines,
+      ...(total > limit ? [`… ${total - limit} more rows, through row ${r.bottom + 1}`] : []),
+    ].join('\n'),
+  };
+}
 
 /** A sheet body read safely: rows always present, other settings only when valid. */
 export function readSheet(body: string | null | undefined): SheetBody {

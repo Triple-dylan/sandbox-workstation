@@ -1915,6 +1915,47 @@ test('pinned pages: every agent in the space reads them in full, and unpinning t
   assert.deepEqual(seen.at(-1).context.pinned, []);
 });
 
+test('sheet ranges: the agent gets the chosen cells as a table with column names, read fresh', async () => {
+  const seen: any[] = [];
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind !== 'maintenance') seen.push(task);
+      return {};
+    },
+  };
+  const { store, engine, dylan, general, agent, project } = setup(runtime);
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Sales',
+    body: JSON.stringify({
+      rows: [['Q1 sales'], ['Region', 'Amount'], ['North', '1200'], ['South', '=B3/2']],
+    }),
+  });
+  const range = { top: 1, left: 0, bottom: 3, right: 1 };
+  const message = store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'pivot this by region',
+    addressedTo: agent.id,
+    anchor: { resourceId: sheet.id, quote: 'A2:B4: stale', range },
+  });
+  assert.deepEqual(message.anchor?.range, range);
+  await engine.idle();
+  const anchor = seen.at(-1).anchor;
+  assert.equal(anchor.range, 'A2:B4');
+  assert.equal(anchor.header, 2);
+  assert.deepEqual(anchor.columns, [
+    { letter: 'A', name: 'Region' },
+    { letter: 'B', name: 'Amount' },
+  ]);
+  assert.equal(
+    anchor.cells,
+    'row | Region (A) | Amount (B)\n3 | North | 1200\n4 | South | 600 (=B3/2)',
+  );
+});
+
 test('sheet changes: an agent proposes cells by sheet title, a person applies them, and bad ones are dropped', async () => {
   const runtime: AgentRuntime = {
     id: 'probe',
