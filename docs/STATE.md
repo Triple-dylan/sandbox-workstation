@@ -112,6 +112,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Approval levels per agent: ask first, small fixes with Undo, plan first.
 - Not run against the live model yet: the evals need the OpenAI key's daily limit to reset.
 
+## Added 2026-11-27
+
+- Nightly backups: the server copies its database (`VACUUM INTO`) every night at 3:00 UTC into `backups/` beside it, keeping the last 7, and takes one soon after starting when the newest is over a day old. Half-written copies never count. Settings in `docs/WEBAPP.md`. Tested: the copy opens with the data as it was, later writes don't reach it, old copies are pruned, a failure is logged and the app carries on.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.
