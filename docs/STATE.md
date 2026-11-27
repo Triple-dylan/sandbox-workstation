@@ -6,10 +6,10 @@ _Updated 2026-11-26._ What is being built and why is in `docs/PLAN.md`.
 
 `main` holds the current product (the Nov 11–18 rebuild). Other branches:
 
-| Branch                            | What                                                                                                                                                                  | Status                                                                                                                                                  |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch | What | Status |
+|---|---|---|
 | `archive/local-codex-cursor-nov7` | Nov 6–7 local work: gpt-6-luna runtime, Google sign-in, MVP plan, product corrections, deployment notes. Also carries the history of the Nov 5–6 `cursor/*` branches. | Preserved, not merged. Its gpt-6-luna runtime and Google sign-in are now rebuilt on `main`; the rest (MVP plan, product corrections) is reference only. |
-| `cursor/agent-character-options`  | Standalone page comparing four agent character directions.                                                                                                            | Kept until the Orb choice is settled.                                                                                                                   |
+| `cursor/agent-character-options` | Standalone page comparing four agent character directions. | Kept until the Orb choice is settled. |
 
 ## Open it
 
