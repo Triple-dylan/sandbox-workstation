@@ -9,7 +9,7 @@
     "dev": "node scripts/dev.mjs",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-timeout=90000 --test-force-exit tests/*.test.ts",
     "test:e2e": "node --disable-warning=ExperimentalWarning --test tests/e2e/*.test.ts",
     "format": "prettier --write src server shared tests evals scripts vite.config.ts",
     "format:check": "prettier --check src server shared tests evals scripts vite.config.ts",
