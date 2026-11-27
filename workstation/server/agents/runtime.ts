@@ -78,12 +78,16 @@ export type AgentResult = {
   tokens?: number;
   /** The model's output could not be read as the required JSON. */
   malformed?: boolean;
+  /** Set when someone other than the usual runtime answered (the fallback), so the reply says so. */
+  runtime?: string;
 };
 
 export interface AgentRuntime {
   id: string;
   label: string;
   model?: string;
+  /** What answers instead when this runtime's provider cannot. */
+  fallback?: string;
   run(task: AgentTask): Promise<AgentResult>;
 }
 
