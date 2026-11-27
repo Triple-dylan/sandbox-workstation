@@ -2038,6 +2038,53 @@ test('sheet ops: an agent asks for a pivot of the chosen cells; code writes it; 
   );
 });
 
+test('sheet ops: a suggested filter is set for everyone when kept, and undo clears it', async () => {
+  const runtime: AgentRuntime = {
+    id: 'probe',
+    label: 'Probe',
+    async run(task) {
+      if (task.kind === 'maintenance') return {};
+      return {
+        reply: 'Showing North only.',
+        proposal: {
+          kind: 'sheet-ops',
+          title: 'Sales',
+          body: JSON.stringify({ op: 'filter', range: 'A1:B4', column: 'Region', test: 'North' }),
+        },
+      };
+    },
+  };
+  const { store, engine, dylan, general, agent, project, snap } = setup(runtime);
+  const sheet = store.createResource(dylan.id, {
+    spaceId: project.id,
+    kind: 'sheet',
+    title: 'Sales',
+    body: JSON.stringify({
+      rows: [
+        ['Region', 'Amount'],
+        ['North', '1'],
+        ['South', '2'],
+        ['North', '3'],
+      ],
+    }),
+  });
+  store.postMessage(dylan.id, {
+    conversationId: general.id,
+    text: 'north only',
+    addressedTo: agent.id,
+  });
+  await engine.idle();
+  const approval = snap(dylan.id).approvals.find((a) => a.proposal.kind === 'sheet-ops')!;
+  store.decideApproval(dylan.id, approval.id, 'approved');
+  assert.deepEqual(readSheet(store.resource(sheet.id)!.body).filter, {
+    range: { top: 1, left: 0, bottom: 3, right: 1 },
+    col: 0,
+    test: 'North',
+  });
+  store.undoApproval(dylan.id, approval.id);
+  assert.equal(readSheet(store.resource(sheet.id)!.body).filter, null);
+});
+
 test('sheet changes: an agent proposes cells by sheet title, a person applies them, and bad ones are dropped', async () => {
   const runtime: AgentRuntime = {
     id: 'probe',

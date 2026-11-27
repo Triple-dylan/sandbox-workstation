@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Check, Sparkles } from 'lucide-react';
+import { api } from '../data/client.ts';
+import { useWorkspace } from '../app/workspace.tsx';
 import { Filter, X } from 'lucide-react';
 import { colName } from '../../shared/formula.ts';
 import { rangeName, trimRange } from '../../shared/sheet.ts';
@@ -10,7 +13,7 @@ import {
   type OpResult,
   type SheetOp,
 } from '../../shared/sheetOps.ts';
-import type { CellRange, SheetFilter } from '../../shared/types.ts';
+import type { Approval, CellRange, SheetFilter } from '../../shared/types.ts';
 
 export type OpKind = 'pivot' | 'sort' | 'filter' | 'total';
 export const OP_KINDS: [OpKind, string][] = [
@@ -254,6 +257,50 @@ export function FilterBar({
       <button onClick={onClear}>
         <X size={13} /> Clear
       </button>
+    </div>
+  );
+}
+
+/**
+ * An agent's pivot, sort, filter or total, drawn on the sheet in a lighter tint before anything is
+ * saved. Keep applies it (worked out again on the sheet as it is then); Discard declines it.
+ */
+export function Suggestion({
+  approval,
+  agent,
+  result,
+  onShow,
+}: {
+  approval: Approval;
+  agent: string;
+  result: OpResult;
+  onShow: () => void;
+}) {
+  const { run } = useWorkspace();
+  // Brought into view once when it arrives.
+  useEffect(() => {
+    const t = setTimeout(onShow, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approval.id]);
+  const decide = (decision: 'approved' | 'declined') =>
+    void run(() => api(`/approvals/${approval.id}`, { body: { decision } }));
+  return (
+    <div className="sheet-suggestion" role="status">
+      <Sparkles size={13} />
+      <span>
+        <b>{agent}</b> suggests:{' '}
+        {result.ok
+          ? `${result.summary}${result.overwrites.length ? ` It writes over ${result.overwrites.slice(0, 4).join(', ')}${result.overwrites.length > 4 ? ` and ${result.overwrites.length - 4} more` : ''}.` : ''} Shown tinted; nothing is saved until you keep it.`
+          : `something that can't run on the sheet as it is now (${result.error}).`}
+      </span>
+      {result.ok && (
+        <button className="primary" onClick={() => decide('approved')}>
+          <Check size={13} /> Keep
+        </button>
+      )}
+      {result.ok && result.area && <button onClick={onShow}>Show</button>}
+      <button onClick={() => decide('declined')}>Discard</button>
     </div>
   );
 }
