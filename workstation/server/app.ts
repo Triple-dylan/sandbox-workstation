@@ -11,6 +11,7 @@ import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
 import { outsideApi } from './api.ts';
 import { Webhooks } from './webhooks.ts';
+import { SeatAsks, seatAsksApi } from './seat-asks.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -93,6 +94,8 @@ export function createApp(options: AppOptions) {
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
   const seats = new Seats(store);
+  // Before webhooks: an answer to a seat's ask is marked before its event goes out.
+  const asks = new SeatAsks(store);
   const webhooks = new Webhooks(store, options.webhooks);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
@@ -221,6 +224,7 @@ export function createApp(options: AppOptions) {
         seats,
         { method, path, query, authorization, input },
         webhooks,
+        asks,
       );
       return send(res, result.status, result.data);
     }
@@ -360,6 +364,8 @@ export function createApp(options: AppOptions) {
     const segments = path.split('/').slice(2);
     const seatResult = seatsApi(seats, me, method, segments, input);
     if (seatResult !== undefined) return send(res, 200, seatResult);
+    const askResult = seatAsksApi(asks, me, method, segments, input);
+    if (askResult !== undefined) return send(res, 200, askResult);
     if (path === '/api/presence' && method === 'POST') {
       setPresence(me.id, {
         spaceId: str('spaceId') || null,
@@ -899,6 +905,7 @@ export function createApp(options: AppOptions) {
     collab,
     seats,
     webhooks,
+    asks,
     runtime,
     async close() {
       if (closed) return;
@@ -906,6 +913,7 @@ export function createApp(options: AppOptions) {
       clearInterval(heartbeat);
       engine.stop();
       webhooks.stop();
+      asks.stop();
       connectors.close();
       collab.stop();
       await browsers.stop();

@@ -1,6 +1,7 @@
 import { AccessError, InputError, type Store } from './store.ts';
 import type { Seats } from './seats.ts';
 import type { Webhooks } from './webhooks.ts';
+import { AllowanceUsed, type SeatAsks } from './seat-asks.ts';
 import { isPage } from '../shared/types.ts';
 import type { Conversation, Id, Message, Resource, User } from '../shared/types.ts';
 
@@ -252,6 +253,16 @@ export class OutsideAgent {
     }
     return this.dmIds.get(chatId)!;
   }
+  /** An answer from one of Sandbox's agents to something this seat asked it. */
+  private answersMe(messageId: Id) {
+    return (
+      this.rows(
+        'select 1 from seat_asks where answer_id = ? and seat_id = ?',
+        messageId,
+        this.agent.id,
+      ).length > 0
+    );
+  }
   protected messageInfo(r: MessageRow): MessageInfo {
     return {
       id: r.id,
@@ -261,7 +272,8 @@ export class OutsideAgent {
       replyTo: r.reply_to ?? null,
       toMe:
         r.addressed_to === this.agent.id ||
-        (r.author_id !== this.agent.id && this.inMyDm(r.conversation_id)),
+        (r.author_id !== this.agent.id && this.inMyDm(r.conversation_id)) ||
+        this.answersMe(r.id),
       createdAt: r.created_at,
     };
   }
@@ -274,8 +286,9 @@ export class OutsideAgent {
     const since = readSince(options.since);
     const toMe = `(addressed_to = ? or (author_id != ? and conversation_id in (
       select p.conversation_id from participants p join conversations c on c.id = p.conversation_id
-      where p.user_id = ? and c.kind = 'dm')))`;
-    const me = [this.agent.id, this.agent.id, this.agent.id];
+      where p.user_id = ? and c.kind = 'dm')) or id in (
+      select answer_id from seat_asks where seat_id = ? and answer_id is not null))`;
+    const me = [this.agent.id, this.agent.id, this.agent.id, this.agent.id];
     const rows = since
       ? this.rows<MessageRow>(
           `select ${COLUMNS} from messages where ${toMe} and created_at > ? order by created_at, rowid`,
@@ -301,14 +314,23 @@ export class OutsideAgent {
 
   // ---------- writes: as itself, where it is a member, like a person ----------
 
-  /** Says something in a chat it can read, or replies in a thread there. */
-  post(chatId: Id, input: { text?: unknown; replyTo?: unknown }) {
+  /**
+   * Says something in a chat it can read, or replies in a thread there. With `ask` (and the seat's
+   * allowance left), it puts the message to one of the workspace's own agents, who answers in its
+   * thread.
+   */
+  post(chatId: Id, input: { text?: unknown; replyTo?: unknown; ask?: unknown }, asks?: SeatAsks) {
     const chat = this.readableChat(chatId);
+    const asked = input.ask !== undefined && input.ask !== null && input.ask !== '';
+    if (asked && !asks) throw new InputError("Asking Sandbox's agents is not available here.");
+    const agent = asked ? asks!.check(this.agent, chat, input.ask) : null;
     const message = this.store.postMessage(this.agent.id, {
       conversationId: chat.id,
       text: typeof input.text === 'string' ? input.text : '',
       replyTo: typeof input.replyTo === 'string' && input.replyTo ? input.replyTo : null,
+      ...(agent ? { addressedTo: agent.id } : {}),
     });
+    if (agent) asks!.record(message);
     return this.messageInfo({
       id: message.id,
       conversation_id: message.conversationId,
@@ -367,6 +389,16 @@ export class OutsideAgent {
     if (page.role || page.kind === 'browser')
       throw new AccessError('This page is kept by Sandbox.');
     return page;
+  }
+
+  /** Sandbox's own agents it may ask in a chat it can read, by id and name. */
+  askable(chatId: Id, asks?: SeatAsks) {
+    const chat = this.readableChat(chatId);
+    return (asks?.askable(chat) ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      purpose: a.purpose ?? '',
+    }));
   }
 
   /** A message as this agent would read it, or null if it cannot read that chat. */
@@ -454,6 +486,7 @@ export function outsideApi(
     input?: Record<string, unknown>;
   },
   webhooks?: Webhooks,
+  asks?: SeatAsks,
 ): { status: number; data: unknown } {
   const agent = seats.agentForToken(bearer(request.authorization));
   if (!agent) return { status: 401, data: { error: 'Use a live agent seat token.' } };
@@ -472,6 +505,8 @@ export function outsideApi(
     if (a === 'chats' && b && c === 'messages') return ok(outside.messages(b, options));
     if (a === 'inbox' && !b) return ok(outside.inbox(options));
     if (a === 'dms' && !b) return ok(outside.dms());
+    if (a === 'chats' && b && c === 'agents') return ok(outside.askable(b, asks));
+    if (a === 'asks' && !b && asks) return ok(asks.allowance(agent.id));
     if (a === 'webhooks' && !b && webhooks) return ok(webhooks.list(agent.id));
   }
   if (method === 'GET') return { status: 404, data: { error: 'Not found.' } };
@@ -479,7 +514,12 @@ export function outsideApi(
     return { status: 429, data: { error: 'Too many changes. Wait a minute and try again.' } };
   const input = request.input ?? {};
   if (method === 'POST' && a === 'chats' && b && c === 'messages')
-    return ok(outside.post(b, input));
+    try {
+      return ok(outside.post(b, input, asks));
+    } catch (error) {
+      if (error instanceof AllowanceUsed) return { status: 429, data: { error: error.message } };
+      throw error;
+    }
   if (method === 'POST' && a === 'spaces' && b && c === 'pages')
     return ok(outside.createDoc(b, input));
   if (method === 'POST' && a === 'dms' && !b) return ok(outside.openDm(input));
