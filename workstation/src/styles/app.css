@@ -5727,6 +5727,11 @@ select:focus-visible {
   background: var(--wash-2);
   border-color: var(--ink-3);
 }
+.list-new-says {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .list-new-foot {
   display: flex;
   align-items: center;
