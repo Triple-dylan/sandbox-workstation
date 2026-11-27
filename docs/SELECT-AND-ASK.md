@@ -1,6 +1,8 @@
 # Select and ask: point at part of a page, say what you want, see it done
 
-_Plan, 2026-11-27. Nothing here is built yet._
+_Plan, 2026-11-27. Steps 1–5 (the sheet feature) are built: #48, #49, #53, #54, #52. Steps 6–8 are not._
+
+"Where it stands today" below describes the app before steps 1–5.
 
 ## The goal
 
