@@ -8,7 +8,8 @@
  */
 
 export type Row = Record<string, any>;
-export type Value = string | number | bigint | boolean | null | Uint8Array;
+/** A value to bind. Lists of text are Postgres arrays (`cast(? as text[])`); SQLite has none. */
+export type Value = string | number | bigint | boolean | null | Uint8Array | readonly string[];
 
 export interface Sql {
   readonly dialect: 'sqlite' | 'postgres';
