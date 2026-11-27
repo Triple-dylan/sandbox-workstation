@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
 import {
+  clearDeadLinks,
   PURGE_EVERY_MS,
   purgeAfterDays,
   purgeDeletedPages,
@@ -153,7 +154,8 @@ export function createApp(options: AppOptions) {
   const heartbeat = setInterval(() => {
     for (const res of streams.keys()) res.write(': keepalive\n\n');
   }, 25_000);
-  // Deleted workspaces and pages are purged for good once their grace period is over: now, then every few hours.
+  // Deleted workspaces and pages are purged for good once their grace period is over, and dead
+  // invite and sign-in links are cleared out: now, then every few hours.
   const purge = () => {
     try {
       const afterDays = purgeAfterDays(env);
@@ -161,6 +163,7 @@ export function createApp(options: AppOptions) {
       if (purged.length) console.log(`Purged ${purged.length} deleted workspace(s).`);
       const pages = purgeDeletedPages(store.db, { afterDays });
       if (pages.length) console.log(`Purged ${pages.length} deleted page(s).`);
+      clearDeadLinks(store.db);
     } catch (error) {
       console.error('purge failed', error);
     }

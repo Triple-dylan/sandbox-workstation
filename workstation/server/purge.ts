@@ -97,6 +97,18 @@ function wipeResources(db: Db, resourceIds: Id[]) {
 }
 
 /**
+ * Clears out invite links and sign-in links that can never be used again: expired ones, replaced
+ * invites and used sign-in links. Nothing reads them once they are dead, and someone opening one
+ * is told it has expired whether or not its row is still there. Returns how many it removed.
+ */
+export function clearDeadLinks(db: Db, now = new Date()) {
+  const at = now.toISOString();
+  const invites = db.prepare('delete from invites where revoked = 1 or expires_at <= ?').run(at);
+  const signIns = db.prepare('delete from signin_links where used = 1 or expires_at <= ?').run(at);
+  return { invites: Number(invites.changes), signIns: Number(signIns.changes) };
+}
+
+/**
  * Removes a space and everything in it, all or nothing. Also removes the agents that
  * belonged to it and any one-to-one chats people had with them.
  */
