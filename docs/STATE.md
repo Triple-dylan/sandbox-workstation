@@ -115,6 +115,9 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 - `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
 - `/healthz` answers 503 with `ok: false` when the database stops answering a read, so Railway restarts the app instead of serving errors.
+## Added 2026-11-27
+
+- Self-hosting: `compose.yaml` runs the app and the browser service on one machine with the database on a named volume; `docs/SELF-HOST.md` has the steps. Checked with Docker locally: the app starts in invite mode, the setup code lets the first person in, and they are still there after the container is recreated. The browser service image was not built here.
 
 ## Known gaps
 
