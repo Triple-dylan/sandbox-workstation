@@ -10,7 +10,9 @@ To check they are running, open `https://<your address>/healthz`: `backups.newes
 
 ## Getting a copy off the server
 
-Sign in with an email listed in `BACKUP_OWNERS` and open `https://<your address>/api/backup`. It downloads the newest copy.
+Sign in with an email listed in `BACKUP_OWNERS` and open **Settings**. Its **Backups** row shows when the newest copy was taken, with **Back up now** and **Download** beside it. Nobody else sees that row. The download is also at `https://<your address>/api/backup`.
+
+To take a copy now (for example before a risky change), press **Back up now** (it sends `POST /api/backup`). It answers with the new copy's name, which you can then restore by name. A copy taken within the last minute is returned instead of taking another. On-demand copies count toward the 7 kept, so several in a row push out the oldest nightly ones.
 
 To take a copy now (for example before a risky change), an owner's signed-in app sends `POST /api/backup` (there is no button for it in the interface yet; this is what one would call). It answers with the new copy's name, which you can then restore by name. A copy taken within the last minute is returned instead of taking another. On-demand copies count toward the 7 kept, so several in a row push out the oldest nightly ones.
 

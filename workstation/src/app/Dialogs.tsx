@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Backups } from './Backups.tsx';
 import { Copy, Link2, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
@@ -167,6 +168,7 @@ export function Settings() {
         (v) => set({ shareCursor: v === 'on' }),
       )}
       <DeviceLink />
+      <Backups />
       {s.connectors?.map((c) => (
         <div className="setting" key={c.id}>
           <span>{c.name}</span>

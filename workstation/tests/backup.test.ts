@@ -343,3 +343,40 @@ test('owners can take a backup now, and nobody else can', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Settings can see the newest backup, but only for owners', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sw-backup-status-'));
+  const dbPath = join(dir, 'workstation.db');
+  const app = createApp({
+    dbPath,
+    staticDir: null,
+    runtime: scriptedRuntime,
+    env: { BACKUP_OWNERS: 'owner@example.com', BACKUP_KEEP: '3' },
+  });
+  try {
+    await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+    const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
+    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const get = (userId: string) =>
+      fetch(`${base}/api/backups`, {
+        headers: { cookie: `sw_session=${app.store.createSession(userId)}` },
+      });
+
+    assert.equal((await fetch(`${base}/api/backups`)).status, 401);
+    assert.equal((await get(other.id)).status, 403);
+    assert.deepEqual(await (await get(owner.id)).json(), { count: 0, keep: 3, newest: null });
+
+    const made = backupNow(dbPath, backupOptions(dbPath, { BACKUP_KEEP: '3' })!);
+    const status = await (await get(owner.id)).json();
+    assert.deepEqual(status, {
+      count: 1,
+      keep: 3,
+      newest: { name: made.name, takenAt: made.takenAt, bytes: made.bytes },
+    });
+    assert.ok(!JSON.stringify(status).includes(dir), 'no paths');
+  } finally {
+    await app.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
