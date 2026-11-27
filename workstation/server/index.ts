@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { networkInterfaces } from 'node:os';
 import { loadEnv } from './env.ts';
 import { createApp } from './app.ts';
+import { storageFor, storageWarning } from './storage.ts';
 
 loadEnv();
 const port = Number(process.env.PORT ?? 4174);
@@ -22,6 +23,8 @@ app.server.listen(port, host, () => {
   console.log(
     `Agents: ${app.runtime.label}${app.runtime.model ? ` (${app.runtime.model})` : ''}${app.runtime.fallback ? `, ${app.runtime.fallback} if OpenAI is unavailable` : ''}. Data: ${dbPath === ':memory:' ? 'in memory' : dbPath}`,
   );
+  const warning = storageWarning(dbPath, storageFor(dbPath));
+  if (warning) console.warn(warning);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const)

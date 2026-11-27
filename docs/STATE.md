@@ -111,6 +111,9 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
 - The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
 - Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
+## Added 2026-11-27
+
+- `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
 
 ## Known gaps
 
