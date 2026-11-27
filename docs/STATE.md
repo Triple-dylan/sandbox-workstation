@@ -1,6 +1,6 @@
 # Current state
 
-_Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
+_Updated 2026-11-26._ What is being built and why is in `docs/PLAN.md`.
 
 ## Repository status (2026-11-24)
 
@@ -72,7 +72,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-24
 
-- Every agent runs on `gpt-6-luna`; there is no model setting.
+- Every agent runs on `gpt-6-luna`; there is no model setting. When OpenAI can't answer (busy after the retries, out of credit, or unreachable), Claude Sonnet 5.5 answers once through the Nous key (`NOUS_API_KEY`). The reply is tagged "Claude Sonnet 5.5 · OpenAI unavailable", and its tokens and dollars go to `provider_usage`, which no screen shows yet. Checked live on 2026-11-27 with OpenAI forced out of credit: the embargo question was answered from the page in 4s for $0.0067.
 - Answer checks: agents answer in a strict JSON shape (falls back to plain JSON mode if the model refuses it; gpt-6-luna accepts it). Each answer is checked against what the agent was given: cited pages must exist, a proposed edit must quote text that is really on the page, a handoff must name a real colleague, and a question must get a reply. A fixable problem gets one retry with the problem spelled out; anything still wrong is left out and the reply says so.
 - Live quality checks: `npm run eval` in `workstation/` runs six realistic cases against the real model and scores them (grounded numbers and sources, finding by meaning, admitting what is missing, exact edits, honouring decided messages, no private text in channels). Needs `OPENAI_API_KEY`; not part of CI. First run 2026-11-24: 6/6.
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
@@ -83,19 +83,6 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Less clutter: graph filters behind one Filter button; the rail's reads menu has only real choices; "Attach" brings a file in as a private page for the question.
 - Welcome and workspaces: one sign-in page for every way in (Google, a name on a local server, a sign-in link) that says what the product is and names both kinds of agent, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The + in the thin rail offers both at any time ("New workspace", "Join with a link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
-
-## Added 2026-11-26
-
-- Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
-- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
-- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
-- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
-- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
-- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
-- Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
-- A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
-- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
-- Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
 
 ## Added 2026-11-25
 
@@ -112,6 +99,26 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Approval levels per agent: ask first, small fixes with Undo, plan first.
 - Not run against the live model yet: the evals need the OpenAI key's daily limit to reset.
 
+## Added 2026-11-26
+
+- Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
+- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
+- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
+- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
+- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
+- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
+- Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
+- A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
+- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
+- Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
+## Added 2026-11-27
+
+- `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
+- `/healthz` answers 503 with `ok: false` when the database stops answering a read, so Railway restarts the app instead of serving errors.
+## Added 2026-11-27
+
+- Self-hosting: `compose.yaml` runs the app and the browser service on one machine with the database on a named volume; `docs/SELF-HOST.md` has the steps. Checked with Docker locally: the app starts in invite mode, the setup code lets the first person in, and they are still there after the container is recreated. The browser service image was not built here.
+- CI builds both Docker images and runs `compose.yaml` end to end (`.github/workflows/compose.yml`): `/healthz`, invite mode with the setup code, the app reaching the browser service, and a person surviving a recreate of the app's container. It runs when the images, compose file or server change, and on every merge to `main`.
 ## Added 2026-11-27
 
 - Nightly backups: the server copies its database (`VACUUM INTO`) every night at 3:00 UTC into `backups/` beside it, keeping the last 7, and takes one soon after starting when the newest is over a day old. Half-written copies never count. Settings in `docs/WEBAPP.md`. Tested: the copy opens with the data as it was, later writes don't reach it, old copies are pruned, a failure is logged and the app carries on.

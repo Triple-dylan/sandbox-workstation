@@ -199,7 +199,7 @@ export function Settings() {
         Saved in this browser.{' '}
         {s.runtime.id === 'none'
           ? 'Agents are not connected on this server yet: it needs an OpenAI key.'
-          : `Agents answer with ${s.runtime.model || s.runtime.label}.`}
+          : `Agents answer with ${s.runtime.model || s.runtime.label}${s.runtime.fallback ? `, or ${s.runtime.fallback} when OpenAI is unavailable` : ''}.`}
       </p>
     </Dialog>
   );
