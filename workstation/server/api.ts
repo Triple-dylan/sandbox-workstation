@@ -235,6 +235,76 @@ export class OutsideAgent {
     return (since ? kept.slice(0, limit) : kept.slice(-limit)).map((r) => this.messageInfo(r));
   }
 
+  // ---------- writes: as itself, where it is a member, like a person ----------
+
+  /** Says something in a chat it can read, or replies in a thread there. */
+  post(chatId: Id, input: { text?: unknown; replyTo?: unknown }) {
+    const chat = this.readableChat(chatId);
+    const message = this.store.postMessage(this.agent.id, {
+      conversationId: chat.id,
+      text: typeof input.text === 'string' ? input.text : '',
+      replyTo: typeof input.replyTo === 'string' && input.replyTo ? input.replyTo : null,
+    });
+    return this.messageInfo({
+      id: message.id,
+      conversation_id: message.conversationId,
+      author_id: message.authorId,
+      text: message.text,
+      reply_to: message.replyTo,
+      addressed_to: message.addressedTo,
+      created_at: message.createdAt,
+    });
+  }
+  /** A new doc in a workspace: shared with the space unless asked to keep it private to itself. */
+  createDoc(spaceId: Id, input: { title?: unknown; body?: unknown; visibility?: unknown }) {
+    this.space(spaceId);
+    const page = this.store.createResource(this.agent.id, {
+      spaceId,
+      kind: 'doc',
+      title: typeof input.title === 'string' ? input.title : '',
+      body: typeof input.body === 'string' ? input.body : '',
+      visibility: input.visibility === 'private' ? 'private' : 'space',
+    });
+    return this.page(page.id);
+  }
+  /** Renames a page, or replaces a doc's Markdown. People editing it see the new text at once. */
+  editPage(pageId: Id, input: { title?: unknown; body?: unknown }) {
+    const page = this.writablePage(pageId);
+    const body = typeof input.body === 'string' ? input.body : undefined;
+    if (body !== undefined && page.kind !== 'doc')
+      throw new InputError('Only a doc takes new text here; change a sheet with its cells.');
+    const title = typeof input.title === 'string' ? input.title : undefined;
+    if (title === undefined && body === undefined) throw new InputError('Nothing to change.');
+    this.store.updateResource(this.agent.id, page.id, {
+      ...(title !== undefined ? { title } : {}),
+      ...(body !== undefined ? { body } : {}),
+    });
+    return this.page(page.id);
+  }
+  /** Sets cells on a sheet, counted from 0. A linked sheet passes them on as a person's edits do. */
+  setCells(pageId: Id, input: { edits?: unknown }) {
+    const page = this.writablePage(pageId);
+    if (page.kind !== 'sheet') throw new InputError('Cells are only on sheets.');
+    if (!Array.isArray(input.edits)) throw new InputError('Send edits: [{ row, col, value }].');
+    this.store.setCells(
+      this.agent.id,
+      page.id,
+      input.edits.map((e: any) => ({
+        row: Number(e?.row),
+        col: Number(e?.col),
+        value: String(e?.value ?? ''),
+      })),
+    );
+    return this.page(page.id);
+  }
+  private writablePage(pageId: Id) {
+    const page = this.readablePage(pageId);
+    // A workspace's About page is kept by its own agent; a browser page is what its browser shows.
+    if (page.role || page.kind === 'browser')
+      throw new AccessError('This page is kept by Sandbox.');
+    return page;
+  }
+
   me() {
     const owner = this.agent.ownerId ? this.store.user(this.agent.ownerId) : null;
     return {
@@ -257,6 +327,21 @@ function readSince(raw: unknown) {
   return new Date(at).toISOString();
 }
 
+/**
+ * At most WRITES_PER_MINUTE changes a minute per seat, so a looping agent cannot flood a
+ * workspace. Reads are not limited: they change nothing.
+ */
+const WRITES_PER_MINUTE = 60;
+const writes = new Map<Id, { n: number; at: number }>();
+function allowWrite(agentId: Id) {
+  const seen = writes.get(agentId);
+  const fresh = !seen || Date.now() - seen.at > 60_000;
+  const next = fresh ? { n: 1, at: Date.now() } : { n: seen.n + 1, at: seen.at };
+  writes.set(agentId, next);
+  if (writes.size > 5000) writes.clear();
+  return next.n <= WRITES_PER_MINUTE;
+}
+
 /** The token from `Authorization: Bearer sbx_…`. */
 export function bearer(header: string | string[] | undefined) {
   const value = Array.isArray(header) ? header[0] : header;
@@ -276,6 +361,7 @@ export function outsideApi(
     path: string;
     query: URLSearchParams;
     authorization: string | string[] | undefined;
+    input?: Record<string, unknown>;
   },
 ): { status: number; data: unknown } {
   const agent = seats.agentForToken(bearer(request.authorization));
@@ -295,5 +381,16 @@ export function outsideApi(
     if (a === 'chats' && b && c === 'messages') return ok(outside.messages(b, options));
     if (a === 'inbox' && !b) return ok(outside.inbox(options));
   }
+  if (method === 'GET') return { status: 404, data: { error: 'Not found.' } };
+  if (!allowWrite(agent.id))
+    return { status: 429, data: { error: 'Too many changes. Wait a minute and try again.' } };
+  const input = request.input ?? {};
+  if (method === 'POST' && a === 'chats' && b && c === 'messages')
+    return ok(outside.post(b, input));
+  if (method === 'POST' && a === 'spaces' && b && c === 'pages')
+    return ok(outside.createDoc(b, input));
+  if (method === 'PATCH' && a === 'pages' && b && !c) return ok(outside.editPage(b, input));
+  if (method === 'POST' && a === 'pages' && b && c === 'cells')
+    return ok(outside.setCells(b, input));
   return { status: 404, data: { error: 'Not found.' } };
 }
