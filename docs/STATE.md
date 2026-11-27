@@ -127,6 +127,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - `/healthz` says how backups stand: how many are kept, when the newest was taken, its age in hours, and `stale` when there is none or it is over 26 hours old (a missed night). No paths. Left out when backups are off.
 - Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept.
 - Settings shows owners a Backups row: when the newest copy was taken and its size, how many are kept, **Back up now** and **Download**. Everyone else, and a server with backups off, sees no row (`GET /api/backups` answers 403 or 404).
+- Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept. No button in the interface yet.
 
 ## Known gaps
 
