@@ -124,6 +124,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Nightly backups: the server copies its database (`VACUUM INTO`) every night at 3:00 UTC into `backups/` beside it, keeping the last 7, and takes one soon after starting when the newest is over a day old. Half-written copies never count. Settings in `docs/WEBAPP.md`. Tested: the copy opens with the data as it was, later writes don't reach it, old copies are pruned, a failure is logged and the app carries on.
 - Backup download: `/api/backup` sends the newest backup to someone signed in with an email in `BACKUP_OWNERS` (taking one first if there is none); anyone else gets a refusal, and with it unset nobody can download.
 - Restoring a backup: `npm run restore` lists the backups and `npm run restore -- <name|latest>` checks one and stages it; the server puts it in place at its next start, before the database opens, and keeps the database it replaced beside it. Steps for Railway and locally in `docs/BACKUPS.md`. Tested: the restored data, the kept copy, refusing a damaged or foreign file, and the command itself.
+- `/healthz` says how backups stand: how many are kept, when the newest was taken, its age in hours, and `stale` when there is none or it is over 26 hours old (a missed night). No paths. Left out when backups are off.
 
 ## Known gaps
 

@@ -15,7 +15,7 @@ import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
-import { backupNow, backupOptions, listBackups } from './backup.ts';
+import { backupHealth, backupNow, backupOptions, listBackups } from './backup.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
@@ -888,7 +888,12 @@ export function createApp(options: AppOptions) {
     try {
       if (path === '/healthz') {
         const ok = databaseReads(store.db);
-        const body = { ok, version: store.version, ...storageFor(options.dbPath) };
+        const body = {
+          ok,
+          version: store.version,
+          ...storageFor(options.dbPath),
+          ...backupHealth(backups),
+        };
         return send(
           res,
           ok ? 200 : 503,

@@ -6,6 +6,8 @@ Every night at 3:00 UTC the server copies its database into `backups/` beside it
 
 The copies sit on the same disk as the database. They protect against bad writes and mistakes, not against losing the disk. On Railway that disk is the volume at `/data`; without a volume, the database and its backups are both wiped on every deploy.
 
+To check they are running, open `https://<your address>/healthz`: `backups.newest` is when the last copy was taken, `backups.ageHours` how long ago, and `backups.stale` is true when there is none or the newest is over 26 hours old.
+
 ## Getting a copy off the server
 
 Sign in with an email listed in `BACKUP_OWNERS` and open `https://<your address>/api/backup`. It downloads the newest copy.
