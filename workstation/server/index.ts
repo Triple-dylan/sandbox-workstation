@@ -3,12 +3,15 @@ import { networkInterfaces } from 'node:os';
 import { loadEnv } from './env.ts';
 import { createApp } from './app.ts';
 import { backupOptions, scheduleBackups } from './backup.ts';
+import { applyPendingRestore } from './restore.ts';
 
 loadEnv();
 const port = Number(process.env.PORT ?? 4174);
 const host = process.env.HOST ?? '127.0.0.1';
 const dbPath =
   process.env.WORKSTATION_DB ?? fileURLToPath(new URL('../data/workstation.db', import.meta.url));
+// A backup staged with `npm run restore` goes in place before the database is opened.
+applyPendingRestore(dbPath);
 const app = createApp({ dbPath, staticDir: process.env.STATIC === 'off' ? null : undefined });
 // Nightly copies of the database beside it (see server/backup.ts); off for an in-memory database.
 const backups = scheduleBackups(dbPath, backupOptions(dbPath, process.env));
