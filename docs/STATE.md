@@ -121,6 +121,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Saved graph views and questions, and which pages you have looked at, live in the browser, not on the server.
 - No real accounts or hosting yet; `docs/WEBAPP.md` lists what a hosted version still needs. PDF import is not built. Text size changes the base size; some small labels stay fixed.
 - No Claude runtime on the local server yet (OpenAI only there).
+- Agents change sheets only cell by cell (`edit-cells`), working any totals out themselves as fixed numbers; no pivots, sorts or filters. Planned in `docs/SELECT-AND-ASK.md`, with the same select-and-ask pattern for the other pages.
 
 ## Checks
 
