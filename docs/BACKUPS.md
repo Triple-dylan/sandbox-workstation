@@ -14,6 +14,8 @@ Sign in with an email listed in `BACKUP_OWNERS` and open **Settings**. Its **Bac
 
 To take a copy now (for example before a risky change), press **Back up now** (it sends `POST /api/backup`). It answers with the new copy's name, which you can then restore by name. A copy taken within the last minute is returned instead of taking another. On-demand copies count toward the 7 kept, so several in a row push out the oldest nightly ones.
 
+To take a copy now (for example before a risky change), an owner's signed-in app sends `POST /api/backup` (there is no button for it in the interface yet; this is what one would call). It answers with the new copy's name, which you can then restore by name. A copy taken within the last minute is returned instead of taking another. On-demand copies count toward the 7 kept, so several in a row push out the oldest nightly ones.
+
 ## Restoring
 
 A restore is staged while the server runs and put in place the next time it starts, before anything opens the database. This is because on Railway the server is the only thing running in its container, so it cannot be stopped first.
