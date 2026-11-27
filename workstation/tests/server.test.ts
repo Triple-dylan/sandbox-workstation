@@ -1120,7 +1120,12 @@ test('hosting: a health check, an access code, and pages served with safe header
       headers: { 'content-type': 'application/json', 'x-workstation': '1', ...headers },
       body: JSON.stringify(body),
     });
-  assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), { ok: true, version: 0 });
+  assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), {
+    ok: true,
+    version: 0,
+    persistent: false,
+    storage: 'memory',
+  });
   assert.deepEqual(await (await fetch(`${base}/api/config`)).json(), {
     accessCode: true,
     mode: 'open',
