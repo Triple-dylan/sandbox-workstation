@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, Download, Plus, Send, Snowflake, Sparkles, Trash2 } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useFading, useSpot } from '../app/spot.ts';
@@ -22,8 +22,8 @@ import {
 import type { Resource, SheetFormat } from '../../shared/types.ts';
 import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 import { LinkStatus } from '../features/connectors/LinkStatus.tsx';
-import { hiddenRows } from '../../shared/sheetOps.ts';
-import { FilterBar, OP_KINDS, OpForm, type OpKind } from './SheetOps.tsx';
+import { applyEdits, hiddenRows, readOp, runOp } from '../../shared/sheetOps.ts';
+import { FilterBar, OP_KINDS, OpForm, Suggestion, type OpKind } from './SheetOps.tsx';
 import type { CellRange } from '../../shared/types.ts';
 
 type Edit = { row: number; col: number; value: string };
@@ -63,8 +63,40 @@ export function SheetPage({ page }: { page: Resource }) {
   const sheet = readSheet(page.body);
   const stored = sheet.rows;
   const [extra, setExtra] = useState({ rows: 0, cols: 0 });
-  const width = Math.min(MAX_COLS, Math.max(6, ...stored.map((r) => r.length)) + extra.cols);
-  const height = Math.min(MAX_ROWS, Math.max(20, stored.length + 3) + extra.rows);
+  // An agent's pivot, sort, filter or total waiting on a person: drawn on the sheet before it is kept.
+  const suggestion = s.approvals
+    .filter(
+      (a) =>
+        a.status === 'pending' &&
+        a.proposal.kind === 'sheet-ops' &&
+        a.proposal.resourceId === page.id,
+    )
+    .at(-1);
+  const suggested = suggestion?.proposal.body ?? null;
+  const preview = useMemo(() => {
+    if (suggested === null) return null;
+    const op = readOp(suggested, null);
+    return typeof op === 'string'
+      ? ({ ok: false, error: op } as const)
+      : runOp(readSheet(page.body).rows, op);
+  }, [suggested, page.body]);
+  const ghost =
+    preview?.ok && preview.edits.length
+      ? {
+          rows: applyEdits(stored, preview.edits),
+          cells: new Set(preview.edits.map((e) => `${e.row}:${e.col}`)),
+        }
+      : null;
+  const ghostHidden = preview?.ok && preview.filter ? hiddenRows(stored, preview.filter) : null;
+  const reach = preview?.ok && preview.area ? preview.area : null;
+  const width = Math.min(
+    MAX_COLS,
+    Math.max(6, ...stored.map((r) => r.length), reach ? reach.right + 1 : 0) + extra.cols,
+  );
+  const height = Math.min(
+    MAX_ROWS,
+    Math.max(20, stored.length + 3, reach ? reach.bottom + 2 : 0) + extra.rows,
+  );
   const rows = Array.from({ length: height }, (_, r) =>
     Array.from({ length: width }, (_, c) => stored[r]?.[c] ?? ''),
   );
@@ -640,6 +672,17 @@ export function SheetPage({ page }: { page: Resource }) {
           }}
         />
       )}
+      {suggestion && preview && (
+        <Suggestion
+          approval={suggestion}
+          agent={user(suggestion.agentId)?.name ?? 'Your agent'}
+          result={preview}
+          onShow={() => {
+            if (reach)
+              cellAt(reach.top, reach.left)?.scrollIntoView({ block: 'center', inline: 'center' });
+          }}
+        />
+      )}
       {sheet.filter && (
         <FilterBar
           filter={sheet.filter}
@@ -701,7 +744,7 @@ export function SheetPage({ page }: { page: Resource }) {
               <tr
                 key={r}
                 hidden={hidden.has(r)}
-                className={`${r === 0 ? 'head' : ''} ${r < freeze ? 'frozen' : ''} ${inPick(r) ? 'picked' : ''} ${lit && r >= lit[0] && r <= lit[1] ? 'lit' : ''}`}
+                className={`${ghostHidden?.has(r) ? 'ghost-hidden' : ''} ${r === 0 ? 'head' : ''} ${r < freeze ? 'frozen' : ''} ${inPick(r) ? 'picked' : ''} ${lit && r >= lit[0] && r <= lit[1] ? 'lit' : ''}`}
                 style={
                   r < freeze
                     ? ({
@@ -730,15 +773,17 @@ export function SheetPage({ page }: { page: Resource }) {
                 {row.map((cell, c) => {
                   const here = at?.r === r && at?.c === c;
                   const typing = here && !!editing;
+                  const ghosted = !typing && !!ghost?.cells.has(`${r}:${c}`);
+                  const from = ghosted ? ghost!.rows : rows;
                   const shown = typing
                     ? value
-                    : formatValue(evaluate(rows, r, c), sheet.formats?.[c]);
-                  const numeric = !typing && toNumber(evaluate(rows, r, c)) !== null;
+                    : formatValue(evaluate(from, r, c), sheet.formats?.[c]);
+                  const numeric = !typing && toNumber(evaluate(from, r, c)) !== null;
                   const who = onCell.get(`${r}:${c}`);
                   return (
                     <td
                       key={c}
-                      className={`${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${who ? 'teammate' : ''} ${inBox(r, c) ? 'in-range' : ''} ${here ? 'here' : ''}`}
+                      className={`${ghosted ? 'ghost' : ''} ${numeric ? 'num' : ''} ${cell.startsWith('=') ? 'calc' : ''} ${who ? 'teammate' : ''} ${inBox(r, c) ? 'in-range' : ''} ${here ? 'here' : ''}`}
                       onMouseDown={(e) => {
                         if (typing) return;
                         tabRun.current = null;

@@ -49,6 +49,14 @@ const ASKS: Record<
   // Cells chosen on a sheet: numbers to explain and check, not prose to rewrite.
   cells: [
     {
+      label: 'Pivot this',
+      ask: 'Make a pivot table of these cells: group by the column that best names the rows and add up the main number column. Put it beside the data.',
+    },
+    {
+      label: 'Add totals',
+      ask: 'Add a totals row under these cells for the number columns.',
+    },
+    {
       label: 'Explain these numbers',
       ask: 'Explain what these cells show and how each one is worked out.',
     },

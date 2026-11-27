@@ -2242,6 +2242,45 @@ body.resizing .pane {
   border-radius: 6px;
   border: 1px solid var(--line);
 }
+.sheet-suggestion {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 6px;
+  padding: 6px 10px;
+  border-radius: var(--r-m);
+  background: var(--wash-2);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.sheet-suggestion span {
+  flex: 1;
+}
+.sheet-suggestion button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+/* A suggested cell: a dashed outline and lighter text until it is kept. */
+.sheet td.ghost {
+  background: var(--wash);
+  outline: 1px dashed var(--ink-3);
+  outline-offset: -2px;
+}
+.sheet td.ghost input {
+  color: var(--ink-2);
+  font-style: italic;
+}
+/* Rows a suggested filter would hide. */
+.sheet tr.ghost-hidden td input {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
 .sheet tr[hidden] {
   display: none;
 }
