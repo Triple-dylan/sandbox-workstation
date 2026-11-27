@@ -84,6 +84,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: one sign-in page for every way in (Google, a name on a local server, a sign-in link) that says what the product is and names both kinds of agent, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The + in the thin rail offers both at any time ("New workspace", "Join with a link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
+## Added 2026-11-27
+
+- Shared browser service: closes pages nobody has used for 30 minutes (`PAGE_IDLE_MINUTES`; the app's own five-minute close stays), and logs a health line every minute with its memory against the limit, Chrome's memory, and how many pages are open in how many workspaces. If Chrome fails to start, the service no longer leaves its proxy running. Tested with a stand-in for Chrome and a made-up /proc; CI also runs it against real Chrome.
+
 ## Added 2026-11-26
 
 - Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
