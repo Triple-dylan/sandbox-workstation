@@ -84,6 +84,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Welcome and workspaces: one sign-in page for every way in (Google, a name on a local server, a sign-in link) that says what the product is and names both kinds of agent, then, for someone in no workspace, a choice to start one they own or join one with an invite link. The + in the thin rail offers both at any time ("New workspace", "Join with a link"). Anyone with a verified Google account may sign up; `WORKSPACE_CREATORS` can limit who starts workspaces.
 - Google sign-in when `GOOGLE_CLIENT_ID` is set: verified Google accounts only, new people still need an invite link or the setup code, and the same account always returns as the same person. Not yet tried against a real Google client ID; the join screen and its security policy were checked in a browser with a placeholder ID.
 
+## Added 2026-11-27
+
+- First step of the move to Postgres (plan: SQLite stays the default until the store has moved over): `server/sql/` runs queries through one async interface with a SQLite backend and a Postgres backend, and keeps a Postgres copy of the schema that brings itself up to date when a server starts. CI runs a Postgres with pgvector; tests check both backends the same way and fail if a table or column is added to SQLite and not to Postgres. Nothing in the app uses it yet.
+
 ## Added 2026-11-26
 
 - Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
