@@ -134,8 +134,12 @@ export type SheetLink = {
  * A sheet's stored form: rows of cells. A cell beginning with "=" is a formula. Formats and
  * widths are per column (by index); freeze is how many top rows stay in view.
  */
+/** Rows of a block shown only when one column passes a test ("North", ">500"); the rest hidden. */
+export type SheetFilter = { range: CellRange; col: number; test: string };
 export type SheetBody = {
   rows: string[][];
+  /** Set for everyone: a sheet is shared, so a filter shows as a bar with Clear. */
+  filter?: SheetFilter | null;
   formats?: Record<string, SheetFormat>;
   widths?: Record<string, number>;
   freeze?: number;
