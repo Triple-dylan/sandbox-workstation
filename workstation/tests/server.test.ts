@@ -2344,6 +2344,11 @@ test('your private space: your agent keeps "About you" from it, brings that to p
   assert.ok(titles.includes('Running notes'));
   assert.ok(!titles.includes('Plan'), 'built from your private space, not from workspaces');
   assert.ok(upkeep.context.recent.some((m) => m.text === 'I prefer short replies'));
+  assert.ok(
+    upkeep.context.focus.some((f) => f.title === 'Running notes' && /3,000/.test(f.body)),
+    'it reads your private pages in full',
+  );
+  assert.ok(!upkeep.context.focus.some((f) => f.title === 'About you'));
   assert.match(store.resource(about.id)!.body, /Prefers short replies/);
 
   // Asked privately while in the workspace: it brings what it keeps about you.
