@@ -348,6 +348,109 @@ test('openai runtime: waits and retries when rate limited, then says so plainly'
   assert.equal(broke.calls(), 1);
 });
 
+test('fallback: Claude Sonnet 5.5 on Nous answers only when OpenAI cannot, labelled and counted', async () => {
+  const answer = (reply: string, extra: Record<string, unknown> = {}) =>
+    new Response(
+      JSON.stringify({
+        usage: { total_tokens: 40, ...extra },
+        choices: [{ message: { content: JSON.stringify({ reply }) } }],
+      }),
+      { status: 200 },
+    );
+  const sent: { host: string; model: string; auth: string }[] = [];
+  let openaiDown = true;
+  const fakeFetch = (async (url: string, init: RequestInit) => {
+    const host = new URL(url).host;
+    sent.push({
+      host,
+      model: JSON.parse(String(init.body)).model,
+      auth: String((init.headers as Record<string, string>).authorization),
+    });
+    if (host === 'api.openai.com')
+      return openaiDown
+        ? new Response(JSON.stringify({ error: { message: 'Rate limit reached' } }), {
+            status: 429,
+          })
+        : answer('From OpenAI');
+    return answer('From Sonnet', { cost: 0.002 });
+  }) as unknown as typeof fetch;
+  let tokens = 0;
+  const fallbackUse: [number, number][] = [];
+  const runtime = createOpenAIRuntime({
+    apiKey: PLACEHOLDER_KEY,
+    dailyTokenLimit: 1e9,
+    usageToday: () => tokens,
+    addUsage: (t) => (tokens += t),
+    fetch: fakeFetch,
+    sleep: async () => {},
+    fallback: {
+      apiKey: 'nous-test-key',
+      fetch: fakeFetch,
+      addUsage: (t, dollars) => void fallbackUse.push([t, dollars]),
+    },
+  });
+  assert.equal(runtime.fallback, 'Claude Sonnet 5.5');
+  const { app, store, engine, dylan, snap } = setup(runtime);
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  const lastReply = () =>
+    snap(dylan.id)
+      .messages.filter((m) => m.conversationId === mine.id && m.authorId !== dylan.id)
+      .at(-1)!;
+
+  // OpenAI turns every try away: Sonnet answers through Nous, and the reply says who answered.
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'hello' });
+  await engine.idle();
+  assert.equal(lastReply().text, 'From Sonnet');
+  assert.equal(lastReply().runtime, 'nous');
+  const nous = sent.filter((c) => c.host === 'inference-api.nousresearch.com');
+  assert.ok(nous.length >= 1);
+  assert.ok(nous.every((c) => c.model === 'anthropic/claude-sonnet-5.5'));
+  assert.ok(
+    nous.every((c) => c.auth === 'Bearer nous-test-key'),
+    "its own key, never OpenAI's",
+  );
+  const firstNous = sent.findIndex((c) => c.host === 'inference-api.nousresearch.com');
+  assert.ok(firstNous > 1, 'only after OpenAI was retried');
+  assert.ok(fallbackUse.length >= 1 && fallbackUse.every(([t, d]) => t === 40 && d === 0.002));
+  assert.ok(tokens >= 40, 'fallback tokens count toward the daily budget too');
+
+  // OpenAI works: Sonnet is never asked.
+  openaiDown = false;
+  sent.length = 0;
+  fallbackUse.length = 0;
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'and now?' });
+  await engine.idle();
+  assert.equal(lastReply().text, 'From OpenAI');
+  assert.equal(lastReply().runtime, 'openai');
+  assert.ok(sent.length >= 1 && sent.every((c) => c.host === 'api.openai.com'));
+  assert.equal(fallbackUse.length, 0);
+
+  // A bad request is OpenAI answering, not OpenAI being down: no fallback.
+  const badRequest = createOpenAIRuntime({
+    apiKey: PLACEHOLDER_KEY,
+    dailyTokenLimit: 1e9,
+    usageToday: () => 0,
+    addUsage: () => {},
+    fetch: (async () =>
+      new Response(JSON.stringify({ error: { message: 'bad' } }), {
+        status: 400,
+      })) as unknown as typeof fetch,
+    fallback: { apiKey: 'nous-test-key', fetch: fakeFetch, addUsage: () => assert.fail() },
+  });
+  await assert.rejects(
+    badRequest.run({ request: 'hi', context: {} } as unknown as AgentTask),
+    /OpenAI request failed \(400\)/,
+  );
+
+  // The usage store keeps the fallback's tokens and dollars.
+  store.addProviderUsage('nous', 40, 0.002);
+  store.addProviderUsage('nous', 60, 0.003);
+  const used = store.providerUsage('nous');
+  assert.equal(used.tokens, 100);
+  assert.ok(Math.abs(used.dollars - 0.005) < 1e-9);
+  await app.close();
+});
+
 test('no key: agents are not connected, say so, and nothing answers in their place', async () => {
   const { store, engine, dylan, snap } = setup(selectRuntime({}, null!));
   const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;

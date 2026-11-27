@@ -313,6 +313,11 @@ export function MessageView({
           {m.delegated && <span className="to">ongoing</span>}
           <time title={new Date(m.createdAt).toLocaleString()}>{clock(m.createdAt)}</time>
           {m.runtime === 'scripted' && <span className="tag">scripted stand-in</span>}
+          {m.runtime === 'nous' && (
+            <span className="tag" title="OpenAI could not answer, so Claude Sonnet 5.5 did">
+              Claude Sonnet 5.5 · OpenAI unavailable
+            </span>
+          )}
           {m.sharedFrom && (
             <span
               className="msg-shared"
