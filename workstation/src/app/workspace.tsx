@@ -51,8 +51,10 @@ export type Ui = {
   nav: boolean;
   /** The new-page form is open in the list; a kind preselects that kind. */
   creating: boolean | PageKind;
-  /** A channel or an agent being made, in its section of the list. */
-  making: 'channel' | 'agent' | null;
+  /** Something being made in the list: a channel or agent in its section, a workspace at the top. */
+  making: 'channel' | 'agent' | 'workspace' | 'join' | null;
+  /** The list slid out over the page while the pointer is over the left edge. */
+  peek: boolean;
   graphScope: 'space' | 'everything';
   /** What your agent reads: what is on screen, the whole space, or nothing but your words. */
   barSees: 'screen' | 'space' | 'none';
@@ -65,7 +67,9 @@ export type Ui = {
     size: 's' | 'm' | 'l';
     density: 'roomy' | 'compact';
     accent: number | null;
-    list: boolean;
+    /** The list beside the thin rail: out of the way while you work on a page, always there, or
+     * only when the pointer comes to the left edge. */
+    list: 'auto' | 'shown' | 'hidden';
     /** See where teammates are on a page. */
     seeCursors: boolean;
     /** Let teammates see where you are. */
@@ -90,6 +94,7 @@ export const initialUi: Ui = {
   nav: false,
   creating: false,
   making: null,
+  peek: false,
   graphScope: 'space',
   split: 0.5,
   dialog: null,
@@ -99,7 +104,7 @@ export const initialUi: Ui = {
     size: 'm',
     density: 'roomy',
     accent: null,
-    list: true,
+    list: 'auto',
     seeCursors: true,
     shareCursor: true,
   },
@@ -158,6 +163,8 @@ export type Workspace = {
   /** Your own agent and your private conversation with it. */
   myAgent: User | undefined;
   myChat: Conversation | undefined;
+  /** Whether the list sits beside the page now, and the switch that keeps it there or hides it. */
+  list: { shown: boolean; toggle: () => void };
   /** Sends a request to your own agent about what is in view. */
   ask: (
     text: string,
