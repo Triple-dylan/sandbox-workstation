@@ -1,6 +1,6 @@
 # Current state
 
-_Updated 2026-11-18._ What is being built and why is in `docs/PLAN.md`.
+_Updated 2026-11-26._ What is being built and why is in `docs/PLAN.md`.
 
 ## Repository status (2026-11-24)
 
@@ -72,7 +72,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-24
 
-- Every agent runs on `gpt-6-luna`; there is no model setting.
+- Every agent runs on `gpt-6-luna`; there is no model setting. When OpenAI can't answer (busy after the retries, out of credit, or unreachable), Claude Sonnet 5.5 answers once through the Nous key (`NOUS_API_KEY`). The reply is tagged "Claude Sonnet 5.5 · OpenAI unavailable", and its tokens and dollars go to `provider_usage`, which no screen shows yet. Checked live on 2026-11-27 with OpenAI forced out of credit: the embargo question was answered from the page in 4s for $0.0067.
 - Answer checks: agents answer in a strict JSON shape (falls back to plain JSON mode if the model refuses it; gpt-6-luna accepts it). Each answer is checked against what the agent was given: cited pages must exist, a proposed edit must quote text that is really on the page, a handoff must name a real colleague, and a question must get a reply. A fixable problem gets one retry with the problem spelled out; anything still wrong is left out and the reply says so.
 - Live quality checks: `npm run eval` in `workstation/` runs six realistic cases against the real model and scores them (grounded numbers and sources, finding by meaning, admitting what is missing, exact edits, honouring decided messages, no private text in channels). Needs `OPENAI_API_KEY`; not part of CI. First run 2026-11-24: 6/6.
 - Your agent's conversation opens only in the rail; anything that tried to open it in the middle opens the rail instead.
@@ -88,6 +88,13 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 - **Agent seats** (`server/seats.ts`): an agent that runs somewhere else (Claude Code, Codex, Hermes, a Grok bot) joins workspaces as itself. Its owner makes it, brings it into shared workspaces they are in, and makes or revokes its tokens (`sbx_…`, shown once, stored only as a hash, last use noted). In a workspace it is a member like a person: it reads what the space shares and pages opened to it by name, never its owner's or anyone's private pages, and nothing in spaces it has not joined. Teammates see it in the member list and can @ it; Sandbox's own model never answers or runs a job as it, so a message to it waits for it to read. Its owner or the workspace's owner takes it out; retiring it stops every token. Routes under `/api/seats` for its owner. Tested on the server (`tests/seats.test.ts`); no screen for it yet.
 - **One remote MCP server for every outside agent** (`server/mcp.ts`, `POST /mcp`): a seat signs in with its token and reads its workspaces' pages and chats, checks its inbox, posts as itself, suggests document edits, sheet changes and new pages for a person to accept, and says which page it is working on, so it shows at work and orbits that page in the graph. Every call runs through the same access checks as a person. Connecting Claude Code, Codex, Hermes and others: `docs/AGENT-SEATS.md`. Tested over HTTP (`tests/mcp.test.ts`); not yet tried from a real Claude Code or Codex against the hosted copy.
+- **Agent seats** (`server/seats.ts`): an agent that runs somewhere else (Claude Code, Codex, Hermes, a Grok bot) joins workspaces as itself. Its owner makes it, brings it into shared workspaces they are in, and makes or revokes its tokens (`sbx_…`, shown once, stored only as a hash, last use noted). In a workspace it is a member like a person: it reads what the space shares and pages opened to it by name, never its owner's or anyone's private pages, and nothing in spaces it has not joined. Teammates see it in the member list and can @ it; Sandbox's own model never answers or runs a job as it, so a message to it waits for it to read. Its owner or the workspace's owner takes it out; retiring it stops every token. Routes under `/api/seats` for its owner. Tested on the server (`tests/seats.test.ts`); no screen for it yet, and the tokens open nothing until the MCP connector lands.
+## Added 2026-11-27
+
+- Shared browser: when the browser service closes a tab (unused for a while, or memory running low), everyone on the Browser page gets a note naming the tab and why tabs close. A tab someone closes, or a sign-in popup that closes itself within a minute, gets none. Tested in CI against the real service; not yet seen in the app.
+- Shared browser service: memory is capped. One page's scripts can use at most 512 MB, and past 85% of the container's limit (`MEMORY_HIGH_PERCENT`) the page used longest ago closes, one at a time, until memory is back under. The health line counts pages closed to free memory. Tested with a stand-in for Chrome, and in CI against real Chrome with the memory reading faked.
+- Shared browser service: Playwright's server now listens on the service's machine only, behind a front door that lets through just the secret address. Before, anyone who could reach the service could ask Playwright's `/json` for the secret. `GET /healthz` reports whether Chrome is running, its memory and open pages (503 when Chrome is gone). Tested with a stand-in for Playwright's server, and in CI against real Chrome.
+- Shared browser service: closes pages nobody has used for 30 minutes (`PAGE_IDLE_MINUTES`; the app's own five-minute close stays), and logs a health line every minute with its memory against the limit, Chrome's memory, and how many pages are open in how many workspaces. If Chrome fails to start, the service no longer leaves its proxy running. Tested with a stand-in for Chrome and a made-up /proc; CI also runs it against real Chrome.
 
 ## Added 2026-11-26
 
@@ -116,6 +123,35 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Agents look after pages: exact cell lines and model-judged lines; header "Ask Finance"; list and channel headers show what agents watch and where they listen. Checked in the browser: Finance said "Heads up on Q1 Budget: Total (B4) is now 5200, above 5,000." in the page feed.
 - Approval levels per agent: ask first, small fixes with Undo, plan first.
 - Not run against the live model yet: the evals need the OpenAI key's daily limit to reset.
+
+## Added 2026-11-26
+
+- Graph: choosing a page opens a preview panel beside the graph with the whole page rendered, and hovering a page shows its first lines. Checked in the browser with seeded example pages.
+- Live co-editing of documents: typing merges as it happens, each document's shared history is kept in the database, and the saved Markdown is the merged text. Checked locally with two people in two tabs, both inserting into the same line at the same instant: both edits kept in both editors and in the saved page. Tested on the server: one seeder, merging, keeping history across a restart, and starting over after an accepted suggestion.
+- Sheets: typing a row with Tab and then pressing Enter starts the next row under the cell where the Tabs began, as in Excel and Google Sheets. Tab past the last column adds a column instead of staying on (and overwriting) the edge cell. Checked in the browser on a new sheet.
+- The one-file preview builds again (`npm run build:inpage`). Server-only libraries (Google sign-in, the shared browser and its address guard) are replaced by stand-ins in that build, which has neither. The file now declares UTF-8, so opened straight from disk it no longer shows "Â·" for "·". CI builds it on every PR so it can't break unnoticed again. Checked in the browser: it opens on the labelled example with no console errors.
+- The workspace summary page reads properly without a model: each page in a line (sheets, decks and canvases named, not dumped as grids), the plan's open steps, messages marked Decided (and only those), questions asked, and the latest messages. It no longer says "project". Marking or unmarking a message Decided brings it up to date. Checked in the browser on a new workspace.
+- Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
+- Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
+- A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
+- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
+- Faster first load: each kind of page (document, sheet, deck, canvas, graph, file, browser) downloads when one is first opened. The opening download fell from 1,284 KB to 587 KB (416 to 186 KB compressed); the document editor (608 KB) loads with the first document. Checked in the browser: each kind opens.
+## Added 2026-11-27
+
+- `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
+- `/healthz` answers 503 with `ok: false` when the database stops answering a read, so Railway restarts the app instead of serving errors.
+## Added 2026-11-27
+
+- Self-hosting: `compose.yaml` runs the app and the browser service on one machine with the database on a named volume; `docs/SELF-HOST.md` has the steps. Checked with Docker locally: the app starts in invite mode, the setup code lets the first person in, and they are still there after the container is recreated. The browser service image was not built here.
+- CI builds both Docker images and runs `compose.yaml` end to end (`.github/workflows/compose.yml`): `/healthz`, invite mode with the setup code, the app reaching the browser service, and a person surviving a recreate of the app's container. It runs when the images, compose file or server change, and on every merge to `main`.
+## Added 2026-11-27
+
+- Nightly backups: the server copies its database (`VACUUM INTO`) every night at 3:00 UTC into `backups/` beside it, keeping the last 7, and takes one soon after starting when the newest is over a day old. Half-written copies never count. Settings in `docs/WEBAPP.md`. Tested: the copy opens with the data as it was, later writes don't reach it, old copies are pruned, a failure is logged and the app carries on.
+- Backup download: `/api/backup` sends the newest backup to someone signed in with an email in `BACKUP_OWNERS` (taking one first if there is none); anyone else gets a refusal, and with it unset nobody can download.
+- Restoring a backup: `npm run restore` lists the backups and `npm run restore -- <name|latest>` checks one and stages it; the server puts it in place at its next start, before the database opens, and keeps the database it replaced beside it. Steps for Railway and locally in `docs/BACKUPS.md`. Tested: the restored data, the kept copy, refusing a damaged or foreign file, and the command itself.
+- `/healthz` says how backups stand: how many are kept, when the newest was taken, its age in hours, and `stale` when there is none or it is over 26 hours old (a missed night). No paths. Left out when backups are off.
+- Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept.
+- Settings shows owners a Backups row: when the newest copy was taken and its size, how many are kept, **Back up now** and **Download**. Everyone else, and a server with backups off, sees no row (`GET /api/backups` answers 403 or 404).
 
 ## Known gaps
 
