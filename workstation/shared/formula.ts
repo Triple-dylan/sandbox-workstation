@@ -1,6 +1,6 @@
 /**
  * A small spreadsheet engine: numbers, "text", cell references, + - * / ( ), SUM, AVERAGE, MIN, MAX
- * and COUNT over ranges, and the conditional SUMIF(S), COUNTIF(S) and AVERAGEIF(S).
+ * and COUNT over ranges, and the conditional SUMIF(S), COUNTIF(S) and AVERAGEIF(S), MINIFS and MAXIFS.
  */
 export const colName = (index: number) => {
   let name = '';
@@ -146,6 +146,8 @@ export function evaluate(
       if (name.startsWith('COUNT')) return hits.length;
       const numbers = hits.map((i) => cell(target![i])).filter((v): v is number => v !== null);
       if (name.startsWith('SUM')) return numbers.reduce((a, b) => a + b, 0);
+      if (name === 'MINIFS') return numbers.length ? Math.min(...numbers) : 0;
+      if (name === 'MAXIFS') return numbers.length ? Math.max(...numbers) : 0;
       if (!numbers.length) throw new Error('#DIV');
       return numbers.reduce((a, b) => a + b, 0) / numbers.length;
     };
@@ -209,7 +211,16 @@ export function evaluate(
   }
 }
 
-const CONDITIONAL = new Set(['SUMIF', 'SUMIFS', 'COUNTIF', 'COUNTIFS', 'AVERAGEIF', 'AVERAGEIFS']);
+const CONDITIONAL = new Set([
+  'SUMIF',
+  'SUMIFS',
+  'COUNTIF',
+  'COUNTIFS',
+  'AVERAGEIF',
+  'AVERAGEIFS',
+  'MINIFS',
+  'MAXIFS',
+]);
 
 /**
  * A condition as SUMIF reads it: "North" (same text, any case), 100 (same number), or a comparison

@@ -593,6 +593,7 @@ export function createApp(options: AppOptions) {
           formats: input.formats,
           widths: input.widths,
           freeze: input.freeze,
+          filter: input.filter,
         }),
       );
     if (path === '/api/reads' && method === 'POST') {
