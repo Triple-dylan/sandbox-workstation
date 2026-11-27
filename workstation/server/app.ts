@@ -10,6 +10,7 @@ import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
 import { Mcp } from './mcp.ts';
+import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -91,6 +92,7 @@ export function createApp(options: AppOptions) {
   const collab = new Collab(store);
   const seats = new Seats(store);
   const mcp = new Mcp(store, seats);
+  const oauth = new OAuth(store, seats);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
@@ -863,6 +865,10 @@ export function createApp(options: AppOptions) {
       if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
       // Outside agents sign in here with their seat's token (server/mcp.ts).
       if (path === '/mcp') return await mcp.handle(req, res, origin(req));
+      // Browser sign-in for those agents, so they need no pasted token (server/oauth.ts).
+      if (path.startsWith('/.well-known/oauth-') || path.startsWith('/oauth/'))
+        if (await oauth.handle(req, res, path, origin(req), store.userForToken(cookie(req))))
+          return;
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {

@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccessError, InputError, type Store } from './store.ts';
 import type { Seats } from './seats.ts';
+import { OAuth } from './oauth.ts';
 import { cellEdits, colName, evaluate } from '../shared/formula.ts';
 import { readSheet, toTsv } from '../shared/sheet.ts';
 import { isPage, type Conversation, type Id, type Resource, type User } from '../shared/types.ts';
@@ -90,7 +91,10 @@ export class Mcp {
       return reply(
         401,
         { error: 'Sign in with an agent token from Sandbox (Authorization: Bearer sbx_…).' },
-        { 'www-authenticate': 'Bearer realm="sandbox"' },
+        // Points clients that sign in with a browser to it (server/oauth.ts).
+        {
+          'www-authenticate': `Bearer realm="sandbox", resource_metadata="${OAuth.resourceMetadata(origin)}"`,
+        },
       );
     const seen = this.calls.get(seat.id);
     const fresh = !seen || Date.now() - seen.at > 60_000;
