@@ -1,4 +1,5 @@
 import type { Store } from '../store.ts';
+import { sendWithRetry, type Sleep } from './retry.ts';
 import { passagesOf, type Passage } from './retrieve.ts';
 
 /** Search only: turns text into vectors. Answers are always written by the agent model. */
@@ -14,6 +15,7 @@ export function createOpenAIEmbedder(options: {
   apiKey: string;
   fetch?: typeof fetch;
   baseUrl?: string;
+  sleep?: Sleep;
 }): Embedder {
   const request = options.fetch ?? fetch;
   const baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
@@ -21,12 +23,19 @@ export function createOpenAIEmbedder(options: {
     id: EMBEDDING_MODEL,
     async embed(texts) {
       if (!texts.length) return [];
-      const response = await request(`${baseUrl}/embeddings`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
-        body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts, dimensions: DIMENSIONS }),
-        signal: AbortSignal.timeout(20_000),
-      });
+      const response = await sendWithRetry(
+        () =>
+          request(`${baseUrl}/embeddings`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${options.apiKey}`,
+            },
+            body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts, dimensions: DIMENSIONS }),
+            signal: AbortSignal.timeout(20_000),
+          }),
+        options.sleep,
+      );
       if (!response.ok) throw new Error(`Embedding request failed (${response.status})`);
       const data = (await response.json()) as { data: { index: number; embedding: number[] }[] };
       const out: Float32Array[] = [];
