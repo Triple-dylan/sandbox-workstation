@@ -202,3 +202,60 @@ test('joining by pasted invite: a full link, a bare token, or nothing usable', (
   assert.equal(inviteFrom('https://ws.example.app/'), '');
   assert.equal(inviteFrom('not a link'), '');
 });
+
+test('working agents orbit the page they are on, chats orbit the centre, one orb each', async () => {
+  const { orbitersOf } = await import('../src/features/graph/orbiters.ts');
+  const act = (
+    agentId: string,
+    resourceId: string | null,
+    status: 'working' | 'waiting' = 'working',
+    spaceId = 's1',
+  ) => ({ agentId, spaceId, resourceId, conversationId: null, status, since: '' }) as const;
+  const job = (agentId: string, targetResourceId: string | null, request: string) =>
+    ({
+      id: `${agentId}-${request}`,
+      agentId,
+      spaceId: 's1',
+      conversationId: null,
+      kind: 'ask',
+      status: 'running',
+      request,
+      targetResourceId,
+      runtime: 'openai',
+      error: null,
+      createdAt: '',
+      updatedAt: '',
+    }) as const;
+  const nodes = new Set(['root', 'p1', 's2']);
+  const has = (id: string) => nodes.has(id);
+  const orbit = orbitersOf(
+    [
+      act('scout', 'p1'),
+      act('scout', 'p1'),
+      act('maya-agent', 'p1'),
+      act('scout', null),
+      act('waiting', 'p1', 'waiting'),
+      act('elsewhere', 'p1', 'working', 's2'),
+    ],
+    [job('scout', 'p1', 'Tidy the plan')],
+    has,
+    'root',
+    's1',
+  );
+  assert.deepEqual(
+    orbit.get('p1')?.map((o) => [o.agentId, o.request]),
+    [
+      ['scout', 'Tidy the plan'],
+      // No job in the snapshot (someone else's private chat): it is shown working, nothing more.
+      ['maya-agent', null],
+    ],
+  );
+  assert.deepEqual(
+    orbit.get('root')?.map((o) => o.agentId),
+    ['scout'],
+  );
+  assert.equal([...orbit.values()].flat().length, 3, 'waiting and other-space agents stay off');
+  // In the everything view an agent in a chat circles its space.
+  const all = orbitersOf([act('elsewhere', null, 'working', 's2')], [], has, 'root', null);
+  assert.deepEqual([...all.keys()], ['s2']);
+});

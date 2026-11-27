@@ -40,7 +40,7 @@ Channels, direct messages and conversations with an agent are pages too. Every s
 
 ## Graph
 
-Your own view of what you can see in a space, private and shared, with the CampaignOS/DropDeployment physics. Filter by kind, "Only mine", "Changed this week", "Since I was last here"; save a view or a question. Choosing a page describes it at the side with Open beside. Asking your agent lights the pages the answer came from and dims the rest. An Everything view shows every space.
+Your own view of what you can see in a space, private and shared, with the CampaignOS/DropDeployment physics. Filter by kind, "Only mine", "Changed this week", "Since I was last here"; save a view or a question. Choosing a page describes it at the side with Open beside. Asking your agent lights the pages the answer came from and dims the rest. An Everything view shows every space. Agents at work circle the page they are working on (a chat with no page: the space's centre); hovering one says what it is doing, clicking opens its chat.
 
 ## One open surface
 

@@ -2,6 +2,10 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-27
+
+- **Agents at work orbit what they are working on in the graph.** Dylan: "making sure we have visible agent notifiers that orbit graph nodes when there are agents actively working on different things". Builds on the 2026-11-12 assumption that working agents appear at the item. Each agent at work circles the page it is on, on a faint dashed ring; several agents on one page share the ring; an agent answering in a chat with no page circles the space's centre (in the Everything view, its space). One orb per agent per page; it is gone when the job ends. Only what the person may already see is shown (`activity` in the snapshot): someone else's agent in a private chat shows as working, never what it was asked. Hovering stops the orb and says who it is and what it is doing; clicking opens its chat (your own agent opens the rail; someone else's private agent opens its profile).
+
 ## 2026-11-26
 
 - **The graph's page preview is a panel beside it that shows the whole page.** Dylan: "document preview and viewing when on the graph still needs a lot of work", then "bigger preview. open beside and open is bad language to use, unclear for users". Choosing a page opens a full-height, resizable panel that renders it (documents formatted, sheets as tables, decks as slides, boards by what is on them). Buttons say where they go: "Go to page" and "Show next to the graph", plus "Ask about it". Hovering a page shows its title and first lines.
