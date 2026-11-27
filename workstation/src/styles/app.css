@@ -7194,3 +7194,50 @@ select:focus-visible {
   color: var(--bg);
   border-color: var(--ink);
 }
+
+/* ---------- agent seats: agents that run elsewhere ---------- */
+.seat-page h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.seat-page code {
+  font-size: 12px;
+}
+.seat-token {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.seat-token p {
+  margin: 0;
+}
+.seat-line > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.seat-line pre {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: var(--r-s);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.seat-new-token {
+  display: flex;
+  gap: 6px;
+}
+.seat-new-token input {
+  flex: 1;
+}
