@@ -15,7 +15,7 @@ const HEIGHT = 800;
 /** Someone who stops using the controls for this long lets anyone else take over. */
 const DRIVER_IDLE_MS = 30_000;
 
-type Tab = { id: string; page: Page };
+type Tab = { id: string; page: Page; title: string; openedAt: number };
 type Room = {
   resourceId: Id;
   spaceId: Id;
@@ -61,6 +61,9 @@ export class SharedBrowsers {
   private allow: (host: string) => boolean;
   private maxWorkspaces: number;
   private idleMs: number;
+  private noticeAfterMs: number;
+  /** Tabs closed from here (by a person, or the Browser page closing) need no word. */
+  private closedHere = new WeakSet<Page>();
   private rooms = new Map<Id, Room>();
   private workspaces = new Map<Id, Promise<Workspace>>();
   private remote: Promise<Browser> | null = null;
@@ -77,6 +80,8 @@ export class SharedBrowsers {
       allowHosts?: string[];
       maxWorkspaces?: number;
       idleMs?: number;
+      /** A tab open at least this long that closes by itself is announced (shorter: a popup). */
+      noticeAfterMs?: number;
     },
   ) {
     this.store = store;
@@ -85,6 +90,7 @@ export class SharedBrowsers {
     this.allow = (host) => allowed.has(host);
     this.maxWorkspaces = options.maxWorkspaces ?? 4;
     this.idleMs = options.idleMs ?? 5 * 60_000;
+    this.noticeAfterMs = options.noticeAfterMs ?? 60_000;
   }
 
   /** The connection to the browser service, made once and remade if it drops. */
@@ -167,12 +173,19 @@ export class SharedBrowsers {
   }
 
   private track(room: Room, page: Page): Tab {
-    const tab = { id: `t${++this.tabCount}`, page };
+    const tab: Tab = { id: `t${++this.tabCount}`, page, title: '', openedAt: Date.now() };
     room.tabs.push(tab);
     page.on('load', () => void this.remember(room));
     page.on('framenavigated', (frame) => frame === page.mainFrame() && this.state(room));
     page.on('close', () => {
       room.tabs = room.tabs.filter((t) => t !== tab);
+      // Nobody here closed it: the browser service did (unused for a while, or memory running low).
+      // A popup that closes itself soon after opening, as sign-in windows do, needs no word.
+      if (!this.closedHere.has(page) && Date.now() - tab.openedAt >= this.noticeAfterMs)
+        this.send(room, {
+          t: 'notice',
+          text: `${tab.title ? `“${tab.title}”` : 'A tab'} closed. The shared browser closes tabs nobody has used for a while, and the oldest when it runs low on memory.`,
+        });
       if (room.active === tab.id) void this.show(room, room.tabs.at(-1)?.id ?? null);
       this.state(room);
     });
@@ -272,10 +285,12 @@ export class SharedBrowsers {
   }
   /** Titles need a round trip to each tab; sent as they come. */
   private async titles(room: Room) {
-    const titles = await Promise.all(room.tabs.map((t) => t.page.title().catch(() => '')));
+    const tabs = room.tabs;
+    const titles = await Promise.all(tabs.map((t) => t.page.title().catch(() => '')));
+    tabs.forEach((t, i) => (t.title = titles[i] || t.title));
     this.send(room, {
       t: 'titles',
-      titles: Object.fromEntries(room.tabs.map((t, i) => [t.id, titles[i]])),
+      titles: Object.fromEntries(tabs.map((t, i) => [t.id, titles[i]])),
     });
   }
 
@@ -414,7 +429,10 @@ export class SharedBrowsers {
         break;
       case 'closeTab': {
         const closing = room.tabs.find((t) => t.id === input.id);
-        if (closing && room.tabs.length > 1) await closing.page.close();
+        if (closing && room.tabs.length > 1) {
+          this.closedHere.add(closing.page);
+          await closing.page.close();
+        }
         break;
       }
     }
@@ -432,6 +450,7 @@ export class SharedBrowsers {
     if (!room || room.viewers.size) return;
     this.rooms.delete(resourceId);
     await room.cast?.detach().catch(() => {});
+    for (const t of room.tabs) this.closedHere.add(t.page);
     await Promise.all(room.tabs.map((t) => t.page.close().catch(() => {})));
     const ws = await this.workspaces.get(room.spaceId)?.catch(() => null);
     if (!ws) return;
