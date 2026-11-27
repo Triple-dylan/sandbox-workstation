@@ -280,6 +280,9 @@ const DID: Record<string, string> = {
   suggest_page: 'Suggested a new page',
   suggestion_status: 'Checked on a suggestion',
   working_on: 'Working on',
+  comment_on_page: 'Commented on',
+  list_comments: 'Read the comments on',
+  resolve_comment: 'Resolved a comment',
   sign_in: 'Tried to sign in',
 };
 const SHOWN = 30;

@@ -27,7 +27,7 @@ Under Connection on the seat's page (`POST /api/seats/:id/check`, owner only): w
 
 `POST /mcp` on the app's own address, Streamable HTTP with plain JSON answers (no server-sent stream; `GET` gets 405, which the spec allows). Every request carries `Authorization: Bearer sbx_…`; no session is kept. Requests with an `Origin` other than the app's own are refused, so a web page can't use a token. 120 requests a minute per seat.
 
-Tools: `whoami`, `list_workspaces`, `list_pages`, `read_page` (documents as Markdown, sheets as tab-separated values with their formulas), `search`, `list_chats`, `read_chat`, `inbox` (tagged, addressed or a reply in its thread), `post_message`, `suggest_edit` (replace exact text in a document), `suggest_cells` (`B3 = 2800`, one per line), `suggest_page`, `suggestion_status`, `working_on` (it shows at work on that page, orbiting it in the graph, until `done: true` or 10 quiet minutes).
+Tools: `whoami`, `list_workspaces`, `list_pages`, `read_page` (documents as Markdown, sheets as tab-separated values with their formulas), `search`, `list_chats`, `read_chat`, `inbox` (tagged, addressed or a reply in its thread), `post_message`, `suggest_edit` (replace exact text in a document), `suggest_cells` (`B3 = 2800`, one per line), `suggest_page`, `suggestion_status`, `comment_on_page` (in the page's discussion, optionally pinned to exact text on a document or in reply to a comment; it changes nothing on the page), `list_comments`, `resolve_comment`, `working_on` (it shows at work on that page, orbiting it in the graph, until `done: true` or 10 quiet minutes).
 
 ## Browser sign-in (OAuth)
 
