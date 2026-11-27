@@ -125,6 +125,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Backup download: `/api/backup` sends the newest backup to someone signed in with an email in `BACKUP_OWNERS` (taking one first if there is none); anyone else gets a refusal, and with it unset nobody can download.
 - Restoring a backup: `npm run restore` lists the backups and `npm run restore -- <name|latest>` checks one and stages it; the server puts it in place at its next start, before the database opens, and keeps the database it replaced beside it. Steps for Railway and locally in `docs/BACKUPS.md`. Tested: the restored data, the kept copy, refusing a damaged or foreign file, and the command itself.
 - `/healthz` says how backups stand: how many are kept, when the newest was taken, its age in hours, and `stale` when there is none or it is over 26 hours old (a missed night). No paths. Left out when backups are off.
+- Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept. No button in the interface yet.
 
 ## Known gaps
 
