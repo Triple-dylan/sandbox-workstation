@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Copy, Link2, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
+import { DeleteMyData } from './DeleteMyData.tsx';
 
 /**
  * Every popup shares this frame: a title with a close button, the content, and at most one primary
@@ -195,6 +196,7 @@ export function Settings() {
           See them all
         </button>
       </div>
+      <DeleteMyData />
       <p className="dialog-note">
         Saved in this browser.{' '}
         {s.runtime.id === 'none'
