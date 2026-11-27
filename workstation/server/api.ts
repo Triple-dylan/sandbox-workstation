@@ -1,7 +1,8 @@
 import { AccessError, InputError, type Store } from './store.ts';
 import type { Seats } from './seats.ts';
+import type { Webhooks } from './webhooks.ts';
 import { isPage } from '../shared/types.ts';
-import type { Conversation, Id, Resource, User } from '../shared/types.ts';
+import type { Conversation, Id, Message, Resource, User } from '../shared/types.ts';
 
 /**
  * The outside-agent API under /api/v1: how an agent that runs somewhere else (Codex, Hermes, a
@@ -305,6 +306,32 @@ export class OutsideAgent {
     return page;
   }
 
+  /** A message as this agent would read it, or null if it cannot read that chat. */
+  seeMessage(message: Message): MessageInfo | null {
+    try {
+      this.readableChat(message.conversationId);
+    } catch {
+      return null;
+    }
+    return this.messageInfo({
+      id: message.id,
+      conversation_id: message.conversationId,
+      author_id: message.authorId,
+      text: message.text,
+      reply_to: message.replyTo,
+      addressed_to: message.addressedTo,
+      created_at: message.createdAt,
+    });
+  }
+  /** A page's details as this agent would see them, or null if it cannot open it. */
+  seePage(pageId: Id): PageInfo | null {
+    try {
+      return this.pageInfo(this.readablePage(pageId));
+    } catch {
+      return null;
+    }
+  }
+
   me() {
     const owner = this.agent.ownerId ? this.store.user(this.agent.ownerId) : null;
     return {
@@ -363,6 +390,7 @@ export function outsideApi(
     authorization: string | string[] | undefined;
     input?: Record<string, unknown>;
   },
+  webhooks?: Webhooks,
 ): { status: number; data: unknown } {
   const agent = seats.agentForToken(bearer(request.authorization));
   if (!agent) return { status: 401, data: { error: 'Use a live agent seat token.' } };
@@ -380,6 +408,7 @@ export function outsideApi(
     if (a === 'pages' && b && !c) return ok(outside.page(b));
     if (a === 'chats' && b && c === 'messages') return ok(outside.messages(b, options));
     if (a === 'inbox' && !b) return ok(outside.inbox(options));
+    if (a === 'webhooks' && !b && webhooks) return ok(webhooks.list(agent.id));
   }
   if (method === 'GET') return { status: 404, data: { error: 'Not found.' } };
   if (!allowWrite(agent.id))
@@ -392,5 +421,11 @@ export function outsideApi(
   if (method === 'PATCH' && a === 'pages' && b && !c) return ok(outside.editPage(b, input));
   if (method === 'POST' && a === 'pages' && b && c === 'cells')
     return ok(outside.setCells(b, input));
+  if (webhooks && a === 'webhooks' && method === 'POST' && !b)
+    return ok(webhooks.add(agent.id, bearer(request.authorization)!, input.url));
+  if (webhooks && a === 'webhooks' && method === 'DELETE' && b && !c) {
+    webhooks.remove(agent.id, b);
+    return ok({ ok: true });
+  }
   return { status: 404, data: { error: 'Not found.' } };
 }

@@ -10,6 +10,7 @@ import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
 import { outsideApi } from './api.ts';
+import { Webhooks } from './webhooks.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -47,6 +48,8 @@ export type AppOptions = {
   providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
   verifyGoogle?: (credential: string, clientId: string) => Promise<GoogleAccount>;
+  /** Outside agents' webhooks. Tests allow a local receiver and retry sooner. */
+  webhooks?: ConstructorParameters<typeof Webhooks>[1];
 };
 
 export type GoogleAccount = {
@@ -90,6 +93,7 @@ export function createApp(options: AppOptions) {
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
   const seats = new Seats(store);
+  const webhooks = new Webhooks(store, options.webhooks);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
@@ -212,7 +216,12 @@ export function createApp(options: AppOptions) {
       const query = new URL(req.url ?? '/', 'http://local').searchParams;
       const { authorization } = req.headers;
       const input = method === 'GET' ? {} : await body(req);
-      const result = outsideApi(store, seats, { method, path, query, authorization, input });
+      const result = outsideApi(
+        store,
+        seats,
+        { method, path, query, authorization, input },
+        webhooks,
+      );
       return send(res, result.status, result.data);
     }
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
@@ -889,12 +898,14 @@ export function createApp(options: AppOptions) {
     browsers,
     collab,
     seats,
+    webhooks,
     runtime,
     async close() {
       if (closed) return;
       closed = true;
       clearInterval(heartbeat);
       engine.stop();
+      webhooks.stop();
       connectors.close();
       collab.stop();
       await browsers.stop();
