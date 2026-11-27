@@ -34,7 +34,9 @@ test('shared browser: a tab the browser service closes is announced; one a perso
   closing.push(() => service.close());
   const site = createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'text/html' });
-    res.end(`<title>Quote ${req.url?.slice(1)}</title><p>Hello</p>`);
+    // Through the browser's proxy the request may name the whole address; the path is what counts.
+    const name = new URL(req.url ?? '/', 'http://x').pathname.slice(1);
+    res.end(`<title>Quote ${name}</title><p>Hello</p>`);
   });
   await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
   closing.push(() => site.close());
@@ -61,12 +63,16 @@ test('shared browser: a tab the browser service closes is announced; one a perso
     end: () => {},
   });
   await browsers.watch(page.id, priya.id, res as any);
-  const until = async (check: () => boolean, what: string) => {
+  const until = async (check: () => boolean, what: string | (() => string)) => {
     for (let i = 0; i < 200 && !check(); i++) await new Promise((r) => setTimeout(r, 50));
-    assert.ok(check(), what);
+    assert.ok(check(), typeof what === 'string' ? what : what());
   };
   const titles = () => seen.filter((m) => m.t === 'titles').at(-1)?.titles ?? {};
-  await until(() => Object.values(titles()).includes('Quote b'), 'both tabs have loaded');
+  await until(
+    () => Object.values(titles()).includes('Quote b'),
+    () =>
+      `both tabs have loaded (last seen: ${JSON.stringify(seen.filter((m) => m.t !== 'frame').slice(-3))})`,
+  );
   const tabs = seen.filter((m) => m.t === 'state').at(-1).tabs;
   assert.equal(tabs.length, 2);
 
