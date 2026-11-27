@@ -24,7 +24,13 @@ export async function startFront(options: {
     const path = Buffer.from(new URL(req.url ?? '/', 'http://x').pathname);
     return path.length === secret.length && timingSafeEqual(path, secret);
   };
+  // Every connection, upgraded or not, so stopping never waits on one left open (a kept-alive
+  // health check, say).
   const open = new Set<Socket>();
+  const track = (s: Socket) => {
+    open.add(s);
+    s.on('close', () => open.delete(s));
+  };
   const server = createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/healthz') {
       let body: { ok: boolean };
@@ -61,10 +67,7 @@ export async function startFront(options: {
       upstream.pipe(socket);
       socket.pipe(upstream);
     });
-    for (const s of [socket as Socket, upstream]) {
-      open.add(s);
-      s.on('close', () => open.delete(s));
-    }
+    track(upstream);
     const end = () => {
       socket.destroy();
       upstream.destroy();
@@ -74,6 +77,7 @@ export async function startFront(options: {
     upstream.on('close', end);
     socket.on('close', end);
   });
+  server.on('connection', track);
   await new Promise<void>((resolve, reject) =>
     server.once('error', reject).listen(options.port, options.host, resolve),
   );

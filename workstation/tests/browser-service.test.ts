@@ -10,17 +10,7 @@ const service = (file: string) => import(`../../browser-service/${file}`);
 
 const closing: (() => unknown)[] = [];
 after(async () => {
-  for (const [i, close] of closing.entries()) {
-    const t = Date.now();
-    const done = await Promise.race([
-      Promise.resolve(close()).then(
-        () => 'done',
-        (e) => `failed ${e}`,
-      ),
-      new Promise((r) => setTimeout(() => r('HUNG'), 10_000)),
-    ]);
-    console.error(`DIAG close ${i} ${String(close).slice(0, 60)}: ${done} in ${Date.now() - t} ms`);
-  }
+  for (const close of closing) await close();
 });
 
 /** Chrome's protocol, as far as the page watch uses it. */
@@ -264,5 +254,6 @@ test('browser service: sees pages the app opens, logs its health and closes idle
   assert.equal(typeof healthz.memory.node, 'number');
   await until(() => context.pages().length === 0, 'idle pages are closed, and the app is told');
   assert.equal(started.pages.closedIdle, 2);
-  assert.ok(lines.some((l) => /^Closed 2 pages nobody had used/.test(l)));
+  // Both may go in one sweep or in two, a moment apart.
+  assert.ok(lines.some((l) => /^Closed \d+ pages? nobody had used/.test(l)));
 });
