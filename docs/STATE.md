@@ -93,6 +93,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Running a workspace: in People, its owner renames it (its agent and About page follow the new name), removes someone (they lose every page, chat and agent in it at once), or deletes it after typing its name. Anyone else can leave. Checked in the browser: add and remove a person, rename, delete as the owner, and leave as a member; tested on the server, including that non-owners can't do any of it and a removed person can't read or post.
 - Asking about cells on a sheet offers asks that fit numbers (explain these numbers, check the maths, what is driving this, suggest a fix) instead of the ones for text. Checked in the browser.
 - A chat with an agent opens on what it is for and how to reach it (here privately, @ in any chat, select on a page), and what it looks after, with a link to give it a page when it has none. Checked in the browser on a new Finance agent.
+- The new-page form says in words what each icon makes ("Sheet · rows, columns and sums"), following the pointer. In People, the invite link shows when it expires, and New link asks first, since it stops the current link working. Checked in the browser.
 
 ## Added 2026-11-25
 

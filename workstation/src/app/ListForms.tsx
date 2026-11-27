@@ -100,6 +100,17 @@ function Who({
 /** Kinds you make here. A file from your computer comes in through "New → File" instead. */
 const MADE = PAGE_KINDS.filter((k) => k !== 'asset');
 
+/** What each choice in the new-page form makes, in a few words: the icons alone don't say. */
+const KIND_SAYS: Record<string, string> = {
+  doc: 'Document · writing, notes, plans',
+  sheet: 'Sheet · rows, columns and sums',
+  deck: 'Deck · slides to present',
+  canvas: 'Canvas · a board to lay things out',
+  browser: 'Browser · the web, shared with your team',
+  link: 'Linked sheet · from Google Sheets or Excel',
+  file: 'From a file · .xlsx, .csv, .docx, .pptx and more',
+};
+
 /** Which connector a pasted link belongs to, as the server decides it. */
 const linkProvider = (url: string) =>
   /docs\.google\.com\/spreadsheets\/d\//.test(url)
@@ -116,6 +127,7 @@ export function NewPage() {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [mine, setMine] = useState(false);
+  const [hover, setHover] = useState<string | null>(null);
   const close = () => setUi({ creating: false });
   const provider = s.connectors?.find((c) => c.id === linkProvider(url.trim()));
   const create = async () => {
@@ -196,7 +208,12 @@ export function NewPage() {
           )}
         </p>
       )}
-      <div className="list-new-kinds" role="radiogroup" aria-label="Kind of page">
+      <div
+        className="list-new-kinds"
+        role="radiogroup"
+        aria-label="Kind of page"
+        onMouseLeave={() => setHover(null)}
+      >
         {MADE.map((k) => (
           <button
             type="button"
@@ -204,7 +221,8 @@ export function NewPage() {
             role="radio"
             aria-checked={kind === k}
             aria-label={kindName[k]}
-            title={kindName[k]}
+            onMouseEnter={() => setHover(k)}
+            onFocus={() => setHover(k)}
             onClick={() => setKind(k)}
           >
             <KindIcon kind={k} size={15} />
@@ -215,7 +233,8 @@ export function NewPage() {
           role="radio"
           aria-checked={kind === 'link'}
           aria-label="Linked from Google Sheets or Excel"
-          title="Linked from Google Sheets or Excel"
+          onMouseEnter={() => setHover('link')}
+          onFocus={() => setHover('link')}
           onClick={() => setKind('link')}
         >
           <Link2 size={15} />
@@ -223,7 +242,8 @@ export function NewPage() {
         <button
           type="button"
           aria-label="From a file on your computer"
-          title="From a file on your computer (.xlsx, .csv, .docx, .pptx and more)"
+          onMouseEnter={() => setHover('file')}
+          onFocus={() => setHover('file')}
           onClick={() => {
             close();
             chooseFiles();
@@ -232,6 +252,7 @@ export function NewPage() {
           <Upload size={15} />
         </button>
       </div>
+      <small className="list-new-says">{KIND_SAYS[hover ?? kind]}</small>
     </ListForm>
   );
 }
@@ -343,7 +364,11 @@ export function PeoplePanel({ onClose }: { onClose: () => void }) {
   const [link, setLink] = useState<{ token: string; expiresAt: string } | null>(null);
   // One thing waiting for a second click at a time: removing someone, leaving, or deleting.
   const [asking, setAsking] = useState<
-    { kind: 'remove'; who: User } | { kind: 'leave' } | { kind: 'delete' } | null
+    | { kind: 'remove'; who: User }
+    | { kind: 'leave' }
+    | { kind: 'delete' }
+    | { kind: 'renew' }
+    | null
   >(null);
   const [typed, setTyped] = useState('');
   const [name, setName] = useState(space.name);
@@ -478,23 +503,44 @@ export function PeoplePanel({ onClose }: { onClose: () => void }) {
           <Plus size={12} /> Add {p.name}
         </button>
       ))}
+      {link && (
+        <small className="list-people-note">
+          {asking?.kind === 'renew'
+            ? 'A new link stops the current one working. Anyone you sent it to will need the new one.'
+            : `The link works until ${new Date(link.expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.`}
+        </small>
+      )}
       <div className="list-new-foot">
-        <button
-          type="button"
-          className="list-new-cancel"
-          disabled={!link}
-          title={
-            link
-              ? `Works until ${new Date(link.expiresAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}. A new link stops this one working.`
-              : undefined
-          }
-          onClick={() => void make(true)}
-        >
-          New link
-        </button>
-        <button className="primary" type="button" disabled={!link} onClick={copy}>
-          <Copy size={12} /> Copy invite link
-        </button>
+        {asking?.kind === 'renew' ? (
+          <>
+            <button type="button" className="list-new-cancel" onClick={() => setAsking(null)}>
+              Keep it
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={() =>
+                void make(true).then(() => (setAsking(null), notify('New invite link made.')))
+              }
+            >
+              Make new
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="list-new-cancel"
+              disabled={!link}
+              onClick={() => setAsking({ kind: 'renew' })}
+            >
+              New link
+            </button>
+            <button className="primary" type="button" disabled={!link} onClick={copy}>
+              <Copy size={12} /> Copy invite link
+            </button>
+          </>
+        )}
       </div>
       <div className="list-people-space">
         {owner ? (
