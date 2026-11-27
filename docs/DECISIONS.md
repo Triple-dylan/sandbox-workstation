@@ -2,6 +2,13 @@
 
 Newest first. Confirmed by Dylan unless marked *assumed* or *open*.
 
+## 2026-11-27
+
+- **Select part of a page, ask, and see it done; sheets first.** Dylan: "want to be able to highlight an area, tell my agent to create a pivot table or anything else, and have that be executed", across the whole app. Plan in `docs/SELECT-AND-ASK.md`; Dylan chose to build steps 1–5 (the sheet feature) first. The model picks a typed operation and shared code (`shared/sheetOps.ts`) works out the cells; the model never computes a number.
+- *Assumed:* **A pivot is live formulas, not a separate pivot object.** Each cell is a `SUMIFS`/`COUNTIFS`/`AVERAGEIFS`/`MINIFS`/`MAXIFS` over the source, so it is right, updates with the data, and survives the Excel and Google Sheets link. Group labels are written once, so new groups need the pivot made again. By default it goes in the first clear columns right of the data; anything it would write over is named first.
+- *Assumed:* **A filter is for everyone on the sheet.** A sheet is shared, so a filter shows as a bar ("Showing rows … · N hidden for everyone · Clear"). It hides whole rows, as Excel does. The header row is never hidden.
+- *Assumed:* **⌘A picks the block around the cell first, then the whole sheet**, as in Excel and Google Sheets.
+
 ## 2026-11-26
 
 - **The graph's page preview is a panel beside it that shows the whole page.** Dylan: "document preview and viewing when on the graph still needs a lot of work", then "bigger preview. open beside and open is bad language to use, unclear for users". Choosing a page opens a full-height, resizable panel that renders it (documents formatted, sheets as tables, decks as slides, boards by what is on them). Buttons say where they go: "Go to page" and "Show next to the graph", plus "Ask about it". Hovering a page shows its title and first lines.

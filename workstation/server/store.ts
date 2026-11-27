@@ -1,5 +1,5 @@
 import { cellEdits, colName } from '../shared/formula.ts';
-import { MAX_COLS, MAX_ROWS, readSheet } from '../shared/sheet.ts';
+import { MAX_COLS, MAX_ROWS, readRange, readSheet } from '../shared/sheet.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
@@ -1379,7 +1379,7 @@ export class Store {
   setSheetLayout(
     actorId: Id,
     resourceId: Id,
-    layout: { formats?: unknown; widths?: unknown; freeze?: unknown },
+    layout: { formats?: unknown; widths?: unknown; freeze?: unknown; filter?: unknown },
   ) {
     const sheet = this.resource(resourceId);
     if (!sheet || sheet.kind !== 'sheet' || !this.canReadResource(actorId, sheet))
@@ -1406,6 +1406,18 @@ export class Store {
       if (!Number.isInteger(freeze) || freeze < 0 || freeze > 5)
         throw new InputError('Keep between 0 and 5 rows in view.');
       body.freeze = freeze;
+    }
+    // One filter per sheet, seen by everyone; null clears it.
+    if (layout.filter !== undefined) {
+      const f = layout.filter as { range?: unknown; col?: unknown; test?: unknown } | null;
+      if (f === null) body.filter = null;
+      else {
+        const range = readRange(f?.range);
+        const col = Number(f?.col);
+        if (!range || !Number.isInteger(col) || col < range.left || col > range.right)
+          throw new InputError('That filter does not fit the sheet.');
+        body.filter = { range, col, test: String(f?.test ?? '').slice(0, 100) };
+      }
     }
     return this.updateResource(actorId, resourceId, { body: json(body)! });
   }

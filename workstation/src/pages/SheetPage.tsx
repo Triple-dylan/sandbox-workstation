@@ -8,6 +8,7 @@ import { colName, evaluate, toNumber } from '../../shared/formula.ts';
 import {
   MAX_COLS,
   MAX_ROWS,
+  currentRegion,
   formatValue,
   fromTsv,
   readSheet,
@@ -21,6 +22,9 @@ import {
 import type { Resource, SheetFormat } from '../../shared/types.ts';
 import { useShareCursor, useTeamCursors } from '../features/presence/cursors.ts';
 import { LinkStatus } from '../features/connectors/LinkStatus.tsx';
+import { hiddenRows } from '../../shared/sheetOps.ts';
+import { FilterBar, OP_KINDS, OpForm, type OpKind } from './SheetOps.tsx';
+import type { CellRange } from '../../shared/types.ts';
 
 type Edit = { row: number; col: number; value: string };
 type Box = { top: number; bottom: number; left: number; right: number };
@@ -65,6 +69,10 @@ export function SheetPage({ page }: { page: Resource }) {
     Array.from({ length: width }, (_, c) => stored[r]?.[c] ?? ''),
   );
   const freeze = sheet.freeze ?? 0;
+  // A filter hides rows for everyone; moving with the arrows steps over them.
+  const hidden = hiddenRows(stored, sheet.filter);
+  // Pivot, Sort, Filter or Total being set up for a block of cells.
+  const [arranging, setArranging] = useState<{ kind: OpKind; range: CellRange } | null>(null);
   const [widths, setWidths] = useState<Record<string, number>>({});
   const colWidth = (c: number) => widths[c] ?? sheet.widths?.[c] ?? 132;
 
@@ -154,12 +162,18 @@ export function SheetPage({ page }: { page: Resource }) {
     const last = history.current.redo.pop();
     if (last) apply(last, 'redo');
   };
-  const layout = (patch: { formats?: object; widths?: object; freeze?: number }) =>
-    void run(() => api(`/resources/${page.id}/layout`, { body: patch }));
+  const layout = (patch: {
+    formats?: object;
+    widths?: object;
+    freeze?: number;
+    filter?: object | null;
+  }) => void run(() => api(`/resources/${page.id}/layout`, { body: patch }));
 
   const cellAt = (r: number, c: number) =>
     grid.current?.querySelector<HTMLInputElement>(`[data-cell="${r}:${c}"]`);
   const moveTo = (r: number, c: number, extend = false) => {
+    const from = corner?.r ?? r;
+    while (hidden.has(r) && r > 0 && r < height - 1) r += r < from ? -1 : 1;
     const next = {
       r: Math.max(0, Math.min(height - 1, r)),
       c: Math.max(0, Math.min(width - 1, c)),
@@ -470,9 +484,22 @@ export function SheetPage({ page }: { page: Resource }) {
     if (mod && e.key.toLowerCase() === 'd') return (e.preventDefault(), fill(true));
     if (mod && e.key.toLowerCase() === 'r') return (e.preventDefault(), fill(false));
     if (mod && e.key.toLowerCase() === 'a') {
+      // First the block of filled cells around this one, then, pressed again, the whole sheet.
       e.preventDefault();
-      setAt({ r: 0, c: 0 });
-      setEnd({ r: Math.max(0, stored.length - 1), c: width - 1 });
+      const region = currentRegion(stored, r, c);
+      const whole =
+        box &&
+        box.top === region.top &&
+        box.left === region.left &&
+        box.bottom === region.bottom &&
+        box.right === region.right;
+      if (whole || (region.top === region.bottom && region.left === region.right)) {
+        setAt({ r: 0, c: 0 });
+        setEnd({ r: Math.max(0, stored.length - 1), c: width - 1 });
+      } else {
+        setAt({ r: region.top, c: region.left });
+        setEnd({ r: region.bottom, c: region.right });
+      }
       return;
     }
     if (e.key === 'Escape') return setEnd(null);
@@ -500,6 +527,33 @@ export function SheetPage({ page }: { page: Resource }) {
             <Sparkles size={13} /> Ask about {rangeName}
           </button>
         )}
+        {many && (
+          <span className="sheet-ops" role="group" aria-label={`Work on ${rangeName}`}>
+            {OP_KINDS.map(([kind, label]) => (
+              <button
+                key={kind}
+                aria-pressed={arranging?.kind === kind}
+                onClick={() =>
+                  setArranging(
+                    arranging?.kind === kind
+                      ? null
+                      : {
+                          kind,
+                          range: {
+                            top: box!.top,
+                            left: box!.left,
+                            bottom: box!.bottom,
+                            right: box!.right,
+                          },
+                        },
+                  )
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        )}
         {picked && (
           <>
             <button onClick={share}>
@@ -518,7 +572,7 @@ export function SheetPage({ page }: { page: Resource }) {
             onChange={(f) => setFormat(at.c, f)}
           />
         )}
-        {at && (
+        {at && !many && (
           <button onClick={() => sortBy(at.c, false)} title={`Sort by column ${colName(at.c)}`}>
             <ArrowDownUp size={13} /> Sort
           </button>
@@ -567,6 +621,36 @@ export function SheetPage({ page }: { page: Resource }) {
           <Download size={13} />
         </button>
       </div>
+      {arranging && (
+        <OpForm
+          key={`${arranging.kind}:${arranging.range.top}:${arranging.range.left}:${arranging.range.bottom}:${arranging.range.right}`}
+          kind={arranging.kind}
+          rows={stored}
+          range={arranging.range}
+          onClose={() => setArranging(null)}
+          onRun={(_op, result) => {
+            if (result.filter !== undefined) layout({ filter: result.filter });
+            else apply(result.edits);
+            setArranging(null);
+            if (result.area) {
+              setAt({ r: result.area.top, c: result.area.left });
+              setEnd({ r: result.area.bottom, c: result.area.right });
+            }
+            notify(result.summary);
+          }}
+        />
+      )}
+      {sheet.filter && (
+        <FilterBar
+          filter={sheet.filter}
+          names={
+            evaluate(stored, sheet.filter.range.top - 1, sheet.filter.col).trim() ||
+            `column ${colName(sheet.filter.col)}`
+          }
+          hidden={hidden.size}
+          onClear={() => layout({ filter: null })}
+        />
+      )}
       <div className="sheet-scroll">
         <table
           className="sheet"
@@ -616,6 +700,7 @@ export function SheetPage({ page }: { page: Resource }) {
             {rows.map((row, r) => (
               <tr
                 key={r}
+                hidden={hidden.has(r)}
                 className={`${r === 0 ? 'head' : ''} ${r < freeze ? 'frozen' : ''} ${inPick(r) ? 'picked' : ''} ${lit && r >= lit[0] && r <= lit[1] ? 'lit' : ''}`}
                 style={
                   r < freeze

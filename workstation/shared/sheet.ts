@@ -22,6 +22,53 @@ export function readRange(input: unknown): CellRange | null {
   return { top: r.top, left: r.left, bottom: r.bottom, right: r.right };
 }
 
+/** A block shrunk to the cells in it that hold anything: empty edge rows and columns dropped. */
+export function trimRange(rows: string[][], r: CellRange): CellRange {
+  const filled = (row: number, col: number) => !!(rows[row]?.[col] ?? '').trim();
+  const rowUsed = (row: number, x: CellRange) => {
+    for (let c = x.left; c <= x.right; c++) if (filled(row, c)) return true;
+    return false;
+  };
+  const colUsed = (col: number, x: CellRange) => {
+    for (let row = x.top; row <= x.bottom; row++) if (filled(row, col)) return true;
+    return false;
+  };
+  const t = { ...r };
+  while (t.bottom > t.top && !rowUsed(t.bottom, t)) t.bottom--;
+  while (t.top < t.bottom && !rowUsed(t.top, t)) t.top++;
+  while (t.right > t.left && !colUsed(t.right, t)) t.right--;
+  while (t.left < t.right && !colUsed(t.left, t)) t.left++;
+  return t;
+}
+
+/**
+ * The block of filled cells around one cell, bounded by empty rows and columns: what ⌘A picks
+ * first in Excel and Google Sheets.
+ */
+export function currentRegion(rows: string[][], row: number, col: number): CellRange {
+  const filled = (r: number, c: number) => !!(rows[r]?.[c] ?? '').trim();
+  const r = { top: row, left: col, bottom: row, right: col };
+  for (let grew = true; grew;) {
+    grew = false;
+    const any = (r0: number, r1: number, c0: number, c1: number) => {
+      for (let a = r0; a <= r1; a++) for (let b = c0; b <= c1; b++) if (filled(a, b)) return true;
+      return false;
+    };
+    // Look one row or column beyond each edge, corners included, and take it in if anything is there.
+    const top = Math.max(0, r.top - 1);
+    const left = Math.max(0, r.left - 1);
+    const bottom = Math.min(MAX_ROWS - 1, r.bottom + 1);
+    const right = Math.min(MAX_COLS - 1, r.right + 1);
+    if (r.top > 0 && any(r.top - 1, r.top - 1, left, right)) (r.top--, (grew = true));
+    if (r.bottom < MAX_ROWS - 1 && any(r.bottom + 1, r.bottom + 1, left, right))
+      (r.bottom++, (grew = true));
+    if (r.left > 0 && any(top, bottom, r.left - 1, r.left - 1)) (r.left--, (grew = true));
+    if (r.right < MAX_COLS - 1 && any(top, bottom, r.right + 1, r.right + 1))
+      (r.right++, (grew = true));
+  }
+  return r;
+}
+
 /** "B2:D40", or "B2" for one cell. */
 export const rangeName = (r: CellRange) =>
   r.top === r.bottom && r.left === r.right
@@ -35,7 +82,13 @@ export const rangeName = (r: CellRange) =>
 export function hasHeader(rows: string[][], r: CellRange): boolean {
   if (r.bottom === r.top) return false;
   const shown = (row: number, col: number) => evaluate(rows, row, col).trim();
+  // A column empty all the way down is a gap between blocks, not a column without a name.
+  const empty = (c: number) => {
+    for (let row = r.top; row <= r.bottom; row++) if ((rows[row]?.[c] ?? '').trim()) return false;
+    return true;
+  };
   for (let c = r.left; c <= r.right; c++) {
+    if (empty(c)) continue;
     const v = shown(r.top, c);
     if (!v || toNumber(v) !== null) return false;
   }
@@ -48,7 +101,8 @@ export function hasHeader(rows: string[][], r: CellRange): boolean {
  * The cells chosen on a sheet as an agent reads them: where they are, what each column is called,
  * and every row with its sheet row number. Formulas show what they work out to.
  */
-export function rangeTable(rows: string[][], r: CellRange, limit = 200) {
+export function rangeTable(rows: string[][], chosen: CellRange, limit = 200) {
+  const r = trimRange(rows, chosen);
   const headed = hasHeader(rows, r);
   const columns = Array.from({ length: r.right - r.left + 1 }, (_, i) => {
     const col = r.left + i;
