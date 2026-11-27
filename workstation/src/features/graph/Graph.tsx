@@ -4,7 +4,10 @@ import { Compass, Folder, Lock } from 'lucide-react';
 import { KindIcon, ago, excerpt, kindName } from '../../app/util.tsx';
 import type { GraphFilter } from '../../app/saved.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
-import { Avatar, Character, agentState } from '../agents/Character.tsx';
+import { Avatar, Character } from '../agents/Character.tsx';
+import { agentLabel } from '../../app/scope.ts';
+import { talkTo } from '../../app/agentChat.ts';
+import { orbitersOf } from './orbiters.ts';
 import { graphOf, noFilter, overviewOf, relationsOf, type GraphNode } from './tree.ts';
 import {
   createCampaignOsSimulation,
@@ -144,11 +147,14 @@ export function Graph({
   selected?: string | null;
   onSelect: (resourceId: string | null) => void;
 }) {
-  const { s, space, ui, setUi, user, resource } = useWorkspace();
+  const ws = useWorkspace();
+  const { s, space, ui, setUi, user, resource } = ws;
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 600 });
   const [focus, setFocus] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+  /** The orbiting agent under the pointer, as `nodeId:agentId`: its orbit stops while you read it. */
+  const [held, setHeld] = useState<string | null>(null);
   const [, setFrame] = useState(0);
   const simulation = useRef<Simulation<ForceSimNode, ForceSimLink> | null>(null);
   const places = useRef(new Map<string, { x: number; y: number }>());
@@ -308,11 +314,13 @@ export function Graph({
   };
 
   const anchorFor = (resourceId: string | null) =>
-    (resourceId && byId.get(resourceId)) || byId.get(everything ? '' : rootId);
-  const working = s.jobs.filter(
-    (j) =>
-      (everything || j.spaceId === space.id) &&
-      (j.status === 'running' || j.status === 'queued' || j.status === 'awaiting_approval'),
+    (resourceId && byId.get(resourceId)) || byId.get(rootId);
+  const orbiters = orbitersOf(
+    s.activity,
+    s.jobs,
+    (id) => byId.has(id),
+    rootId,
+    everything ? null : space.id,
   );
   const visitors = s.presence.filter(
     (p) => p.online && p.spaceId === space.id && p.resourceId && p.userId !== s.me.id,
@@ -391,19 +399,72 @@ export function Graph({
           </button>
         );
       })}
-      {working.map((j, i) => {
-        const n = anchorFor(j.targetResourceId) ?? byId.get(j.spaceId);
-        const agent = user(j.agentId);
-        if (!n || !agent) return null;
-        return (
-          <span
-            key={j.id}
-            className="graph-actor"
-            style={{ left: sx(n) + n.radius * 0.7 + i * 10, top: sy(n) - n.radius - 26 }}
-          >
-            <Character agent={agent} size={32} state={agentState(agent.id, s.jobs)} />
-          </span>
-        );
+      {[...orbiters].map(([nodeId, here]) => {
+        const n = byId.get(nodeId);
+        if (!n) return null;
+        // Agents at work circle the node, spaced evenly, on a ring just outside its disc.
+        const ring = Math.max(12, n.radius * Math.max(0.72, scale)) + 14 + 10 * scale;
+        return here.map((o, i) => {
+          const agent = user(o.agentId);
+          if (!agent) return null;
+          const key = `${nodeId}:${o.agentId}`;
+          const page = resource(o.resourceId);
+          const doing = o.request
+            ? o.request.length > 90
+              ? `${o.request.slice(0, 88)}…`
+              : o.request
+            : page
+              ? `Working on ${page.title}`
+              : 'Working in a chat';
+          const mine = agent.role !== 'personal' || agent.ownerId === s.me.id;
+          const right = sx(n) > size.width - 300;
+          return (
+            <span
+              key={key}
+              className={`graph-orbit ${held === key ? 'held' : ''}`}
+              style={
+                {
+                  left: sx(n),
+                  top: sy(n),
+                  '--ring': `${ring}px`,
+                  '--turn': i / here.length,
+                } as React.CSSProperties
+              }
+            >
+              <span className="graph-orbit-arm">
+                <button
+                  className="graph-orbiter"
+                  aria-label={`${agentLabel(s, agent.id)}: ${doing}${mine ? `. Chat with ${agent.name}` : ''}`}
+                  onPointerEnter={() => setHeld(key)}
+                  onPointerLeave={() => setHeld((h) => (h === key ? null : h))}
+                  onFocus={() => setHeld(key)}
+                  onBlur={() => setHeld((h) => (h === key ? null : h))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (mine) void talkTo(ws, agent, e.metaKey || e.ctrlKey);
+                    else ws.open({ type: 'who', id: agent.id }, true);
+                  }}
+                >
+                  <span className="graph-orbiter-upright">
+                    <Character agent={agent} size={28} state="working" />
+                  </span>
+                </button>
+              </span>
+              {held === key && (
+                <span
+                  className={`graph-peek graph-doing ${right ? 'to-left' : ''}`}
+                  style={{ left: right ? -ring - 22 : ring + 22, top: 0 }}
+                  role="status"
+                >
+                  <strong>{agentLabel(s, agent.id)}</strong>
+                  <small>{page && o.request ? `Working on ${page.title}` : 'Working now'}</small>
+                  <p>{doing}</p>
+                  {mine && <small>Click to open its chat</small>}
+                </span>
+              )}
+            </span>
+          );
+        });
       })}
       {(() => {
         // A quick look at a page while the pointer rests on it: what it is and how it starts.
