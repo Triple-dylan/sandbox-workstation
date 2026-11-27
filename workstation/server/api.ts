@@ -49,6 +49,8 @@ export type ChatInfo = {
   title: string;
   /** A discussion's page. */
   pageId: Id | null;
+  /** A direct message's other person. */
+  with?: Who | null;
 };
 export type MessageInfo = {
   id: Id;
@@ -161,14 +163,63 @@ export class OutsideAgent {
   }
   protected readableChat(chatId: Id) {
     const chat = this.store.conversation(chatId);
-    if (
-      !chat ||
-      chat.kind === 'agent-private' ||
-      !this.inSpace(chat.spaceId) ||
-      !this.store.canReadConversation(this.agent.id, chat)
-    )
-      throw new AccessError('Not available.');
+    if (!chat || !this.canRead(chat)) throw new AccessError('Not available.');
     return chat;
+  }
+  private canRead(chat: Conversation) {
+    if (chat.kind === 'dm') return this.isMyDm(chat) && this.sharesSpace(this.dmOther(chat));
+    return (
+      chat.kind !== 'agent-private' &&
+      this.inSpace(chat.spaceId) &&
+      this.store.canReadConversation(this.agent.id, chat)
+    );
+  }
+
+  // ---------- direct messages: one to one with a person it works with ----------
+
+  private isMyDm(chat: Conversation) {
+    return chat.kind === 'dm' && chat.participantIds.includes(this.agent.id);
+  }
+  private dmOther(chat: Conversation) {
+    return chat.participantIds.find((id) => id !== this.agent.id) ?? null;
+  }
+  /**
+   * A person it shares a live workspace with. A direct message stays open only while that holds,
+   * so taking the seat out of a workspace also closes its DMs with the people there.
+   */
+  private sharesSpace(userId: Id | null) {
+    const person = userId ? this.store.user(userId) : null;
+    if (!person || person.kind !== 'human') return false;
+    return this.store
+      .memberSpaces(this.agent.id)
+      .some((spaceId) => this.inSpace(spaceId) && this.store.isMember(person.id, spaceId));
+  }
+  private dmInfo(chat: Conversation): ChatInfo {
+    return {
+      id: chat.id,
+      spaceId: null,
+      kind: chat.kind,
+      title: chat.title,
+      pageId: null,
+      with: who(this.store.user(this.dmOther(chat) ?? '')),
+    };
+  }
+  /** Its direct messages with people it still shares a workspace with. */
+  dms(): ChatInfo[] {
+    return this.rows<{ id: Id }>(
+      `select c.id from conversations c join participants p on p.conversation_id = c.id where c.kind = 'dm' and p.user_id = ? order by c.created_at, c.rowid`,
+      this.agent.id,
+    )
+      .map((r) => this.store.conversation(r.id)!)
+      .filter((c) => this.canRead(c))
+      .map((c) => this.dmInfo(c));
+  }
+  /** Opens (or finds) its direct message with a person it shares a workspace with. */
+  openDm(input: { userId?: unknown }) {
+    const userId = typeof input.userId === 'string' ? input.userId : '';
+    if (!this.sharesSpace(userId))
+      throw new AccessError('You can message people you share a workspace with.');
+    return this.dmInfo(this.store.openDm(this.agent.id, userId));
   }
   /**
    * A chat's messages, oldest first. Without `since`, the latest ones; with it, the first ones
@@ -192,6 +243,15 @@ export class OutsideAgent {
         ).reverse();
     return rows.map((r) => this.messageInfo(r));
   }
+  private dmIds = new Map<Id, boolean>();
+  /** Everything someone says in its DM is said to it. */
+  private inMyDm(chatId: Id) {
+    if (!this.dmIds.has(chatId)) {
+      const chat = this.store.conversation(chatId);
+      this.dmIds.set(chatId, !!chat && this.isMyDm(chat));
+    }
+    return this.dmIds.get(chatId)!;
+  }
   protected messageInfo(r: MessageRow): MessageInfo {
     return {
       id: r.id,
@@ -199,36 +259,39 @@ export class OutsideAgent {
       author: who(this.store.user(r.author_id)),
       text: r.text,
       replyTo: r.reply_to ?? null,
-      toMe: r.addressed_to === this.agent.id,
+      toMe:
+        r.addressed_to === this.agent.id ||
+        (r.author_id !== this.agent.id && this.inMyDm(r.conversation_id)),
       createdAt: r.created_at,
     };
   }
-  /** Messages sent to this agent, in every chat it can still read, oldest first. */
+  /**
+   * Messages sent to this agent, in every chat it can still read, oldest first: ones addressed to
+   * it, and what people say in its direct messages.
+   */
   inbox(options: { since?: string; limit?: number } = {}): MessageInfo[] {
     const limit = clampLimit(options.limit);
     const since = readSince(options.since);
+    const toMe = `(addressed_to = ? or (author_id != ? and conversation_id in (
+      select p.conversation_id from participants p join conversations c on c.id = p.conversation_id
+      where p.user_id = ? and c.kind = 'dm')))`;
+    const me = [this.agent.id, this.agent.id, this.agent.id];
     const rows = since
       ? this.rows<MessageRow>(
-          `select ${COLUMNS} from messages where addressed_to = ? and created_at > ? order by created_at, rowid`,
-          this.agent.id,
+          `select ${COLUMNS} from messages where ${toMe} and created_at > ? order by created_at, rowid`,
+          ...me,
           since,
         )
       : this.rows<MessageRow>(
-          `select ${COLUMNS} from messages where addressed_to = ? order by created_at desc, rowid desc limit ?`,
-          this.agent.id,
+          `select ${COLUMNS} from messages where ${toMe} order by created_at desc, rowid desc limit ?`,
+          ...me,
           limit * 4,
         ).reverse();
     const readable = new Map<Id, boolean>();
     const canRead = (chatId: Id) => {
       if (!readable.has(chatId)) {
         const chat = this.store.conversation(chatId);
-        readable.set(
-          chatId,
-          !!chat &&
-            chat.kind !== 'agent-private' &&
-            this.inSpace(chat.spaceId) &&
-            this.store.canReadConversation(this.agent.id, chat),
-        );
+        readable.set(chatId, !!chat && this.canRead(chat));
       }
       return readable.get(chatId)!;
     };
@@ -408,6 +471,7 @@ export function outsideApi(
     if (a === 'pages' && b && !c) return ok(outside.page(b));
     if (a === 'chats' && b && c === 'messages') return ok(outside.messages(b, options));
     if (a === 'inbox' && !b) return ok(outside.inbox(options));
+    if (a === 'dms' && !b) return ok(outside.dms());
     if (a === 'webhooks' && !b && webhooks) return ok(webhooks.list(agent.id));
   }
   if (method === 'GET') return { status: 404, data: { error: 'Not found.' } };
@@ -418,6 +482,7 @@ export function outsideApi(
     return ok(outside.post(b, input));
   if (method === 'POST' && a === 'spaces' && b && c === 'pages')
     return ok(outside.createDoc(b, input));
+  if (method === 'POST' && a === 'dms' && !b) return ok(outside.openDm(input));
   if (method === 'PATCH' && a === 'pages' && b && !c) return ok(outside.editPage(b, input));
   if (method === 'POST' && a === 'pages' && b && c === 'cells')
     return ok(outside.setCells(b, input));
