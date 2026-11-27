@@ -651,7 +651,7 @@ export function Rail({ docked }: { docked: boolean }) {
           <small>
             <i className={working ? 'on' : ''} />
             {status}
-            {s.runtime.id === 'scripted' ? ' · scripted stand-in' : ''}
+            {s.runtime.id === 'none' ? ' · not connected on this server' : ''}
           </small>
         </span>
         <button

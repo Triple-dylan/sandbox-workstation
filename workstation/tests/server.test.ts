@@ -8,6 +8,7 @@ import { createApp, type GoogleAccount } from '../server/app.ts';
 import { lastOccurrence } from '../server/store.ts';
 import { scriptedRuntime } from '../server/agents/scripted.ts';
 import { createOpenAIRuntime } from '../server/agents/openai.ts';
+import { selectRuntime } from '../server/env.ts';
 import type { AgentResult, AgentRuntime, AgentTask } from '../server/agents/runtime.ts';
 
 const PLACEHOLDER_KEY = 'placeholder-key-for-tests';
@@ -245,7 +246,7 @@ test('unsolicited replies: the project agent may chip in on a relevant question,
   await app.close();
 });
 
-test('openai runtime: parses replies, records usage and falls back to scripted past the daily budget', async () => {
+test('openai runtime: parses replies, records usage and says so past the daily budget, answering nothing', async () => {
   const calls: any[] = [];
   const headers: string[] = [];
   let usage = 0;
@@ -290,8 +291,8 @@ test('openai runtime: parses replies, records usage and falls back to scripted p
   last = snap(dylan.id)
     .messages.filter((m) => m.conversationId === mine.id)
     .at(-1)!;
-  assert.equal(last.runtime, 'scripted');
-  assert.match(last.text, /Daily token budget of 150 reached/);
+  assert.equal(last.runtime, 'openai');
+  assert.match(last.text, /^I couldn't finish that: .*Daily token budget of 150 reached/);
   assert.equal(calls.length, before, 'nothing reaches the model past the budget');
   await app.close();
 });
@@ -345,6 +346,19 @@ test('openai runtime: waits and retries when rate limited, then says so plainly'
   const broke = make([() => busy('You exceeded your current quota (insufficient_quota)')], []);
   await assert.rejects(broke.runtime.run(task), /out of credit/);
   assert.equal(broke.calls(), 1);
+});
+
+test('no key: agents are not connected, say so, and nothing answers in their place', async () => {
+  const { store, engine, dylan, snap } = setup(selectRuntime({}, null!));
+  const mine = snap(dylan.id).conversations.find((c) => c.kind === 'agent-private')!;
+  store.postMessage(dylan.id, { conversationId: mine.id, text: 'hello' });
+  await engine.idle();
+  const replies = snap(dylan.id).messages.filter(
+    (m) => m.conversationId === mine.id && m.authorId !== dylan.id,
+  );
+  assert.equal(replies.length, 1);
+  assert.equal(replies[0].runtime, 'none');
+  assert.match(replies[0].text, /^I couldn't finish that: agents are not connected/);
 });
 
 test('http: sessions, CSRF header, auth and static path traversal', async () => {
@@ -1278,14 +1292,13 @@ test('agent guardrails: daily allowances per person and per space, and a per-min
   const privateChat = (s: ReturnType<typeof setup>, who: string) =>
     s.snap(who).conversations.find((c) => c.kind === 'agent-private')!.id;
 
-  // One person's allowance: after it is used, the agent says so and the labelled stand-in answers.
+  // One person's allowance: after it is used, the agent says so and nothing answers in its place.
   const a = setup(model, { AGENT_PERSON_DAILY_TOKENS: '150', AGENT_SPACE_DAILY_TOKENS: '10000' });
   const mine = privateChat(a, a.dylan.id);
   assert.equal((await ask(a, a.dylan.id, mine, 'first question')).runtime, 'fake-model');
   assert.equal((await ask(a, a.dylan.id, mine, 'second question')).runtime, 'fake-model');
   const over = await ask(a, a.dylan.id, mine, 'third question');
-  assert.equal(over.runtime, 'scripted');
-  assert.match(over.text, /used today's agent allowance/);
+  assert.match(over.text, /^I couldn't finish that: .*used today's agent allowance/);
   // Someone else is unaffected.
   assert.equal((await ask(a, a.maya.id, privateChat(a, a.maya.id), 'hello')).runtime, 'fake-model');
 
@@ -1299,17 +1312,18 @@ test('agent guardrails: daily allowances per person and per space, and a per-min
   assert.ok(b.store.agentUsageToday('space', b.project.id) >= 150, 'answer plus upkeep counted');
   assert.equal(b.store.agentUsageToday('person', b.maya.id), 0, 'Maya has spent nothing');
   const spaceOver = await ask(b, b.maya.id, b.general.id, 'anything else', to);
-  assert.equal(spaceOver.runtime, 'scripted');
-  assert.match(spaceOver.text, /Launch has used today's agent allowance/);
+  assert.match(
+    spaceOver.text,
+    /^I couldn't finish that: .*Launch has used today's agent allowance/,
+  );
 
-  // Asking too fast gets no answer at all, scripted or otherwise.
+  // Asking too fast gets no answer either.
   const c = setup(model, { AGENT_REQUESTS_PER_MINUTE: '2' });
   const fast = privateChat(c, c.dylan.id);
   await ask(c, c.dylan.id, fast, 'one');
   await ask(c, c.dylan.id, fast, 'two');
   const tooFast = await ask(c, c.dylan.id, fast, 'three');
   assert.match(tooFast.text, /asked agents 2 times in the last minute/);
-  assert.notEqual(tooFast.runtime, 'scripted');
 });
 
 test("meaning search: finds a page by what it means, embeds each page once until it changes, and never shows another person's private page", async () => {
