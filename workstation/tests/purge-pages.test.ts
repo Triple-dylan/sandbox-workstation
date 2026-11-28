@@ -66,7 +66,9 @@ test('purge pages: a deleted page stays through its grace period, then it and it
   store.markRead(dylan.id, talk.id);
   const agent = store.projectAgent(launch.id)!;
   store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
-  store.replaceVectors(page.id, 'stamp', [{ text: 'Plan', vector: new Float32Array([1, 0]) }]);
+  await store.vectors.replace(page.id, 'stamp', [
+    { text: 'Plan', vector: new Float32Array([1, 0]) },
+  ]);
   store.setDocState(page.id, new Uint8Array([1, 2, 3]));
   const kept = store.createResource(dylan.id, { spaceId: launch.id, kind: 'doc', body: 'Keep' });
   await app.engine.idle();
