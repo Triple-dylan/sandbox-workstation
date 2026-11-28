@@ -78,6 +78,12 @@ export const readFile = async () => {
   throw new Error('No files in the in-page build.');
 };
 export const stat = readFile;
+// Backups never run in the page (its database is in memory); these only satisfy the imports.
+export const readdirSync = () => [];
+export const statSync = readFileSync;
+export const renameSync = readFileSync;
+export const rmSync = () => {};
+export const createReadStream = readFileSync;
 export const sep = '/';
 export const dirname = (p: string) => p.replace(/\/[^/]*$/, '');
 export const extname = (p: string) => (p.match(/\.[^./]+$/) ?? [''])[0];
