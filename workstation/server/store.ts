@@ -3,6 +3,9 @@ import { MAX_COLS, MAX_ROWS, readRange, readSheet } from '../shared/sheet.ts';
 import { readOp, runOp } from '../shared/sheetOps.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
+import type { Sql } from './sql/index.ts';
+import { sqliteSql } from './sql/sqlite.ts';
+import { passageVectors, type PassageVectors } from './sql/vectors.ts';
 import {
   CANVAS_KINDS,
   ORB_FORMS,
@@ -248,10 +251,19 @@ export class Store {
   version = 0;
   private listeners = new Set<(event: ChangeEvent) => void>();
   readonly db: Db;
+  /**
+   * The same database through the async layer (`server/sql/`). Methods move onto it in batches;
+   * once all have, Postgres can stand in for SQLite here.
+   */
+  readonly sql: Sql;
+  /** Search vectors of pages' passages. Callers pass only pages the asker may read. */
+  readonly vectors: PassageVectors;
   /** Invitation only: people outside your spaces are not visible and cannot be messaged. */
   closed = false;
   constructor(db: Db, options: { closed?: boolean } = {}) {
     this.db = db;
+    this.sql = sqliteSql(db);
+    this.vectors = passageVectors(this.sql);
     this.closed = !!options.closed;
     // Earlier versions kept loose pieces on one board per space. They now live on a canvas page.
     const loose = this.all(
@@ -373,7 +385,10 @@ export class Store {
     this.changed();
     return this.user(userId)!;
   }
-  createAgent(name: string, scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' }) {
+  createAgent(
+    name: string,
+    scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' | 'outside' },
+  ) {
     const agentId = id();
     const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
@@ -412,9 +427,9 @@ export class Store {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
     const allowed =
-      agent.role === 'personal'
-        ? agent.ownerId === actorId
-        : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+      agent.role === 'project'
+        ? !!agent.spaceId && this.isMember(actorId, agent.spaceId)
+        : agent.ownerId === actorId;
     if (!allowed) throw new AccessError('Not available.');
     const name = patch.name === undefined ? agent.name : patch.name.trim().slice(0, 40);
     if (!name) throw new InputError('Give the agent a name.');
@@ -531,7 +546,12 @@ export class Store {
   }
   acceptInvite(userId: Id, token: string) {
     const row = this.liveInvite(token);
-    this.run('insert or ignore into members values (?, ?, ?)', row.space_id, userId, 'member');
+    this.run(
+      'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
+      row.space_id,
+      userId,
+      'member',
+    );
     this.run('update invites set uses = uses + 1 where token = ?', row.token);
     this.changed();
     return this.space(row.space_id)!;
@@ -614,7 +634,12 @@ export class Store {
     const who = this.user(userId);
     if (!who || !this.isMember(userId, resource.spaceId))
       throw new InputError('They are not in this space.');
-    if (on) this.run('insert or ignore into grants values (?, ?)', resourceId, userId);
+    if (on)
+      this.run(
+        'insert into grants (resource_id, user_id) values (?, ?) on conflict do nothing',
+        resourceId,
+        userId,
+      );
     else this.run('delete from grants where resource_id = ? and user_id = ?', resourceId, userId);
     this.changed();
   }
@@ -687,7 +712,12 @@ export class Store {
     if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
     if (this.closed && !this.memberSpaces(actorId).some((id) => this.isMember(userId, id)))
       throw new InputError('Invite them with a link instead.');
-    this.run('insert or ignore into members values (?, ?, ?)', spaceId, userId, 'member');
+    this.run(
+      'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
+      spaceId,
+      userId,
+      'member',
+    );
     this.changed();
   }
   /** A workspace its owner manages: renaming, removing people and deleting are theirs alone. */
@@ -1576,7 +1606,11 @@ export class Store {
     if (!resource || !this.canReadResource(actorId, resource) || resource.visibility !== 'space')
       throw new InputError('Only shared pages can be pinned.');
     if (on)
-      this.run('insert or ignore into channel_pins values (?, ?)', conversationId, resourceId);
+      this.run(
+        'insert into channel_pins (conversation_id, resource_id) values (?, ?) on conflict do nothing',
+        conversationId,
+        resourceId,
+      );
     else
       this.run(
         'delete from channel_pins where conversation_id = ? and resource_id = ?',
@@ -1651,7 +1685,13 @@ export class Store {
       !other.retired &&
       !!other.spaceId &&
       this.isMember(actorId, other.spaceId);
-    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
+    // An agent seat someone brought in can be messaged by the people it shares a workspace with.
+    const seat =
+      other?.kind === 'agent' &&
+      other.role === 'outside' &&
+      !other.retired &&
+      this.memberSpaces(actorId).some((spaceId) => this.isMember(otherId, spaceId));
+    if (!other || (other.kind !== 'human' && !agent && !seat) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&
@@ -1703,7 +1743,14 @@ export class Store {
       conversation.spaceId
     ) {
       if (this.isMember(userId, conversation.spaceId))
-        agents.push(...this.projectAgents(conversation.spaceId));
+        agents.push(
+          ...this.projectAgents(conversation.spaceId),
+          // Agent seats that joined this space: a message to one waits for it to read.
+          ...this.all(
+            `select u.* from members m join users u on u.id = m.user_id where m.space_id = ? and u.kind = 'agent' and u.role = 'outside' and u.retired = 0 order by u.created_at`,
+            conversation.spaceId,
+          ).map(toUser),
+        );
     }
     return agents;
   }
@@ -2388,7 +2435,11 @@ export class Store {
         name: approval.proposal.title,
         body: approval.proposal.body,
       });
-      this.run('insert or ignore into agent_skills values (?, ?)', approval.agentId, skill.id);
+      this.run(
+        'insert into agent_skills (agent_id, skill_id) values (?, ?) on conflict do nothing',
+        approval.agentId,
+        skill.id,
+      );
     }
     // An agent asked for by conversation joins the roster only once a person approves it.
     if (decision === 'approved' && approval.proposal.kind === 'create-agent')
@@ -2435,7 +2486,7 @@ export class Store {
   }
   skillsIn(spaceId: Id) {
     return this.all(
-      'select * from skills where space_id = ? and deleted = 0 order by name collate nocase',
+      'select * from skills where space_id = ? and deleted = 0 order by lower(name)',
       spaceId,
     ).map((r) => this.toSkill(r));
   }
@@ -2498,13 +2549,18 @@ export class Store {
     if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
     if (on && agent.role === 'project' && skill.spaceId !== agent.spaceId)
       throw new InputError('A shared agent can only use skills shared with its space.');
-    if (on) this.run('insert or ignore into agent_skills values (?, ?)', agentId, skillId);
+    if (on)
+      this.run(
+        'insert into agent_skills (agent_id, skill_id) values (?, ?) on conflict do nothing',
+        agentId,
+        skillId,
+      );
     else this.run('delete from agent_skills where agent_id = ? and skill_id = ?', agentId, skillId);
     this.changed();
   }
   skillsOf(agentId: Id) {
     return this.all(
-      'select s.* from agent_skills a join skills s on s.id = a.skill_id where a.agent_id = ? and s.deleted = 0 order by s.name collate nocase',
+      'select s.* from agent_skills a join skills s on s.id = a.skill_id where a.agent_id = ? and s.deleted = 0 order by lower(s.name)',
       agentId,
     ).map((r) => this.toSkill(r));
   }
@@ -2634,60 +2690,31 @@ export class Store {
   }
   addUsage(tokens: number) {
     this.run(
-      'insert into usage values (?, ?) on conflict (day) do update set tokens = tokens + excluded.tokens',
+      'insert into usage (day, tokens) values (?, ?) on conflict (day) do update set tokens = usage.tokens + excluded.tokens',
       now().slice(0, 10),
       Math.max(0, Math.round(tokens)),
     );
   }
 
-  /** When the stored search vectors of a page were made (its updatedAt then), if any. */
-  vectorStamp(resourceId: Id) {
-    const row = this.get(
-      'select stamp from passage_vectors where resource_id = ? limit 1',
-      resourceId,
+  /** What a provider other than OpenAI (the fallback) used, per UTC day: tokens and dollars. */
+  addProviderUsage(provider: string, tokens: number, dollars: number) {
+    this.run(
+      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = provider_usage.tokens + excluded.tokens, dollars = provider_usage.dollars + excluded.dollars',
+      now().slice(0, 10),
+      provider,
+      Math.max(0, Math.round(tokens)),
+      Math.max(0, dollars),
     );
-    return row ? String(row.stamp) : null;
   }
-  replaceVectors(resourceId: Id, stamp: string, rows: { text: string; vector: Float32Array }[]) {
-    this.db.exec('begin immediate');
-    try {
-      this.run('delete from passage_vectors where resource_id = ?', resourceId);
-      rows.forEach((row, i) =>
-        this.run(
-          'insert into passage_vectors values (?, ?, ?, ?, ?)',
-          resourceId,
-          i,
-          stamp,
-          row.text,
-          new Uint8Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength),
-        ),
-      );
-      this.db.exec('commit');
-    } catch (error) {
-      this.db.exec('rollback');
-      throw error;
-    }
+  /** Everything a provider has used since this database began. */
+  providerUsage(provider: string) {
+    const row = this.get(
+      'select coalesce(sum(tokens), 0) as tokens, coalesce(sum(dollars), 0) as dollars from provider_usage where provider = ?',
+      provider,
+    );
+    return { tokens: Number(row?.tokens ?? 0), dollars: Number(row?.dollars ?? 0) };
   }
-  /** Stored search vectors for these pages. Callers pass only pages the asker may read. */
-  vectorsFor(resourceIds: Id[]) {
-    if (!resourceIds.length) return [];
-    const rows = this.db
-      .prepare(
-        `select * from passage_vectors where resource_id in (${resourceIds.map(() => '?').join(',')})`,
-      )
-      .all(...resourceIds) as Record<string, unknown>[];
-    return rows.map((row) => {
-      const bytes = row.vector as Uint8Array;
-      return {
-        resourceId: String(row.resource_id),
-        stamp: String(row.stamp),
-        text: String(row.text),
-        vector: new Float32Array(
-          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-        ),
-      };
-    });
-  }
+
   /** Tokens agents used today for one space or on behalf of one person. */
   agentUsageToday(scope: 'space' | 'person', key: Id) {
     const row = this.get(
@@ -2701,7 +2728,7 @@ export class Store {
   addAgentUsage(spaceId: Id, personId: Id | null, tokens: number) {
     const add = (scope: string, key: Id) =>
       this.run(
-        'insert into agent_usage values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = tokens + excluded.tokens',
+        'insert into agent_usage (day, scope, key, tokens) values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = agent_usage.tokens + excluded.tokens',
         now().slice(0, 10),
         scope,
         key,

@@ -8,6 +8,7 @@ import { useWorkspace } from './workspace.tsx';
 import { inviteFrom } from './invite.ts';
 import { Choice } from './Choice.tsx';
 import { talkTo } from './agentChat.ts';
+import { showOnce, type NewToken } from '../features/agents/SeatPage.tsx';
 
 /**
  * Everything made from the list is made in the list, in the section where it will appear: one
@@ -298,6 +299,9 @@ export function NewAgent() {
   const [name, setName] = useState('');
   const [purpose, setPurpose] = useState('');
   const [mine, setMine] = useState(space.kind !== 'project');
+  // Elsewhere: an agent like Claude Code or Codex that runs on your machine and signs in here.
+  const [where, setWhere] = useState<'here' | 'elsewhere'>('here');
+  const outside = where === 'elsewhere' && space.kind === 'project';
   const form = ORB_FORMS[s.users.filter((u) => u.kind === 'agent').length % ORB_FORMS.length];
   const preview = {
     id: 'preview',
@@ -308,6 +312,20 @@ export function NewAgent() {
   } as User;
   const close = () => setUi({ making: null });
   const create = async () => {
+    if (outside) {
+      const seat = await run(async () => {
+        const made = await api<{ seat: { agent: User }; token: NewToken }>('/seats', {
+          body: { name: name.trim(), purpose, spaceId: space.id },
+        });
+        await api(`/agents/${made.seat.agent.id}`, { method: 'PATCH', body: { form } });
+        return made;
+      });
+      if (!seat) return;
+      showOnce(seat.seat.agent.id, seat.token);
+      close();
+      open({ type: 'who', id: seat.seat.agent.id });
+      return;
+    }
     const made = await run(async () => {
       const agent = await api<User>('/agents', {
         body: {
@@ -333,7 +351,23 @@ export function NewAgent() {
       onClose={close}
       onSubmit={() => void create()}
       ready={!!name.trim()}
-      foot={<Who mine={mine} setMine={setMine} label="Who can use it" />}
+      submit={outside ? 'Create and get a token' : 'Create'}
+      foot={
+        <span>
+          {space.kind === 'project' && (
+            <Choice
+              label="Where it runs"
+              value={where}
+              options={[
+                ['here', 'Runs in Sandbox'],
+                ['elsewhere', 'Runs elsewhere, like Claude Code'],
+              ]}
+              onChange={setWhere}
+            />
+          )}
+          {!outside && <Who mine={mine} setMine={setMine} label="Who can use it" />}
+        </span>
+      }
     >
       <div className="list-new-agent">
         <Character agent={preview} size={22} />

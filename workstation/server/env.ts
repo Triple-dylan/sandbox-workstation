@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { Store } from './store.ts';
 import type { AgentLimits, AgentRuntime } from './agents/runtime.ts';
-import { createOpenAIRuntime } from './agents/openai.ts';
+import { createOpenAIRuntime, FALLBACK_RUNTIME } from './agents/openai.ts';
 import { createOpenAIEmbedder, type Embedder } from './agents/embed.ts';
 
 /** Reads KEY=VALUE pairs from the repository-root .env. Existing environment variables win. */
@@ -59,7 +59,18 @@ export function selectRuntime(env: NodeJS.ProcessEnv, store: Store): AgentRuntim
   const key = env.OPENAI_API_KEY?.trim();
   if (!key) return notConnected;
   const limit = Number(env.OPENAI_DAILY_TOKEN_LIMIT);
+  // Dylan's Nous Research key: answers only when OpenAI cannot. Never a choice or a setting.
+  const nous = env.NOUS_API_KEY?.trim();
   return createOpenAIRuntime({
+    ...(nous
+      ? {
+          fallback: {
+            apiKey: nous,
+            addUsage: (tokens, dollars) =>
+              store.addProviderUsage(FALLBACK_RUNTIME, tokens, dollars),
+          },
+        }
+      : {}),
     apiKey: key,
     dailyTokenLimit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_DAILY_TOKENS,
     usageToday: () => store.usageToday(),
