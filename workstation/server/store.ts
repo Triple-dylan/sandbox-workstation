@@ -902,7 +902,7 @@ export class Store {
    * Your agent asking a teammate's agent. It goes to the teammate: their agent drafts an answer in
    * their own conversation, and only what they send reaches you.
    */
-  createAgentRequest(fromAgentId: Id, input: { toUserId: Id; spaceId: Id; request: string }) {
+  async createAgentRequest(fromAgentId: Id, input: { toUserId: Id; spaceId: Id; request: string }) {
     const fromAgent = this.user(fromAgentId);
     if (fromAgent?.kind !== 'agent' || fromAgent.role !== 'personal' || !fromAgent.ownerId)
       throw new AccessError('Only your own agent can ask on your behalf.');
@@ -913,8 +913,8 @@ export class Store {
     const request = input.request.trim().slice(0, 2000);
     if (!request) throw new InputError('Say what to ask.');
     const requestId = id();
-    this.run(
-      'insert into agent_requests values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await this.sql.run(
+      'insert into agent_requests (id, space_id, from_user, from_agent, to_user, request, status, draft_id, answer, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       requestId,
       input.spaceId,
       fromUserId,
@@ -1988,7 +1988,7 @@ export class Store {
 
   // ---------- agent work ----------
 
-  createJob(input: {
+  async createJob(input: {
     agentId: Id;
     spaceId: Id;
     conversationId: Id | null;
@@ -1999,8 +1999,8 @@ export class Store {
   }) {
     const jobId = id();
     const at = now();
-    this.run(
-      'insert into jobs values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    await this.sql.run(
+      'insert into jobs (id, agent_id, space_id, conversation_id, kind, status, request, target_resource_id, runtime, error, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       jobId,
       input.agentId,
       input.spaceId,
@@ -2049,7 +2049,7 @@ export class Store {
     if (!allowed || this.user(actorId)?.kind !== 'human') throw new AccessError('Not available.');
     this.setJob(jobId, 'failed', { error: `Stopped by ${this.user(actorId)!.name}` });
   }
-  createAssignment(input: {
+  async createAssignment(input: {
     agentId: Id;
     spaceId: Id;
     conversationId: Id;
@@ -2057,8 +2057,8 @@ export class Store {
     createdBy: Id;
   }) {
     const assignmentId = id();
-    this.run(
-      'insert into assignments values (?, ?, ?, ?, ?, ?, 1, null, ?)',
+    await this.sql.run(
+      'insert into assignments (id, agent_id, space_id, conversation_id, instruction, created_by, active, last_run_at, created_at) values (?, ?, ?, ?, ?, ?, 1, null, ?)',
       assignmentId,
       input.agentId,
       input.spaceId,
@@ -2068,7 +2068,9 @@ export class Store {
       now(),
     );
     this.changed();
-    return toAssignment(this.get('select * from assignments where id = ?', assignmentId)!);
+    return toAssignment(
+      (await this.sql.get('select * from assignments where id = ?', assignmentId))!,
+    );
   }
   activeAssignments(spaceId: Id) {
     return this.all('select * from assignments where space_id = ? and active = 1', spaceId).map(
@@ -2079,8 +2081,8 @@ export class Store {
     const row = this.get('select * from assignments where id = ?', assignmentId);
     return row ? toAssignment(row) : null;
   }
-  touchAssignment(assignmentId: Id) {
-    this.run('update assignments set last_run_at = ? where id = ?', now(), assignmentId);
+  async touchAssignment(assignmentId: Id) {
+    await this.sql.run('update assignments set last_run_at = ? where id = ?', now(), assignmentId);
   }
   stopAssignment(actorId: Id, assignmentId: Id) {
     const assignment = this.assignment(assignmentId);
@@ -2182,10 +2184,10 @@ export class Store {
   touchRoutine(routineId: Id, at: Date) {
     this.run('update routines set last_run_at = ? where id = ?', at.toISOString(), routineId);
   }
-  createApproval(job: Job, proposal: Proposal) {
+  async createApproval(job: Job, proposal: Proposal) {
     const approvalId = id();
-    this.run(
-      'insert into approvals values (?, ?, ?, ?, ?, ?, null, null, ?)',
+    await this.sql.run(
+      'insert into approvals (id, job_id, space_id, agent_id, proposal, status, decided_by, result_resource_id, created_at) values (?, ?, ?, ?, ?, ?, null, null, ?)',
       approvalId,
       job.id,
       job.spaceId,
@@ -2243,8 +2245,8 @@ export class Store {
       lastState: r.last_state ? String(r.last_state) : null,
     }));
   }
-  markWatch(agentId: Id, resourceId: Id, state: string) {
-    this.run(
+  async markWatch(agentId: Id, resourceId: Id, state: string) {
+    await this.sql.run(
       'update watches set last_state = ? where agent_id = ? and resource_id = ?',
       state,
       agentId,
@@ -2287,17 +2289,19 @@ export class Store {
     return this.approval(approvalId)!;
   }
   /** A newer draft of the same change takes the place of one still waiting. */
-  replaceApproval(approvalId: Id) {
-    this.run(
-      `update approvals set status = 'replaced' where id = ? and status = 'pending'`,
-      approvalId,
-    );
-    const job = this.get('select job_id from approvals where id = ?', approvalId)?.job_id;
-    if (job)
-      this.run(
-        `update jobs set status = 'done' where id = ? and status = 'awaiting_approval'`,
-        job,
+  async replaceApproval(approvalId: Id) {
+    await this.sql.transaction(async (tx) => {
+      await tx.run(
+        `update approvals set status = 'replaced' where id = ? and status = 'pending'`,
+        approvalId,
       );
+      const job = (await tx.get('select job_id from approvals where id = ?', approvalId))?.job_id;
+      if (job)
+        await tx.run(
+          `update jobs set status = 'done' where id = ? and status = 'awaiting_approval'`,
+          job,
+        );
+    });
     this.changed();
   }
   approval(approvalId: Id) {
@@ -2743,17 +2747,17 @@ export class Store {
     );
     return Number(row?.tokens ?? 0);
   }
-  addAgentUsage(spaceId: Id, personId: Id | null, tokens: number) {
+  async addAgentUsage(spaceId: Id, personId: Id | null, tokens: number) {
     const add = (scope: string, key: Id) =>
-      this.run(
+      this.sql.run(
         'insert into agent_usage (day, scope, key, tokens) values (?, ?, ?, ?) on conflict (day, scope, key) do update set tokens = agent_usage.tokens + excluded.tokens',
         now().slice(0, 10),
         scope,
         key,
         Math.max(0, Math.round(tokens)),
       );
-    add('space', spaceId);
-    if (personId) add('person', personId);
+    await add('space', spaceId);
+    if (personId) await add('person', personId);
   }
 
   // ---------- snapshot ----------

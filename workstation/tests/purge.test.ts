@@ -74,7 +74,7 @@ async function fill(s: ReturnType<typeof setup>, spaceId: string) {
     tzOffset: 0,
     conversationId: general.id,
   });
-  const job = store.createJob({
+  const job = await store.createJob({
     agentId: agent.id,
     spaceId,
     conversationId: general.id,
@@ -87,7 +87,7 @@ async function fill(s: ReturnType<typeof setup>, spaceId: string) {
   ]);
   store.setDocState(page.id, new Uint8Array([1, 2, 3]));
   store.setBrowserState(spaceId, '{}');
-  store.addAgentUsage(spaceId, dylan.id, 10);
+  await store.addAgentUsage(spaceId, dylan.id, 10);
   // Let the agents finish answering before the test goes on.
   await s.app.engine.idle();
   return { general, page, draft, message, agent, dm, skill, job };
