@@ -409,7 +409,8 @@ export type Snapshot = {
   activity: Activity[];
   presence: Presence[];
   lastRead: Record<Id, string>;
-  runtime: { id: string; label: string; model?: string };
+  /** fallback: what answers, labelled, when the usual provider cannot. */
+  runtime: { id: string; label: string; model?: string; fallback?: string };
   /** How people get in: anyone picks a name (local), or by invitation (hosted). */
   signIn?: 'open' | 'invite';
   /** Whether this person may start a new workspace here. */
