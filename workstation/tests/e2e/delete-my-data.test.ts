@@ -1,4 +1,4 @@
-// Deleting your data from Settings, in a browser against a real server. Needs `npm run build` first.
+// Downloading and deleting your data from Settings, in a browser against a real server. Needs `npm run build` first.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -55,7 +55,7 @@ const openSettings = async (page: Page, name: string) => {
   return page.getByRole('dialog', { name: 'Settings' });
 };
 
-test('settings: delete my data asks for your name, refuses while others are in your workspace, then signs you out', async () => {
+test('settings: download my data, and delete my data asks for your name, refuses while others are in your workspace, then signs you out', async () => {
   const owner = await join('Rosa', 'Garden');
   const settings = await openSettings(owner, 'Rosa');
   await settings.getByRole('button', { name: 'Delete my data…' }).click();
@@ -84,6 +84,14 @@ test('settings: delete my data asks for your name, refuses while others are in y
   const solo = await join('Ines');
   const ines = app.store.profiles().find((p) => p.name === 'Ines')!;
   const theirs = await openSettings(solo, 'Ines');
+  // First they can download what is theirs.
+  const download = theirs.getByRole('link', { name: 'Download', exact: true });
+  const href = (await download.getAttribute('href'))!;
+  const mine = await solo.evaluate(
+    (url) => fetch(url).then((r) => r.json() as Promise<{ profile: { name: string } }>),
+    href,
+  );
+  assert.equal(mine.profile.name, 'Ines');
   await theirs.getByRole('button', { name: 'Delete my data…' }).click();
   await theirs.getByLabel('Type your name to delete your data').fill('Ines');
   await theirs.getByRole('button', { name: 'Delete', exact: true }).click();
