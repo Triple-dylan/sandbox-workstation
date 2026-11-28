@@ -16,6 +16,8 @@ export function agentChat(s: Workspace['s'], agent: User): Conversation | undefi
  */
 export async function talkTo(ws: Workspace, agent: User, beside = false) {
   if (agent.id === ws.myAgent?.id) return ws.setUi({ railOpen: true });
+  // An agent seat answers from wherever it runs, so it is tagged in chats; its page says how.
+  if (agent.role === 'outside') return ws.open({ type: 'who', id: agent.id }, beside);
   const chat =
     agentChat(ws.s, agent) ??
     (await ws.run(() => api<Conversation>('/dms', { body: { userId: agent.id } })));
