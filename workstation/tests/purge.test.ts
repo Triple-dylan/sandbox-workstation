@@ -82,7 +82,9 @@ async function fill(s: ReturnType<typeof setup>, spaceId: string) {
     request: 'Hi',
     runtime: 'scripted',
   });
-  store.replaceVectors(page.id, 'stamp', [{ text: 'Ship it', vector: new Float32Array([1, 0]) }]);
+  await store.vectors.replace(page.id, 'stamp', [
+    { text: 'Ship it', vector: new Float32Array([1, 0]) },
+  ]);
   store.setDocState(page.id, new Uint8Array([1, 2, 3]));
   store.setBrowserState(spaceId, '{}');
   store.addAgentUsage(spaceId, dylan.id, 10);
