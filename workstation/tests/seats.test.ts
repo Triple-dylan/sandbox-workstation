@@ -191,11 +191,71 @@ test('http: seat routes need the owner signed in and the app header', async () =
     })
   ).json();
   assert.equal(extra.label, 'Laptop');
+  // The new-agent form gives a seat its look, as it does any agent.
+  const looked = await fetch(`${base}/api/agents/${made.seat.agent.id}`, {
+    method: 'PATCH',
+    headers: { ...h, cookie },
+    body: JSON.stringify({ form: 'weaving' }),
+  });
+  assert.equal(looked.status, 200);
+  assert.equal(app.store.user(made.seat.agent.id)?.character?.form, 'weaving');
   const revoked = await fetch(`${base}/api/seats/${made.seat.agent.id}/tokens/${extra.id}`, {
     method: 'DELETE',
     headers: { ...h, cookie },
   });
   assert.equal(revoked.status, 200);
   assert.equal(app.seats.agentForToken(extra.token), null);
+  const log = await fetch(`${base}/api/seats/${made.seat.agent.id}/activity`, {
+    headers: { cookie },
+  });
+  assert.equal(log.status, 200);
+  // Trying the revoked token is noted on its page, so its owner sees why it stopped.
+  assert.deepEqual(
+    (await log.json()).map((a: any) => [a.tool, a.ok, a.detail]),
+    [['sign_in', false, 'The token "Laptop" was revoked.']],
+  );
+  app.seats.agentForToken(extra.token);
+  assert.equal(
+    app.seats.activity(app.store.user(made.seat.agent.ownerId!)!.id, made.seat.agent.id).length,
+    1,
+    'retries are noted once a minute',
+  );
+
+  // Test connection: the refusal is newer than any sign-in that worked.
+  const check = async (body: object = {}) =>
+    (
+      await fetch(`${base}/api/seats/${made.seat.agent.id}/check`, {
+        method: 'POST',
+        headers: { ...h, cookie },
+        body: JSON.stringify(body),
+      })
+    ).json();
+  let result = await check();
+  assert.equal(result.state, 'refused');
+  assert.equal(result.liveTokens, 1);
+  assert.equal(result.lastSeen, null);
+  // A pasted token is matched without counting as a sign-in.
+  assert.deepEqual((await check({ token: extra.token })).pasted, {
+    state: 'revoked',
+    label: 'Laptop',
+  });
+  assert.deepEqual((await check({ token: made.token.token })).pasted, {
+    state: 'live',
+    label: 'First token',
+  });
+  assert.equal((await check({ token: 'sbx_nope' })).pasted.state, 'not-this-agent');
+  assert.equal(app.seats.seat(made.seat.agent.id).tokens[0].lastUsedAt, null);
+  // Once the live token signs in, it is connected.
+  assert.ok(app.seats.agentForToken(made.token.token));
+  result = await check();
+  assert.equal(result.state, 'connected');
+  assert.equal(result.lastSeen.label, 'First token');
+  // Someone else's seat can't be checked.
+  const other = await fetch(`${base}/api/seats/${made.seat.agent.id}/check`, {
+    method: 'POST',
+    headers: h,
+    body: '{}',
+  });
+  assert.notEqual(other.status, 200);
   await app.close();
 });
