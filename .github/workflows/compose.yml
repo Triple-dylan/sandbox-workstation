@@ -1,0 +1,24 @@
+name: Compose
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - browser-service/**
+      - workstation/package.json
+      - workstation/package-lock.json
+      - workstation/server/**
+      - workstation/shared/**
+      - .github/workflows/compose.yml
+      - .github/scripts/compose-smoke.sh
+  push:
+    branches: [main]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build both images and smoke-test compose.yaml
+        run: .github/scripts/compose-smoke.sh
