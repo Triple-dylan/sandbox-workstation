@@ -70,6 +70,7 @@ export function BrowserPage({ page }: { page: Resource }) {
       else if (m.t === 'titles') setLive((l) => ({ ...l, titles: m.titles }));
       else if (m.t === 'pointers') setLive((l) => ({ ...l, pointers: m.pointers }));
       else if (m.t === 'error') setLive((l) => ({ ...l, error: m.text }));
+      else if (m.t === 'notice') notify(m.text);
     };
     return () => stream.close();
   }, [page.id]);
