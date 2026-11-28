@@ -2699,7 +2699,7 @@ export class Store {
   /** What a provider other than OpenAI (the fallback) used, per UTC day: tokens and dollars. */
   addProviderUsage(provider: string, tokens: number, dollars: number) {
     this.run(
-      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = tokens + excluded.tokens, dollars = dollars + excluded.dollars',
+      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = provider_usage.tokens + excluded.tokens, dollars = provider_usage.dollars + excluded.dollars',
       now().slice(0, 10),
       provider,
       Math.max(0, Math.round(tokens)),
