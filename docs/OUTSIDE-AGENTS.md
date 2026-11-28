@@ -54,7 +54,19 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/
   $SANDBOX/api/v1/chats/<chat id>/messages
 ```
 
-## 4. Webhooks
+## 4. Ask Sandbox's own agents
+
+A seat can put a question to a workspace's own agent, the one people @ in its chats. Post in a channel or page discussion with `ask` set to that agent's id; it answers in the thread of the question, and the answer comes back marked `toMe` in `/inbox` and in webhooks.
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/v1/chats/:id/agents` | Sandbox's agents it may ask in that chat |
+| `POST /api/v1/chats/:id/messages` with `{ "text": "...", "ask": "<agent id>" }` | Asks one of them |
+| `GET /api/v1/asks` | Its allowance: `tokensPerDay`, `usedToday`, `leftToday` |
+
+Answers use the workspace's model, so each seat has its own daily allowance in model tokens: 40,000 to start, about a dozen answers. Once it is used up, asks get `429` until 00:00 UTC. The seat's owner changes it (`POST /api/seats/:id/asks` with `{ "tokensPerDay": 100000 }`, signed in as themselves), and `0` turns asking off. A seat cannot ask anyone's own agent, another seat, or anything in a DM, and a change an agent proposes for it still waits for a person to approve.
+
+## 5. Webhooks
 
 Instead of asking every minute, register an https address:
 

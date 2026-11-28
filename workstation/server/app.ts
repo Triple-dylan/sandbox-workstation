@@ -13,6 +13,7 @@ import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
 import { outsideApi } from './api.ts';
 import { Webhooks } from './webhooks.ts';
+import { SeatAsks, seatAsksApi } from './seat-asks.ts';
 import { Mcp } from './mcp.ts';
 import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
@@ -98,6 +99,8 @@ export function createApp(options: AppOptions) {
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
   const seats = new Seats(store);
+  // Before webhooks: an answer to a seat's ask is marked before its event goes out.
+  const asks = new SeatAsks(store);
   const webhooks = new Webhooks(store, options.webhooks);
   const mcp = new Mcp(store, seats);
   const oauth = new OAuth(store, seats);
@@ -238,6 +241,7 @@ export function createApp(options: AppOptions) {
         seats,
         { method, path, query, authorization, input },
         webhooks,
+        asks,
       );
       return send(res, result.status, result.data);
     }
@@ -420,6 +424,8 @@ export function createApp(options: AppOptions) {
     const segments = path.split('/').slice(2);
     const seatResult = seatsApi(seats, me, method, segments, input);
     if (seatResult !== undefined) return send(res, 200, seatResult);
+    const askResult = seatAsksApi(asks, me, method, segments, input);
+    if (askResult !== undefined) return send(res, 200, askResult);
     if (path === '/api/presence' && method === 'POST') {
       setPresence(me.id, {
         spaceId: str('spaceId') || null,
@@ -978,6 +984,7 @@ export function createApp(options: AppOptions) {
     collab,
     seats,
     webhooks,
+    asks,
     mcp,
     runtime,
     async close() {
@@ -986,6 +993,7 @@ export function createApp(options: AppOptions) {
       clearInterval(heartbeat);
       engine.stop();
       webhooks.stop();
+      asks.stop();
       mcp.stop();
       connectors.close();
       collab.stop();
