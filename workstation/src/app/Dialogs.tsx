@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Backups } from './Backups.tsx';
-import { Copy, Link2, X } from 'lucide-react';
+import { Copy, Link2, Lock, X } from 'lucide-react';
+import { Character, type AgentState } from '../features/agents/Character.tsx';
+import { AGENT_LOOKS, lookInfo, type AgentLook } from '../features/agents/Looks.tsx';
+import type { User } from '../../shared/types.ts';
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
 import { DeleteMyData } from './DeleteMyData.tsx';
@@ -168,6 +171,26 @@ export function Settings() {
         ],
         (v) => set({ shareCursor: v === 'on' }),
       )}
+      <div className="setting">
+        <span>Agent look</span>
+        <span className="setting-pair">
+          <span className="seg" role="radiogroup" aria-label="Agent look">
+            {AGENT_LOOKS.map((id) => (
+              <button
+                key={id}
+                role="radio"
+                aria-checked={prefs.agentLook === id}
+                onClick={() => set({ agentLook: id })}
+              >
+                {lookInfo[id].name}
+              </button>
+            ))}
+          </span>
+          <button className="plain" onClick={() => setUi({ dialog: 'looks' })}>
+            Compare
+          </button>
+        </span>
+      </div>
       <DeviceLink />
       <Backups />
       {s.connectors?.map((c) => (
@@ -216,6 +239,123 @@ export function Settings() {
 }
 
 /** Pasting text in from somewhere else: a transcript, an email, notes. */
+// Example agents for comparing the looks: made up, and labelled so on the page.
+const exampleAgent = (
+  id: string,
+  name: string,
+  hue: number,
+  form: NonNullable<User['character']>['form'],
+  role: User['role'],
+): User => ({
+  id,
+  name,
+  color: `hsl(${hue} 55% 48%)`,
+  kind: 'agent',
+  role,
+  character: { hue, shape: 'round', eyes: 'dot', form },
+});
+const examples: User[] = [
+  exampleAgent('example-editor', 'Editor', 212, 'breathing', 'project'),
+  exampleAgent('example-researcher', 'Researcher', 24, 'composing', 'personal'),
+  exampleAgent('example-planner', 'Planner', 148, 'searching', 'project'),
+  exampleAgent('example-scout', 'Scout', 292, 'shaping', 'personal'),
+];
+const states: [AgentState, string][] = [
+  ['idle', 'Idle'],
+  ['working', 'Working'],
+  ['waiting', 'Waiting for a yes'],
+  ['failed', 'Job failed'],
+];
+const rowStates: AgentState[] = ['idle', 'working', 'waiting', 'failed'];
+const rowNote: Record<AgentState, string> = {
+  idle: '',
+  working: 'writing',
+  waiting: 'needs a yes',
+  failed: 'failed',
+};
+
+/** Every agent look side by side, in every state and at the sizes the app draws agents at. */
+export function AgentLooks() {
+  const { ui, setUi } = useWorkspace();
+  const [still, setStill] = useState(false);
+  const use = (agentLook: AgentLook) => setUi({ prefs: { ...ui.prefs, agentLook } });
+  return (
+    <Dialog title="Agent looks" wide>
+      <div className="looks-compare">
+        <div className="setting">
+          <small className="muted">
+            Example agents (Editor, Researcher, Planner, Scout), not real ones. The look you pick is
+            used everywhere on this device.
+          </small>
+          <label className="looks-still">
+            <input type="checkbox" checked={still} onChange={(e) => setStill(e.target.checked)} />
+            Hold still, as with reduced motion
+          </label>
+        </div>
+        {AGENT_LOOKS.map((look) => (
+          <section key={look}>
+            <h3>
+              {lookInfo[look].name}
+              {look === 'orbs' && <small>today</small>}
+              <span className="seg">
+                <button aria-pressed={ui.prefs.agentLook === look} onClick={() => use(look)}>
+                  {ui.prefs.agentLook === look ? 'In use' : 'Use this'}
+                </button>
+              </span>
+            </h3>
+            <p>{lookInfo[look].about}</p>
+            <div className="looks-states">
+              {states.map(([state, name]) => (
+                <div key={state} className="looks-state">
+                  <span>{name}</span>
+                  <span className="looks-sizes">
+                    {[16, 20, 24, 30].map((size) => (
+                      <Character
+                        key={size}
+                        agent={examples[0]}
+                        size={size}
+                        state={state}
+                        look={look}
+                        still={still}
+                      />
+                    ))}
+                  </span>
+                  <span className="looks-sizes">
+                    {examples.slice(1).map((a) => (
+                      <Character
+                        key={a.id}
+                        agent={a}
+                        size={20}
+                        state={state}
+                        look={look}
+                        still={still}
+                      />
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="looks-rows">
+              {examples.map((a, i) => (
+                <span key={a.id} className="list-row agent">
+                  <Character agent={a} size={18} state={rowStates[i]} look={look} still={still} />
+                  <span className="truncate">{a.name}</span>
+                  {rowNote[rowStates[i]] && <small>{rowNote[rowStates[i]]}</small>}
+                  {a.role === 'personal' && (
+                    <small>
+                      <Lock size={10} /> you
+                    </small>
+                  )}
+                </span>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
 export function PasteText() {
   const { space, setUi, run, open } = useWorkspace();
   const [title, setTitle] = useState('');

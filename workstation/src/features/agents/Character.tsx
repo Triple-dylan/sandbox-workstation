@@ -2,6 +2,7 @@ import { isDark } from '../../app/theme.ts';
 import { ThinkingOrb } from 'thinking-orbs';
 import { ORB_FORMS, type OrbForm } from '../../../shared/types.ts';
 import type { Job, User } from '../../../shared/types.ts';
+import { LookMark, useAgentLook, type AgentLook } from './Looks.tsx';
 
 export type AgentState = 'idle' | 'working' | 'waiting' | 'failed';
 
@@ -15,7 +16,7 @@ export function agentState(agentId: string, jobs: Job[]): AgentState {
   return 'idle';
 }
 
-const stateLabel: Record<AgentState, string> = {
+export const stateLabel: Record<AgentState, string> = {
   idle: 'idle',
   working: 'working',
   waiting: 'waiting for approval',
@@ -23,7 +24,7 @@ const stateLabel: Record<AgentState, string> = {
 };
 
 /** The orb's ink: the agent's own hue, kept restrained and readable in either theme. */
-function tint(hue: number) {
+export function tint(hue: number) {
   const dark = isDark();
   const s = dark ? 0.85 : 0.6;
   const l = dark ? 0.82 : 0.36;
@@ -53,12 +54,32 @@ export function Character({
   size = 28,
   state = 'idle',
   form,
+  look: chosen,
+  still,
 }: {
   agent: User;
   size?: number;
   state?: AgentState;
   form?: OrbForm;
+  /** Draw in this look rather than the one chosen in Settings (for comparing them). */
+  look?: AgentLook;
+  /** Hold still, as with reduced motion (for comparing them). */
+  still?: boolean;
 }) {
+  const inUse = useAgentLook();
+  const look = chosen ?? inUse;
+  if (look !== 'orbs')
+    return (
+      <LookMark
+        look={look}
+        form={form ?? orbForm(agent)}
+        size={size}
+        state={state}
+        color={agent.character ? tint(agent.character.hue) : undefined}
+        label={`${agent.name} · ${stateLabel[state]}`}
+        still={still}
+      />
+    );
   const preset = size <= 24 ? 20 : size <= 44 ? 32 : 64;
   return (
     <span
@@ -70,7 +91,7 @@ export function Character({
         state={form ?? orbForm(agent)}
         size={preset}
         speed={state === 'working' ? 2.2 : state === 'waiting' ? 0.9 : 0.45}
-        paused={state === 'failed'}
+        paused={state === 'failed' || still}
         color={agent.character ? tint(agent.character.hue) : undefined}
         aria-label={`${agent.name}, ${stateLabel[state]}`}
       />

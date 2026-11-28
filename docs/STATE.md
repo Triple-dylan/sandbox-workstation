@@ -175,6 +175,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept.
 - Settings shows owners a Backups row: when the newest copy was taken and its size, how many are kept, **Back up now** and **Download**. Everyone else, and a server with backups off, sees no row (`GET /api/backups` answers 403 or 404).
 
+## Added 2026-11-27 (agent looks)
+
+- Three original agent looks to try against the orbs: **Trace** (one unbroken pen line, its own loop per agent), **Tiles** (a 3×3 mark, its own pattern per agent) and **Bloom** (a soft lobed shape, its own lobes per agent). Each is drawn in the agent's colour, has nine variants (one per agent form) and shows idle, working, waiting for a yes and a failed job its own way; with reduced motion each holds a still picture of the state. Settings → **Agent look** switches every agent drawing in the app on this device (default: Orbs); **Compare** shows all four side by side in every state at 16–30px with labelled example agents and a *hold still* switch. Shapes are tested (`tests/agent-looks.test.ts`); looked at in the running app in light and dark. The orbs on the welcome screen and the agent-form picker's names are unchanged until a look is chosen.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.

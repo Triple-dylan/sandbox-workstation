@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { AgentLook } from '../features/agents/Looks.tsx';
 import type {
   Anchor,
   Conversation,
@@ -62,7 +63,7 @@ export type Ui = {
   /** Pages added to what it looks at by dropping them on your agent's rail. */
   barExtras: Id[];
   /** Which dialog is up, if any. */
-  dialog: null | 'settings' | 'shortcuts' | 'paste';
+  dialog: null | 'settings' | 'shortcuts' | 'paste' | 'looks';
   /** How things look for this person. */
   prefs: {
     size: 's' | 'm' | 'l';
@@ -75,6 +76,8 @@ export type Ui = {
     seeCursors: boolean;
     /** Let teammates see where you are. */
     shareCursor: boolean;
+    /** How agents are drawn on this device while our own looks are tried against the orbs. */
+    agentLook: AgentLook;
   };
   /** With two pages side by side: the share of the width the first one takes. */
   split: number;
@@ -108,6 +111,7 @@ export const initialUi: Ui = {
     list: 'auto',
     seeCursors: true,
     shareCursor: true,
+    agentLook: 'orbs',
   },
 };
 
