@@ -228,7 +228,8 @@ export function createApp(options: AppOptions) {
     if (segments0(path) === 'v1') {
       const query = new URL(req.url ?? '/', 'http://local').searchParams;
       const { authorization } = req.headers;
-      const result = outsideApi(store, seats, { method, path, query, authorization });
+      const input = method === 'GET' ? {} : await body(req);
+      const result = outsideApi(store, seats, { method, path, query, authorization, input });
       return send(res, result.status, result.data);
     }
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
