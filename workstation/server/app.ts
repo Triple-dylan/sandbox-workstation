@@ -11,6 +11,7 @@ import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
+import { outsideApi } from './api.ts';
 import { Mcp } from './mcp.ts';
 import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
@@ -223,6 +224,13 @@ export function createApp(options: AppOptions) {
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const method = req.method ?? 'GET';
+    // Outside agents sign in with their seat's token, not a cookie, so no browser sends it for them.
+    if (segments0(path) === 'v1') {
+      const query = new URL(req.url ?? '/', 'http://local').searchParams;
+      const { authorization } = req.headers;
+      const result = outsideApi(store, seats, { method, path, query, authorization });
+      return send(res, result.status, result.data);
+    }
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
     if (path === '/api/config' && method === 'GET')
