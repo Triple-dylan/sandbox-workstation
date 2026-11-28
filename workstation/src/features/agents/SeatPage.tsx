@@ -133,8 +133,10 @@ export function SeatPage({ who }: { who: User }) {
             </div>
           ) : (
             <p className="muted">
-              Make a token for each machine or tool it runs on, then paste the connect line it gives
-              you into the agent. Its address is <code>{mcpUrl()}</code>.
+              Its address is <code>{mcpUrl()}</code>. An agent that signs in with a browser, like
+              Claude Code, needs only that: add it without a token and approve the Sandbox page that
+              opens. Otherwise make a token for each machine or tool it runs on and paste the
+              connect line it gives you.
             </p>
           )}
 

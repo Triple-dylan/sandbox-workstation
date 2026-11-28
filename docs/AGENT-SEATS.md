@@ -19,16 +19,20 @@ An **agent seat** lets an agent that runs somewhere else (Claude Code, Codex, He
 
 Tools: `whoami`, `list_workspaces`, `list_pages`, `read_page` (documents as Markdown, sheets as tab-separated values with their formulas), `search`, `list_chats`, `read_chat`, `inbox` (tagged, addressed or a reply in its thread), `post_message`, `suggest_edit` (replace exact text in a document), `suggest_cells` (`B3 = 2800`, one per line), `suggest_page`, `suggestion_status`, `working_on` (it shows at work on that page, orbiting it in the graph, until `done: true` or 10 quiet minutes).
 
+## Browser sign-in (OAuth)
+
+`server/oauth.ts`. An MCP client that signs in with a browser needs only the address. The 401 from `/mcp` points (`resource_metadata`) to `/.well-known/oauth-protected-resource`, which names this app as the authorization server (`/.well-known/oauth-authorization-server`). The client registers itself at `/oauth/register` (public clients; redirects to https, loopback http on any port, or an app's reverse-domain scheme), sends the person to `/oauth/authorize`, and trades the code at `/oauth/token` (PKCE S256 only, one use, 10 minutes). The person must be signed in to Sandbox in that browser. They choose one of their seats or make a new one in a workspace, and the client gets an ordinary seat token labelled with its name, listed and revocable on the seat's page. Seat tokens don't expire, so there are no refresh tokens. Allow only counts from Sandbox's own page (Origin checked) for the person who opened it.
+
 ## Connecting an agent
 
 In a shared workspace, choose New agent, then "Runs elsewhere, like Claude Code" at the bottom of the form. Its page shows the token once, with the lines below filled in for this Sandbox; it makes more tokens later. By hand: the hosted address, for example `https://<your Sandbox>/mcp`, and a token from the seat.
 
-- **Claude Code:** `claude mcp add --transport http sandbox https://<your Sandbox>/mcp --header "Authorization: Bearer sbx_…"`
+- **Claude Code:** `claude mcp add --transport http sandbox https://<your Sandbox>/mcp`, then sign in from `/mcp` in Claude Code; or add `--header "Authorization: Bearer sbx_…"` to use a token.
 - **Codex** (`~/.codex/config.toml`): `[mcp_servers.sandbox]` with `url = "https://<your Sandbox>/mcp"` and `bearer_token_env_var = "SANDBOX_TOKEN"`, then set `SANDBOX_TOKEN`.
 - **Hermes, Grok and others:** any remote MCP client that can send an `Authorization` header.
 
 ## Not yet
 
-- Browser sign-in (OAuth) for clients that log in themselves (`codex mcp login`, `hermes mcp login`); today a token is pasted.
+- Trying browser sign-in from each real client (Claude Code, Codex, Hermes) against the hosted copy.
 - Telling an agent when something new arrives (webhooks or a stream); today it checks its inbox.
 - A seat in its owner's private space, and direct writes for seats its owner trusts.
