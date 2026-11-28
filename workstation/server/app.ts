@@ -1,20 +1,35 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
 import { deleteMyData } from './erase.ts';
-import { PURGE_EVERY_MS, purgeAfterDays, purgeDeletedWorkspaces } from './purge.ts';
+import {
+  clearDeadLinks,
+  PURGE_EVERY_MS,
+  purgeAfterDays,
+  purgeDeletedPages,
+  purgeDeletedWorkspaces,
+} from './purge.ts';
+import { databaseReads, storageFor } from './storage.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
+import { Seats, seatsApi } from './seats.ts';
+import { outsideApi } from './api.ts';
+import { Webhooks } from './webhooks.ts';
+import { SeatAsks, seatAsksApi } from './seat-asks.ts';
+import { Mcp } from './mcp.ts';
+import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
+import { backupHealth, backupNow, backupOptions, listBackups } from './backup.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
@@ -47,6 +62,8 @@ export type AppOptions = {
   providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
   verifyGoogle?: (credential: string, clientId: string) => Promise<GoogleAccount>;
+  /** Outside agents' webhooks. Tests allow a local receiver and retry sooner. */
+  webhooks?: ConstructorParameters<typeof Webhooks>[1];
 };
 
 export type GoogleAccount = {
@@ -89,18 +106,23 @@ export function createApp(options: AppOptions) {
   });
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
+  const seats = new Seats(store);
+  // Before webhooks: an answer to a seat's ask is marked before its event goes out.
+  const asks = new SeatAsks(store);
+  const webhooks = new Webhooks(store, options.webhooks);
+  const mcp = new Mcp(store, seats);
+  const oauth = new OAuth(store, seats);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
     allowHosts: options.browserHosts,
   });
   // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
-  const callback = (req: IncomingMessage, provider: string) => {
-    const origin =
-      env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
-      `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
-    return `${origin}/api/connect/${provider}/callback`;
-  };
+  const origin = (req: IncomingMessage) =>
+    env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
+    `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
+  const callback = (req: IncomingMessage, provider: string) =>
+    `${origin(req)}/api/connect/${provider}/callback`;
   const staticDir =
     options.staticDir === undefined
       ? fileURLToPath(new URL('../dist/', import.meta.url))
@@ -119,6 +141,16 @@ export function createApp(options: AppOptions) {
     if (!creators.length) return true;
     const email = store.emailOf(userId)?.toLowerCase();
     return !!email && creators.some((c) => (c.startsWith('@') ? email.endsWith(c) : email === c));
+  };
+  // Who may download the whole database: the people who run this copy, by email. Unset, nobody.
+  const backups = backupOptions(options.dbPath, env);
+  const backupOwners = (env.BACKUP_OWNERS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const mayDownloadBackup = (userId: Id) => {
+    const email = store.emailOf(userId)?.toLowerCase();
+    return !!email && backupOwners.includes(email);
   };
   // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
   const attempts = new Map<string, { n: number; at: number }>();
@@ -149,11 +181,16 @@ export function createApp(options: AppOptions) {
   const heartbeat = setInterval(() => {
     for (const res of streams.keys()) res.write(': keepalive\n\n');
   }, 25_000);
-  // Deleted workspaces are purged for good once their grace period is over: now, then every few hours.
+  // Deleted workspaces and pages are purged for good once their grace period is over, and dead
+  // invite and sign-in links are cleared out: now, then every few hours.
   const purge = () => {
     try {
-      const purged = purgeDeletedWorkspaces(store.db, { afterDays: purgeAfterDays(env) });
+      const afterDays = purgeAfterDays(env);
+      const purged = purgeDeletedWorkspaces(store.db, { afterDays });
       if (purged.length) console.log(`Purged ${purged.length} deleted workspace(s).`);
+      const pages = purgeDeletedPages(store.db, { afterDays });
+      if (pages.length) console.log(`Purged ${pages.length} deleted page(s).`);
+      clearDeadLinks(store.db);
     } catch (error) {
       console.error('purge failed', error);
     }
@@ -165,6 +202,7 @@ export function createApp(options: AppOptions) {
     id: runtime.id,
     label: runtime.label,
     ...(runtime.model ? { model: runtime.model } : {}),
+    ...(runtime.fallback ? { fallback: runtime.fallback } : {}),
   };
 
   const cookie = (req: IncomingMessage) =>
@@ -218,6 +256,20 @@ export function createApp(options: AppOptions) {
 
   async function api(req: IncomingMessage, res: ServerResponse, path: string) {
     const method = req.method ?? 'GET';
+    // Outside agents sign in with their seat's token, not a cookie, so no browser sends it for them.
+    if (segments0(path) === 'v1') {
+      const query = new URL(req.url ?? '/', 'http://local').searchParams;
+      const { authorization } = req.headers;
+      const input = method === 'GET' ? {} : await body(req);
+      const result = outsideApi(
+        store,
+        seats,
+        { method, path, query, authorization, input },
+        webhooks,
+        asks,
+      );
+      return send(res, result.status, result.data);
+    }
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
       return send(res, 403, { error: 'Missing request header.' });
     if (path === '/api/config' && method === 'GET')
@@ -306,6 +358,49 @@ export function createApp(options: AppOptions) {
       for (const [stream, userId] of streams) if (userId === me.id) stream.end();
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
     }
+    if (path === '/api/backup' && method === 'GET') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can download its backups.');
+      // The newest nightly copy; if there is none yet, one is taken now.
+      const newest = listBackups(backups.dir)[0] ?? backupNow(options.dbPath, backups);
+      res.writeHead(200, {
+        'content-type': 'application/vnd.sqlite3',
+        'content-length': newest.bytes,
+        'content-disposition': `attachment; filename="sandbox-${newest.name}"`,
+        'cache-control': 'no-store',
+      });
+      await new Promise<void>((resolve, reject) =>
+        createReadStream(newest.path).on('error', reject).on('end', resolve).pipe(res),
+      );
+      return;
+    }
+    // What Settings shows an owner: the newest copy and how many are kept. Refused for anyone else.
+    if (path === '/api/backups' && method === 'GET') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can see its backups.');
+      const kept = listBackups(backups.dir);
+      const newest = kept[0];
+      return send(res, 200, {
+        count: kept.length,
+        keep: backups.keep,
+        newest: newest ? { name: newest.name, takenAt: newest.takenAt, bytes: newest.bytes } : null,
+      });
+    }
+    // Back up now: an owner takes a copy on demand, for example before a risky change.
+    if (path === '/api/backup' && method === 'POST') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can take backups.');
+      // A copy from the last minute is returned as it is rather than taking another.
+      const recent = listBackups(backups.dir)[0];
+      const fresh =
+        recent && Date.now() - Date.parse(recent.takenAt) < 60_000
+          ? recent
+          : backupNow(options.dbPath, backups);
+      return send(res, 200, { name: fresh.name, takenAt: fresh.takenAt, bytes: fresh.bytes });
+    }
     if (path === '/api/snapshot' && method === 'GET')
       return send(res, 200, {
         ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
@@ -358,6 +453,10 @@ export function createApp(options: AppOptions) {
     const input = method === 'GET' ? {} : await body(req);
     const str = (key: string) => (typeof input[key] === 'string' ? (input[key] as string) : '');
     const segments = path.split('/').slice(2);
+    const seatResult = seatsApi(seats, me, method, segments, input);
+    if (seatResult !== undefined) return send(res, 200, seatResult);
+    const askResult = seatAsksApi(asks, me, method, segments, input);
+    if (askResult !== undefined) return send(res, 200, askResult);
     if (path === '/api/presence' && method === 'POST') {
       setPresence(me.id, {
         spaceId: str('spaceId') || null,
@@ -875,7 +974,26 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
-      if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
+      if (path === '/healthz') {
+        const ok = databaseReads(store.db);
+        const body = {
+          ok,
+          version: store.version,
+          ...storageFor(options.dbPath),
+          ...backupHealth(backups),
+        };
+        return send(
+          res,
+          ok ? 200 : 503,
+          ok ? body : { ...body, error: 'The database is not answering.' },
+        );
+      }
+      // Outside agents sign in here with their seat's token (server/mcp.ts).
+      if (path === '/mcp') return await mcp.handle(req, res, origin(req));
+      // Browser sign-in for those agents, so they need no pasted token (server/oauth.ts).
+      if (path.startsWith('/.well-known/oauth-') || path.startsWith('/oauth/'))
+        if (await oauth.handle(req, res, path, origin(req), store.userForToken(cookie(req))))
+          return;
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {
@@ -895,6 +1013,10 @@ export function createApp(options: AppOptions) {
     connectors,
     browsers,
     collab,
+    seats,
+    webhooks,
+    asks,
+    mcp,
     runtime,
     async close() {
       if (closed) return;
@@ -902,6 +1024,9 @@ export function createApp(options: AppOptions) {
       clearInterval(heartbeat);
       clearInterval(purgeTimer);
       engine.stop();
+      webhooks.stop();
+      asks.stop();
+      mcp.stop();
       connectors.close();
       collab.stop();
       await browsers.stop();
