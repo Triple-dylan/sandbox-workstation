@@ -236,10 +236,10 @@ export class AgentEngine {
             : n < line.value;
         const state = met ? 'met' : 'clear';
         if (state === (w.lastState ?? 'clear')) {
-          if (!w.lastState) this.store.markWatch(agent.id, page.id, state);
+          if (!w.lastState) await this.store.markWatch(agent.id, page.id, state);
           continue;
         }
-        this.store.markWatch(agent.id, page.id, state);
+        await this.store.markWatch(agent.id, page.id, state);
         const ref = `${colName(line.col)}${line.row + 1}`;
         const label = rows[line.row]?.[0]?.trim();
         const name = label && label !== shown ? `${label} (${ref})` : ref;
@@ -314,7 +314,7 @@ export class AgentEngine {
       ) {
         const who = this.store.user(theirs.ownerId)?.name ?? 'They';
         try {
-          this.store.createAgentRequest(addressed.id, {
+          await this.store.createAgentRequest(addressed.id, {
             toUserId: theirs.ownerId,
             spaceId,
             // The tag was how you picked them; the request is the rest.
@@ -352,7 +352,7 @@ export class AgentEngine {
         return;
       }
       if (delegate) {
-        const assignment = this.store.createAssignment({
+        const assignment = await this.store.createAssignment({
           agentId: addressed.id,
           spaceId,
           conversationId: conversation.id,
@@ -490,7 +490,7 @@ export class AgentEngine {
       const conversation = this.store.conversation(assignment.conversationId);
       const assignee = this.store.user(assignment.agentId);
       if (!conversation || !assignee) continue;
-      this.store.touchAssignment(assignment.id);
+      await this.store.touchAssignment(assignment.id);
       await this.runJob(
         assignee,
         conversation,
@@ -712,7 +712,7 @@ export class AgentEngine {
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
     if (conversation && !relay && !this.store.canReadConversation(agent.id, conversation)) return;
-    const job = this.store.createJob({
+    const job = await this.store.createJob({
       agentId: agent.id,
       spaceId,
       conversationId: conversation?.id ?? null,
@@ -783,7 +783,7 @@ export class AgentEngine {
       if (!remembered) this.guard(task.spaceName, spaceId, requester);
       result = remembered ?? (await this.runtime.run(task));
       if (!remembered) {
-        if (result.tokens) this.store.addAgentUsage(spaceId, requester, result.tokens);
+        if (result.tokens) await this.store.addAgentUsage(spaceId, requester, result.tokens);
         result = await this.checked(result, task, agent, conversation, trigger, spaceId, requester);
       }
       if (cacheable && !remembered && !result.proposal && !result.handoff && result.reply)
@@ -847,12 +847,14 @@ export class AgentEngine {
         if (typeof op !== 'string') result.proposal = { ...result.proposal, body: writeOp(op) };
       }
       if (!needsTarget || target) {
-        approvalId = this.store.createApproval(job, {
-          ...result.proposal,
-          ...(target ? { resourceId: target } : {}),
-        }).id;
+        approvalId = (
+          await this.store.createApproval(job, {
+            ...result.proposal,
+            ...(target ? { resourceId: target } : {}),
+          })
+        ).id;
         if (waiting && waiting.proposal.kind === result.proposal.kind)
-          this.store.replaceApproval(waiting.id);
+          await this.store.replaceApproval(waiting.id);
         // "Small fixes without asking": a few cells or a short line are changed at once, with Undo.
         const requester =
           trigger && this.store.user(trigger.authorId)?.kind === 'human' ? trigger.authorId : null;
@@ -906,7 +908,7 @@ export class AgentEngine {
           ? this.teammateAgents(agent, where).find((a) => a.name.toLowerCase() === name)
           : undefined;
       if (teammate?.ownerId)
-        this.store.createAgentRequest(agent.id, {
+        await this.store.createAgentRequest(agent.id, {
           toUserId: teammate.ownerId,
           spaceId: where,
           request: result.handoff.request,
@@ -1049,7 +1051,7 @@ export class AgentEngine {
         ...task,
         feedback: problems.map((p) => `- ${p}`).join('\n'),
       });
-      if (answer.tokens) this.store.addAgentUsage(spaceId, requester, answer.tokens);
+      if (answer.tokens) await this.store.addAgentUsage(spaceId, requester, answer.tokens);
       this.retries++;
       // A retry that came back worse (unreadable) keeps the first answer's usable parts.
       if (answer.malformed && !first.malformed) answer = first;

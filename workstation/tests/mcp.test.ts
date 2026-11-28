@@ -373,3 +373,27 @@ test('mcp: a seat comments on pages it can read, pinned to text, and resolves th
   assert.equal(did.length, 4);
   assert.ok(did.every((a) => a.wrote));
 });
+
+test('mcp: a batch is answered in order, without its notifications', async () => {
+  const { base, token } = await setup();
+  const res = await fetch(`${base}/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${token.token}`,
+    },
+    body: JSON.stringify([
+      { jsonrpc: '2.0', id: 'a', method: 'tools/list', params: {} },
+      { jsonrpc: '2.0', method: 'notifications/initialized' },
+      { jsonrpc: '2.0', id: 'b', method: 'tools/call', params: { name: 'whoami', arguments: {} } },
+    ]),
+  });
+  assert.equal(res.status, 200);
+  const answers = await res.json();
+  assert.deepEqual(
+    answers.map((a: { id: string }) => a.id),
+    ['a', 'b'],
+  );
+  assert.ok(answers[0].result.tools.length > 0);
+});

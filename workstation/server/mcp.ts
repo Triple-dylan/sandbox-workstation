@@ -122,16 +122,19 @@ export class Mcp {
       return reply(400, rpcError(null, -32700, 'Parse error.'));
     }
     const batch = Array.isArray(body);
-    const answers = (batch ? (body as unknown[]) : [body])
-      .map((message) => this.answer(seat, message))
-      .filter((a) => a !== null);
+    // One at a time and in order, as a client sending a batch expects.
+    const answers: Json[] = [];
+    for (const message of batch ? (body as unknown[]) : [body]) {
+      const answer = await this.answer(seat, message);
+      if (answer !== null) answers.push(answer);
+    }
     // Only notifications and answers: nothing to send back.
     if (!answers.length) return reply(202, undefined);
     return reply(200, batch ? answers : answers[0]);
   }
 
   /** One JSON-RPC message; null for a notification, which gets no answer. */
-  answer(seat: User, message: unknown): Json | null {
+  async answer(seat: User, message: unknown): Promise<Json | null> {
     if (!message || typeof message !== 'object') return rpcError(null, -32600, 'Invalid request.');
     const { id, method, params } = message as Json;
     const isRequest = id !== undefined && id !== null;
@@ -177,7 +180,7 @@ export class Mcp {
           detail: detail ?? (tool.name === 'search' ? args.query : ''),
         });
       try {
-        const result = tool.run(current, args);
+        const result = await tool.run(current, args);
         log(true);
         return rpcResult(id, {
           content: [
@@ -345,7 +348,7 @@ export class Mcp {
   }
 
   /** A suggestion from the seat: a person in the workspace accepts or declines it where it lands. */
-  private suggest(
+  private async suggest(
     seat: User,
     input: {
       spaceId: Id;
@@ -359,7 +362,7 @@ export class Mcp {
       note: string;
     },
   ) {
-    const job = this.store.createJob({
+    const job = await this.store.createJob({
       agentId: seat.id,
       spaceId: input.spaceId,
       conversationId: input.conversation.id,
@@ -368,7 +371,7 @@ export class Mcp {
       targetResourceId: input.proposal.resourceId ?? null,
       runtime: 'outside',
     });
-    const approval = this.store.createApproval(job, input.proposal);
+    const approval = await this.store.createApproval(job, input.proposal);
     this.store.setJob(job.id, 'awaiting_approval');
     const message = this.store.postMessage(
       seat.id,
@@ -396,12 +399,12 @@ export class Mcp {
     return c;
   }
 
-  private setWorking(
+  private async setWorking(
     seat: User,
     input: { spaceId: Id; pageId: Id | null; chatId: Id | null; note: string },
   ) {
     this.stopWorking(seat.id);
-    const job = this.store.createJob({
+    const job = await this.store.createJob({
       agentId: seat.id,
       spaceId: input.spaceId,
       conversationId: input.chatId,
@@ -411,6 +414,8 @@ export class Mcp {
       runtime: 'outside',
     });
     this.store.setJob(job.id, 'running');
+    // Another call may have started work while the job was being made: the newest one counts.
+    this.stopWorking(seat.id);
     const timer = setTimeout(() => this.stopWorking(seat.id), WORK_IDLE_MS);
     timer.unref?.();
     this.working.set(seat.id, { jobId: job.id, timer });
@@ -820,7 +825,7 @@ export class Mcp {
           note: str('A few words on what you are doing.'),
           done: { type: 'boolean', description: 'true when you have stopped.' },
         }),
-        run: (seat, args) => {
+        run: async (seat, args) => {
           if (args.done === true) return { working: false, stopped: this.stopWorking(seat.id) };
           const page =
             typeof args.page_id === 'string' && args.page_id ? this.page(seat, args.page_id) : null;
@@ -832,7 +837,7 @@ export class Mcp {
           if (!spaceId) throw new ToolError('Name a page_id or chat_id, or send done: true.');
           if (page && chat && chat.spaceId !== page.spaceId)
             throw new ToolError('That page and chat are in different workspaces.');
-          this.setWorking(seat, {
+          await this.setWorking(seat, {
             spaceId,
             pageId: page?.id ?? null,
             chatId: chat?.id ?? null,
