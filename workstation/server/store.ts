@@ -2191,7 +2191,7 @@ export class Store {
       : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
   }
   /** An agent looks after a page, saying something in its feed when the rule is met. */
-  setWatch(actorId: Id, agentId: Id, resourceId: Id, rule: string) {
+  async setWatch(actorId: Id, agentId: Id, resourceId: Id, rule: string) {
     const agent = this.user(agentId);
     const page = this.resource(resourceId);
     if (!agent || agent.kind !== 'agent' || agent.retired || !this.mayDirect(actorId, agent))
@@ -2200,7 +2200,7 @@ export class Store {
       throw new AccessError('Not available.');
     if (!this.canReadResource(agentId, page))
       throw new InputError(`${agent.name} can't open ${page.title}, so it can't look after it.`);
-    this.run(
+    await this.sql.run(
       `insert into watches (agent_id, resource_id, rule, set_by, last_state, created_at) values (?, ?, ?, ?, null, ?)
        on conflict (agent_id, resource_id) do update set rule = excluded.rule, set_by = excluded.set_by, last_state = null`,
       agentId,
@@ -2212,11 +2212,15 @@ export class Store {
     this.changed();
     return { ok: true };
   }
-  dropWatch(actorId: Id, agentId: Id, resourceId: Id) {
+  async dropWatch(actorId: Id, agentId: Id, resourceId: Id) {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent' || !this.mayDirect(actorId, agent))
       throw new AccessError('Not available.');
-    this.run('delete from watches where agent_id = ? and resource_id = ?', agentId, resourceId);
+    await this.sql.run(
+      'delete from watches where agent_id = ? and resource_id = ?',
+      agentId,
+      resourceId,
+    );
     this.changed();
   }
   watchersOf(resourceId: Id) {
@@ -2501,7 +2505,7 @@ export class Store {
     this.changed();
     return this.skill(skillId)!;
   }
-  updateSkill(
+  async updateSkill(
     actorId: Id,
     skillId: Id,
     patch: { name?: string; description?: string; body?: string },
@@ -2510,7 +2514,7 @@ export class Store {
     if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
     const name = patch.name === undefined ? skill.name : patch.name.trim().slice(0, 60);
     if (!name) throw new InputError('Name the skill.');
-    this.run(
+    await this.sql.run(
       'update skills set name = ?, description = ?, body = ?, updated_at = ? where id = ?',
       name,
       (patch.description ?? skill.description).slice(0, 300),
@@ -2521,23 +2525,35 @@ export class Store {
     this.changed();
     return this.skill(skillId)!;
   }
-  deleteSkill(actorId: Id, skillId: Id) {
+  async deleteSkill(actorId: Id, skillId: Id) {
     const skill = this.skill(skillId);
     if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
-    this.run('update skills set deleted = 1 where id = ?', skillId);
-    this.run('delete from agent_skills where skill_id = ?', skillId);
+    await this.sql.transaction(async (tx) => {
+      await tx.run('update skills set deleted = 1 where id = ?', skillId);
+      await tx.run('delete from agent_skills where skill_id = ?', skillId);
+    });
     this.changed();
   }
   /** Gives an agent a skill, or takes it away. A shared agent can only carry shared skills. */
-  setAgentSkill(actorId: Id, agentId: Id, skillId: Id, on: boolean) {
+  async setAgentSkill(actorId: Id, agentId: Id, skillId: Id, on: boolean) {
     this.updateAgent(actorId, agentId, {});
     const agent = this.user(agentId)!;
     const skill = this.skill(skillId);
     if (!skill || !this.isMember(actorId, skill.spaceId)) throw new AccessError('Not available.');
     if (on && agent.role === 'project' && skill.spaceId !== agent.spaceId)
       throw new InputError('A shared agent can only use skills shared with its space.');
-    if (on) this.run('insert or ignore into agent_skills values (?, ?)', agentId, skillId);
-    else this.run('delete from agent_skills where agent_id = ? and skill_id = ?', agentId, skillId);
+    if (on)
+      await this.sql.run(
+        'insert into agent_skills (agent_id, skill_id) values (?, ?) on conflict do nothing',
+        agentId,
+        skillId,
+      );
+    else
+      await this.sql.run(
+        'delete from agent_skills where agent_id = ? and skill_id = ?',
+        agentId,
+        skillId,
+      );
     this.changed();
   }
   skillsOf(agentId: Id) {
@@ -2608,7 +2624,7 @@ export class Store {
     this.changed();
     return this.goals(space.id).find((g) => g.id === goalId)!;
   }
-  updateGoal(
+  async updateGoal(
     actorId: Id,
     goalId: Id,
     patch: {
@@ -2619,7 +2635,7 @@ export class Store {
       done?: boolean;
     },
   ) {
-    const row = this.get('select * from goals where id = ?', goalId);
+    const row = await this.sql.get('select * from goals where id = ?', goalId);
     if (!row) throw new AccessError('Not available.');
     this.requireMember(actorId, row.space_id);
     const memberOf = (userId: Id | null | undefined, kind: 'human' | 'agent') => {
@@ -2629,7 +2645,7 @@ export class Store {
     };
     const title =
       patch.title === undefined ? row.title : patch.title.trim().slice(0, 200) || row.title;
-    this.run(
+    await this.sql.run(
       'update goals set title = ?, owner_id = ?, agent_id = ?, due = ?, done = ? where id = ?',
       title,
       patch.ownerId === undefined ? row.owner_id : memberOf(patch.ownerId, 'human'),
@@ -2646,23 +2662,25 @@ export class Store {
     return this.goals(row.space_id).find((g) => g.id === goalId)!;
   }
   /** Moves a step one place earlier or later in its plan. */
-  moveGoal(actorId: Id, goalId: Id, direction: 'up' | 'down') {
-    const row = this.get('select space_id from goals where id = ?', goalId);
+  async moveGoal(actorId: Id, goalId: Id, direction: 'up' | 'down') {
+    const row = await this.sql.get('select space_id from goals where id = ?', goalId);
     if (!row) throw new AccessError('Not available.');
     this.requireMember(actorId, row.space_id);
     const order = this.goals(row.space_id);
     const index = order.findIndex((g) => g.id === goalId);
     const other = order[index + (direction === 'up' ? -1 : 1)];
     if (!other) return;
-    this.run('update goals set position = ? where id = ?', other.position, goalId);
-    this.run('update goals set position = ? where id = ?', order[index].position, other.id);
+    await this.sql.transaction(async (tx) => {
+      await tx.run('update goals set position = ? where id = ?', other.position, goalId);
+      await tx.run('update goals set position = ? where id = ?', order[index].position, other.id);
+    });
     this.changed();
   }
-  deleteGoal(actorId: Id, goalId: Id) {
-    const row = this.get('select space_id from goals where id = ?', goalId);
+  async deleteGoal(actorId: Id, goalId: Id) {
+    const row = await this.sql.get('select space_id from goals where id = ?', goalId);
     if (!row) return;
     this.requireMember(actorId, row.space_id);
-    this.run('delete from goals where id = ?', goalId);
+    await this.sql.run('delete from goals where id = ?', goalId);
     this.changed();
   }
 

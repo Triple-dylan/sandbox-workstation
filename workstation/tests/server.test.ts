@@ -547,7 +547,7 @@ test('an agent asked for in conversation joins the roster only after a person ap
 test('goals: lightweight steps that only members can see or change', async () => {
   const { store, dylan, maya, sam, project, agent, snap } = setup();
   const goal = store.createGoal(dylan.id, { spaceId: project.id, title: 'Choose packaging' });
-  const updated = store.updateGoal(maya.id, goal.id, {
+  const updated = await store.updateGoal(maya.id, goal.id, {
     ownerId: maya.id,
     agentId: agent.id,
     due: '2027-05-30',
@@ -558,8 +558,8 @@ test('goals: lightweight steps that only members can see or change', async () =>
     [maya.id, agent.id, '2027-05-30', true],
   );
   // People outside the project cannot be made owners, and cannot touch or see the goal.
-  assert.equal(store.updateGoal(dylan.id, goal.id, { ownerId: sam.id }).ownerId, null);
-  assert.throws(() => store.updateGoal(sam.id, goal.id, { done: false }));
+  assert.equal((await store.updateGoal(dylan.id, goal.id, { ownerId: sam.id })).ownerId, null);
+  await assert.rejects(() => store.updateGoal(sam.id, goal.id, { done: false }));
   assert.equal(snap(sam.id).goals.length, 0);
   assert.equal(snap(maya.id).goals.length, 1);
 });
@@ -950,7 +950,7 @@ test('retiring an agent stops its work and keeps its history', async () => {
   const { store, dylan, project, general, snap } = setup();
   const scout = store.newAgent(dylan.id, { name: 'Scout', spaceId: project.id });
   const goal = store.createGoal(dylan.id, { spaceId: project.id, title: 'Compare quotes' });
-  store.updateGoal(dylan.id, goal.id, { agentId: scout.id });
+  await store.updateGoal(dylan.id, goal.id, { agentId: scout.id });
   store.retireAgent(dylan.id, scout.id);
   assert.equal(snap(dylan.id).users.find((u) => u.id === scout.id)?.retired, true);
   assert.ok(!store.addressableAgents(dylan.id, general).some((a) => a.id === scout.id));
@@ -984,8 +984,8 @@ test('skills: written once, given to agents, shared ones stay with their space',
     'shared with the space',
   );
   assert.ok(!snap(sam.id).skills.some((s) => s.id === skill.id));
-  assert.throws(() => store.updateSkill(sam.id, skill.id, { name: 'x' }), /Not available/);
-  store.setAgentSkill(dylan.id, agent.id, skill.id, true);
+  await assert.rejects(() => store.updateSkill(sam.id, skill.id, { name: 'x' }), /Not available/);
+  await store.setAgentSkill(dylan.id, agent.id, skill.id, true);
   assert.deepEqual(snap(maya.id).users.find((u) => u.id === agent.id)!.skillIds, [skill.id]);
   // A private skill belongs to its owner and cannot be put on a shared agent.
   const personal = snap(dylan.id).spaces.find((s) => s.kind === 'personal')!;
@@ -995,13 +995,16 @@ test('skills: written once, given to agents, shared ones stay with their space',
     body: 'Short.',
   });
   assert.ok(!snap(maya.id).skills.some((s) => s.id === own.id));
-  assert.throws(
+  await assert.rejects(
     () => store.setAgentSkill(dylan.id, agent.id, own.id, true),
     /shared with its space/,
   );
   const mine = snap(dylan.id).users.find((u) => u.role === 'personal' && u.ownerId === dylan.id)!;
-  store.setAgentSkill(dylan.id, mine.id, own.id, true);
-  assert.throws(() => store.setAgentSkill(maya.id, mine.id, skill.id, true), /Not available/);
+  await store.setAgentSkill(dylan.id, mine.id, own.id, true);
+  await assert.rejects(
+    () => store.setAgentSkill(maya.id, mine.id, skill.id, true),
+    /Not available/,
+  );
   // The agent is told its skills when it works.
   store.postMessage(dylan.id, {
     conversationId: general.id,
@@ -1032,7 +1035,7 @@ test('skills: written once, given to agents, shared ones stay with their space',
       .users.find((u) => u.id === agent.id)!
       .skillIds!.includes(learned.id),
   );
-  store.deleteSkill(dylan.id, skill.id);
+  await store.deleteSkill(dylan.id, skill.id);
   assert.ok(
     !snap(dylan.id)
       .users.find((u) => u.id === agent.id)!
@@ -2457,7 +2460,12 @@ test('agents look after pages: a line about a cell is said once when crossed and
       ],
     }),
   });
-  store.setWatch(maya.id, agent.id, sheet.id, 'Tell us when the total in B4 goes over $5,000');
+  await store.setWatch(
+    maya.id,
+    agent.id,
+    sheet.id,
+    'Tell us when the total in B4 goes over $5,000',
+  );
   assert.deepEqual(
     snap(dylan.id).watches.map((w) => [w.agentId, w.resourceId]),
     [[agent.id, sheet.id]],
@@ -2504,8 +2512,8 @@ test('agents look after pages: a line about a cell is said once when crossed and
 
   // Only people who direct the agent can change what it looks after.
   const sam = store.createHuman('Sam2');
-  assert.throws(() => store.setWatch(sam.id, agent.id, sheet.id, 'x'), /Not available/);
-  store.dropWatch(dylan.id, agent.id, sheet.id);
+  await assert.rejects(() => store.setWatch(sam.id, agent.id, sheet.id, 'x'), /Not available/);
+  await store.dropWatch(dylan.id, agent.id, sheet.id);
   assert.equal(snap(dylan.id).watches.length, 0);
 });
 

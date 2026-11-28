@@ -65,7 +65,7 @@ test('purge pages: a deleted page stays through its grace period, then it and it
   store.toggleReaction(dylan.id, said.id, '👍');
   store.markRead(dylan.id, talk.id);
   const agent = store.projectAgent(launch.id)!;
-  store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
+  await store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
   await store.vectors.replace(page.id, 'stamp', [
     { text: 'Plan', vector: new Float32Array([1, 0]) },
   ]);
