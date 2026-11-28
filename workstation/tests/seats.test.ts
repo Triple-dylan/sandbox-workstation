@@ -191,6 +191,14 @@ test('http: seat routes need the owner signed in and the app header', async () =
     })
   ).json();
   assert.equal(extra.label, 'Laptop');
+  // The new-agent form gives a seat its look, as it does any agent.
+  const looked = await fetch(`${base}/api/agents/${made.seat.agent.id}`, {
+    method: 'PATCH',
+    headers: { ...h, cookie },
+    body: JSON.stringify({ form: 'weaving' }),
+  });
+  assert.equal(looked.status, 200);
+  assert.equal(app.store.user(made.seat.agent.id)?.character?.form, 'weaving');
   const revoked = await fetch(`${base}/api/seats/${made.seat.agent.id}/tokens/${extra.id}`, {
     method: 'DELETE',
     headers: { ...h, cookie },

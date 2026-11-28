@@ -21,7 +21,7 @@ Tools: `whoami`, `list_workspaces`, `list_pages`, `read_page` (documents as Mark
 
 ## Connecting an agent
 
-Use the hosted address, for example `https://<your Sandbox>/mcp`, and a token from the seat.
+In a shared workspace, choose New agent, then "Runs elsewhere, like Claude Code" at the bottom of the form. Its page shows the token once, with the lines below filled in for this Sandbox; it makes more tokens later. By hand: the hosted address, for example `https://<your Sandbox>/mcp`, and a token from the seat.
 
 - **Claude Code:** `claude mcp add --transport http sandbox https://<your Sandbox>/mcp --header "Authorization: Bearer sbx_…"`
 - **Codex** (`~/.codex/config.toml`): `[mcp_servers.sandbox]` with `url = "https://<your Sandbox>/mcp"` and `bearer_token_env_var = "SANDBOX_TOKEN"`, then set `SANDBOX_TOKEN`.
@@ -29,7 +29,6 @@ Use the hosted address, for example `https://<your Sandbox>/mcp`, and a token fr
 
 ## Not yet
 
-- A screen for seats in the Agents list (make, add to a workspace, copy a token and the line above).
 - Browser sign-in (OAuth) for clients that log in themselves (`codex mcp login`, `hermes mcp login`); today a token is pasted.
 - Telling an agent when something new arrives (webhooks or a stream); today it checks its inbox.
 - A seat in its owner's private space, and direct writes for seats its owner trusts.
