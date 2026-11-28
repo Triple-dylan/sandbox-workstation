@@ -24,7 +24,7 @@ async function setup() {
     body: JSON.stringify({ name: 'Dylan' }),
   });
   const cookie = join.headers.get('set-cookie')!.split(';')[0];
-  const dylan = app.store.userForToken(decodeURIComponent(cookie.split('=')[1]))!;
+  const dylan = (await app.store.userForToken(decodeURIComponent(cookie.split('=')[1])))!;
   const launch = app.store.createProject(dylan.id, 'Launch');
   const register = async (redirect_uris: string[] = [REDIRECT]) =>
     fetch(`${base}/oauth/register`, {

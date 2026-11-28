@@ -325,17 +325,17 @@ export class Store {
     return row ? toUser(row) : null;
   }
   /** The Google email a person signed in with, if they used Google. */
-  emailOf(userId: Id) {
-    const row = this.get('select email from identities where user_id = ?', userId);
+  async emailOf(userId: Id) {
+    const row = await this.sql.get('select email from identities where user_id = ?', userId);
     return row?.email ? String(row.email) : null;
   }
   /** The person who signed in with this Google account before, if any. */
-  googleUser(subject: string) {
-    const row = this.get('select user_id from identities where subject = ?', subject);
+  async googleUser(subject: string) {
+    const row = await this.sql.get('select user_id from identities where subject = ?', subject);
     return row ? this.user(String(row.user_id)) : null;
   }
   /** A new person from a Google account, under the first free version of their Google name. */
-  createGoogleUser(subject: string, googleName: string, email: string | null) {
+  async createGoogleUser(subject: string, googleName: string, email: string | null) {
     const base = googleName.trim().slice(0, 36) || 'Guest';
     let name = base;
     for (
@@ -345,7 +345,12 @@ export class Store {
     )
       name = `${base} ${n}`;
     const user = this.createHuman(name);
-    this.run('insert into identities values (?, ?, ?)', subject, user.id, email);
+    await this.sql.run(
+      'insert into identities (subject, user_id, email) values (?, ?, ?)',
+      subject,
+      user.id,
+      email,
+    );
     return user;
   }
   createHuman(rawName: string) {
@@ -481,34 +486,34 @@ export class Store {
     this.changed();
     return this.user(agentId)!;
   }
-  createSession(userId: Id) {
+  async createSession(userId: Id) {
     if (!this.user(userId) || this.user(userId)!.kind !== 'human')
       throw new InputError('Unknown person.');
     const token = randomBytes(24).toString('base64url');
     // Only a hash is kept, so the database alone never lets anyone sign in as someone.
-    this.run('insert into sessions values (?, ?)', hash(token), userId);
+    await this.sql.run('insert into sessions (token, user_id) values (?, ?)', hash(token), userId);
     return token;
   }
-  userForToken(token: string | undefined) {
+  async userForToken(token: string | undefined) {
     if (!token) return null;
     const row =
-      this.get('select user_id from sessions where token = ?', hash(token)) ??
+      (await this.sql.get('select user_id from sessions where token = ?', hash(token))) ??
       // Sessions made before tokens were hashed.
-      this.get('select user_id from sessions where token = ?', token);
+      (await this.sql.get('select user_id from sessions where token = ?', token));
     return row ? this.user(row.user_id) : null;
   }
-  endSession(token: string | undefined) {
-    if (token) this.run('delete from sessions where token in (?, ?)', hash(token), token);
+  async endSession(token: string | undefined) {
+    if (token) await this.sql.run('delete from sessions where token in (?, ?)', hash(token), token);
   }
 
   // ---------- invitations and sign-in links ----------
 
   /** The space's current invite link, made if there is none. Anyone in a shared space may invite. */
-  invite(actorId: Id, spaceId: Id, fresh = false) {
+  async invite(actorId: Id, spaceId: Id, fresh = false) {
     const space = this.requireMember(actorId, spaceId);
     if (space.kind !== 'project') throw new InputError('Only shared spaces take invitations.');
-    if (fresh) this.run('update invites set revoked = 1 where space_id = ?', spaceId);
-    const current = this.get(
+    if (fresh) await this.sql.run('update invites set revoked = 1 where space_id = ?', spaceId);
+    const current = await this.sql.get(
       'select * from invites where space_id = ? and revoked = 0 and expires_at > ? order by created_at desc limit 1',
       spaceId,
       now(),
@@ -516,7 +521,7 @@ export class Store {
     if (current) return { token: current.token as string, expiresAt: current.expires_at as string };
     const token = randomBytes(18).toString('base64url');
     const expiresAt = later(14 * 86_400_000);
-    this.run(
+    await this.sql.run(
       'insert into invites (token, space_id, created_by, created_at, expires_at) values (?, ?, ?, ?, ?)',
       token,
       spaceId,
@@ -526,8 +531,8 @@ export class Store {
     );
     return { token, expiresAt };
   }
-  private liveInvite(token: string) {
-    const row = this.get(
+  private async liveInvite(token: string) {
+    const row = await this.sql.get(
       'select * from invites where token = ? and revoked = 0 and expires_at > ?',
       String(token ?? ''),
       now(),
@@ -537,45 +542,45 @@ export class Store {
     return row;
   }
   /** What an invite link leads to, shown before someone joins. */
-  inviteInfo(token: string) {
-    const row = this.liveInvite(token);
+  async inviteInfo(token: string) {
+    const row = await this.liveInvite(token);
     return {
       spaceName: this.space(row.space_id)!.name,
       invitedBy: this.user(row.created_by)?.name ?? 'Someone',
     };
   }
-  acceptInvite(userId: Id, token: string) {
-    const row = this.liveInvite(token);
-    this.run(
+  async acceptInvite(userId: Id, token: string) {
+    const row = await this.liveInvite(token);
+    await this.sql.run(
       'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
       row.space_id,
       userId,
       'member',
     );
-    this.run('update invites set uses = uses + 1 where token = ?', row.token);
+    await this.sql.run('update invites set uses = uses + 1 where token = ?', row.token);
     this.changed();
     return this.space(row.space_id)!;
   }
   /** A one-time link to sign in as yourself on another device, good for fifteen minutes. */
-  signInLink(userId: Id) {
+  async signInLink(userId: Id) {
     const token = randomBytes(24).toString('base64url');
-    this.run(
-      'insert into signin_links values (?, ?, ?, 0)',
+    await this.sql.run(
+      'insert into signin_links (token_hash, user_id, expires_at, used) values (?, ?, ?, 0)',
       hash(token),
       userId,
       later(15 * 60_000),
     );
     return { token, expiresAt: later(15 * 60_000) };
   }
-  useSignInLink(token: string) {
-    const row = this.get(
+  async useSignInLink(token: string) {
+    const row = await this.sql.get(
       'select * from signin_links where token_hash = ? and used = 0 and expires_at > ?',
       hash(String(token ?? '')),
       now(),
     );
     if (!row)
       throw new AccessError('This sign-in link has been used or has expired. Make a new one.');
-    this.run('update signin_links set used = 1 where token_hash = ?', row.token_hash);
+    await this.sql.run('update signin_links set used = 1 where token_hash = ?', row.token_hash);
     return this.user(row.user_id)!;
   }
 

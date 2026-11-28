@@ -64,7 +64,7 @@ async function fill(s: ReturnType<typeof setup>, spaceId: string) {
   store.setAgentSkill(dylan.id, agent.id, skill.id, true);
   store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
   store.createGoal(dylan.id, { spaceId, title: 'Launch' });
-  store.invite(dylan.id, spaceId);
+  await store.invite(dylan.id, spaceId);
   store.createRoutine(dylan.id, {
     agentId: agent.id,
     instruction: 'Sum up the week',

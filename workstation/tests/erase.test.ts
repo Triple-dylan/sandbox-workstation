@@ -88,8 +88,8 @@ test('delete my data: their own things go, what they shared stays as a deleted p
   });
   const goal = store.createGoal(dylan.id, { spaceId: launch.id, title: 'Ship' });
   store.db.prepare('update goals set owner_id = ? where id = ?').run(dylan.id, goal.id);
-  const link = store.signInLink(dylan.id);
-  const session = store.createSession(dylan.id);
+  const link = await store.signInLink(dylan.id);
+  const session = await store.createSession(dylan.id);
   await app.engine.idle();
 
   assert.throws(() => deleteMyData(store, dylan.id, 'dylan'), /Type Dylan exactly/);
@@ -97,8 +97,8 @@ test('delete my data: their own things go, what they shared stays as a deleted p
 
   // Theirs alone: gone, with nothing anywhere still naming them.
   assert.deepEqual(holding(store.db, [personal, agent.id, diary.id, draft.id, said.id]), []);
-  assert.equal(store.userForToken(session), null, 'signed out everywhere');
-  assert.throws(() => store.useSignInLink(link.token), /used or has expired/);
+  assert.equal(await store.userForToken(session), null, 'signed out everywhere');
+  await assert.rejects(() => store.useSignInLink(link.token), /used or has expired/);
   assert.deepEqual(
     holding(store.db, [dylan.id]).filter((c) => !c.startsWith('users.')),
     [
@@ -113,7 +113,7 @@ test('delete my data: their own things go, what they shared stays as a deleted p
   const gone = store.user(dylan.id)!;
   assert.equal(gone.name, DELETED_NAME);
   assert.ok(!store.profiles().some((p) => p.id === dylan.id), 'not offered as a person to be');
-  assert.throws(() => store.createSession(dylan.id), /Unknown person/);
+  await assert.rejects(() => store.createSession(dylan.id), /Unknown person/);
   assert.throws(() => store.openDm(maya.id, dylan.id), /another person/);
 
   // What Maya sees: the shared page still there as a deleted person's, her own words kept.

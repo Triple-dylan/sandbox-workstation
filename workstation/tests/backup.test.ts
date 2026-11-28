@@ -187,12 +187,12 @@ test('only the people who run the server can download the newest backup', async 
   try {
     await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
-    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const owner = await app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = await app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
     const named = app.store.createHuman('Sam');
-    const get = (userId?: string) =>
+    const get = async (userId?: string) =>
       fetch(`${base}/api/backup`, {
-        headers: userId ? { cookie: `sw_session=${app.store.createSession(userId)}` } : {},
+        headers: userId ? { cookie: `sw_session=${await app.store.createSession(userId)}` } : {},
       });
 
     assert.equal((await get()).status, 401);
@@ -241,9 +241,9 @@ test('backup download is off without owners, or with backups off', async () => {
     try {
       await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
       const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-      const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+      const owner = await app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
       const res = await fetch(`${base}/api/backup`, {
-        headers: { cookie: `sw_session=${app.store.createSession(owner.id)}` },
+        headers: { cookie: `sw_session=${await app.store.createSession(owner.id)}` },
       });
       assert.equal(res.status, 'BACKUPS' in env ? 404 : 403);
       assert.deepEqual(listBackups(join(dir, 'backups')), []);
@@ -312,12 +312,15 @@ test('owners can take a backup now, and nobody else can', async () => {
   try {
     await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
-    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
-    const post = (userId: string, headers: Record<string, string> = { 'x-workstation': '1' }) =>
+    const owner = await app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = await app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const post = async (
+      userId: string,
+      headers: Record<string, string> = { 'x-workstation': '1' },
+    ) =>
       fetch(`${base}/api/backup`, {
         method: 'POST',
-        headers: { ...headers, cookie: `sw_session=${app.store.createSession(userId)}` },
+        headers: { ...headers, cookie: `sw_session=${await app.store.createSession(userId)}` },
       });
     const folder = join(dir, 'backups');
 
@@ -356,11 +359,11 @@ test('Settings can see the newest backup, but only for owners', async () => {
   try {
     await new Promise<void>((resolve) => app.server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-    const owner = app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
-    const other = app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
-    const get = (userId: string) =>
+    const owner = await app.store.createGoogleUser('g-owner', 'Dylan', 'owner@example.com');
+    const other = await app.store.createGoogleUser('g-other', 'Maya', 'maya@example.com');
+    const get = async (userId: string) =>
       fetch(`${base}/api/backups`, {
-        headers: { cookie: `sw_session=${app.store.createSession(userId)}` },
+        headers: { cookie: `sw_session=${await app.store.createSession(userId)}` },
       });
 
     assert.equal((await fetch(`${base}/api/backups`)).status, 401);

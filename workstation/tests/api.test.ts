@@ -55,7 +55,7 @@ test('api: only a live seat token gets in; a cookie or a revoked token does not'
   assert.equal((await get('/me', 'sbx_made-up')).status, 401);
   assert.equal((await get('/me', 'not-a-token')).status, 401);
   // A person's session cookie is not a way in here.
-  const session = app.store.createSession(dylan.id);
+  const session = await app.store.createSession(dylan.id);
   const withCookie = await fetch(`${base}/me`, { headers: { cookie: `sw_session=${session}` } });
   assert.equal(withCookie.status, 401);
   const me = await get('/me');
