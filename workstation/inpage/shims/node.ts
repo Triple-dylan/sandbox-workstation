@@ -66,6 +66,10 @@ export const createHash = () => {
   };
   return hash;
 };
+// Webhooks sign what they send; the in-page preview never sends any.
+export const createHmac = () => {
+  throw new Error('Webhooks do not run in the in-page preview.');
+};
 export const mkdirSync = () => {};
 export const readFileSync = () => {
   throw new Error('No files in the in-page build.');

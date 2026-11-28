@@ -12,6 +12,7 @@ import { Connectors } from './connectors/index.ts';
 import { Collab } from './collab.ts';
 import { Seats, seatsApi } from './seats.ts';
 import { outsideApi } from './api.ts';
+import { Webhooks } from './webhooks.ts';
 import { Mcp } from './mcp.ts';
 import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
@@ -52,6 +53,8 @@ export type AppOptions = {
   providers?: Provider[];
   /** Checks a Google sign-in credential. Tests pass a stand-in; by default Google's keys are used. */
   verifyGoogle?: (credential: string, clientId: string) => Promise<GoogleAccount>;
+  /** Outside agents' webhooks. Tests allow a local receiver and retry sooner. */
+  webhooks?: ConstructorParameters<typeof Webhooks>[1];
 };
 
 export type GoogleAccount = {
@@ -95,6 +98,7 @@ export function createApp(options: AppOptions) {
   const connectors = new Connectors(store, env, options.providers);
   const collab = new Collab(store);
   const seats = new Seats(store);
+  const webhooks = new Webhooks(store, options.webhooks);
   const mcp = new Mcp(store, seats);
   const oauth = new OAuth(store, seats);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
@@ -229,7 +233,12 @@ export function createApp(options: AppOptions) {
       const query = new URL(req.url ?? '/', 'http://local').searchParams;
       const { authorization } = req.headers;
       const input = method === 'GET' ? {} : await body(req);
-      const result = outsideApi(store, seats, { method, path, query, authorization, input });
+      const result = outsideApi(
+        store,
+        seats,
+        { method, path, query, authorization, input },
+        webhooks,
+      );
       return send(res, result.status, result.data);
     }
     if (method !== 'GET' && req.headers['x-workstation'] !== '1')
@@ -968,6 +977,7 @@ export function createApp(options: AppOptions) {
     browsers,
     collab,
     seats,
+    webhooks,
     mcp,
     runtime,
     async close() {
@@ -975,6 +985,7 @@ export function createApp(options: AppOptions) {
       closed = true;
       clearInterval(heartbeat);
       engine.stop();
+      webhooks.stop();
       mcp.stop();
       connectors.close();
       collab.stop();
