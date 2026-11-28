@@ -28,16 +28,19 @@ The server prints which runtime is active at startup, and agent messages are tag
 
 | Path | What |
 | --- | --- |
-| `server/` | HTTP + live events (`app.ts`), the access-checked data store (`store.ts`), SQLite schema (`db.ts`), agents (`agents/`) |
-| `shared/types.ts` | Records shared by server and client |
-| `src/app/` | Shell, sign-in, rail, view state |
-| `src/features/` | `canvas`, `graph`, `conversations` (composer, audience, panel), `reader`, `agents` (characters, utilities) |
+| `server/` | HTTP + live events (`app.ts`), the access-checked data store (`store.ts`), SQLite schema (`db.ts`), agents (`agents/`), live document editing (`collab.ts`), Google Sheets and Excel links (`connectors/`), the bridge to the shared browser service (`browser/`) |
+| `shared/` | Records shared by server and client (`types.ts`), the sheet model and formulas (`sheet.ts`, `formula.ts`) |
+| `src/app/` | Shell, sign-in, the left list, the agent rail, view state |
+| `src/data/` | `client.ts`: the only place the browser talks to the server; live snapshot |
+| `src/pages/` | One editor per page kind (document, sheet, deck, canvas, browser, asset, chat, graph, people) and `Pane.tsx`, which hosts them |
+| `src/features/` | `graph`, `feed`, `share`, `collab`, `import`, `presence`, `plan`, `agents` (characters), `connectors`, `canvas` |
 | `tests/` | Server, privacy, five-situation and client-logic tests; `e2e/` drives two browsers |
 
 ## Checks
 
 ```sh
 npm run typecheck
+npm run lint           # rules of hooks
 npm run format:check
 npm test             # server + client logic
 npm run build && npm run test:e2e   # two people in two browsers (uses local Chrome; bundled Chromium in CI)
