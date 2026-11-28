@@ -1,9 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createReadStream } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OAuth2Client } from 'google-auth-library';
 import { openDb } from './db.ts';
+import { databaseReads, storageFor } from './storage.ts';
 import { AccessError, InputError, Store } from './store.ts';
 import { AgentEngine } from './agents/engine.ts';
 import { Connectors } from './connectors/index.ts';
@@ -15,6 +17,7 @@ import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
+import { backupHealth, backupNow, backupOptions, listBackups } from './backup.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
 import type { Id, Presence, User } from '../shared/types.ts';
@@ -121,6 +124,16 @@ export function createApp(options: AppOptions) {
     const email = store.emailOf(userId)?.toLowerCase();
     return !!email && creators.some((c) => (c.startsWith('@') ? email.endsWith(c) : email === c));
   };
+  // Who may download the whole database: the people who run this copy, by email. Unset, nobody.
+  const backups = backupOptions(options.dbPath, env);
+  const backupOwners = (env.BACKUP_OWNERS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const mayDownloadBackup = (userId: Id) => {
+    const email = store.emailOf(userId)?.toLowerCase();
+    return !!email && backupOwners.includes(email);
+  };
   // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
   const attempts = new Map<string, { n: number; at: number }>();
   const slowDown = (req: IncomingMessage) => {
@@ -154,6 +167,7 @@ export function createApp(options: AppOptions) {
     id: runtime.id,
     label: runtime.label,
     ...(runtime.model ? { model: runtime.model } : {}),
+    ...(runtime.fallback ? { fallback: runtime.fallback } : {}),
   };
 
   const cookie = (req: IncomingMessage) =>
@@ -296,6 +310,49 @@ export function createApp(options: AppOptions) {
     if (path === '/api/logout' && method === 'POST') {
       store.endSession(cookie(req));
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
+    }
+    if (path === '/api/backup' && method === 'GET') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can download its backups.');
+      // The newest nightly copy; if there is none yet, one is taken now.
+      const newest = listBackups(backups.dir)[0] ?? backupNow(options.dbPath, backups);
+      res.writeHead(200, {
+        'content-type': 'application/vnd.sqlite3',
+        'content-length': newest.bytes,
+        'content-disposition': `attachment; filename="sandbox-${newest.name}"`,
+        'cache-control': 'no-store',
+      });
+      await new Promise<void>((resolve, reject) =>
+        createReadStream(newest.path).on('error', reject).on('end', resolve).pipe(res),
+      );
+      return;
+    }
+    // What Settings shows an owner: the newest copy and how many are kept. Refused for anyone else.
+    if (path === '/api/backups' && method === 'GET') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can see its backups.');
+      const kept = listBackups(backups.dir);
+      const newest = kept[0];
+      return send(res, 200, {
+        count: kept.length,
+        keep: backups.keep,
+        newest: newest ? { name: newest.name, takenAt: newest.takenAt, bytes: newest.bytes } : null,
+      });
+    }
+    // Back up now: an owner takes a copy on demand, for example before a risky change.
+    if (path === '/api/backup' && method === 'POST') {
+      if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
+      if (!mayDownloadBackup(me.id))
+        throw new AccessError('Only the people who run this server can take backups.');
+      // A copy from the last minute is returned as it is rather than taking another.
+      const recent = listBackups(backups.dir)[0];
+      const fresh =
+        recent && Date.now() - Date.parse(recent.takenAt) < 60_000
+          ? recent
+          : backupNow(options.dbPath, backups);
+      return send(res, 200, { name: fresh.name, takenAt: fresh.takenAt, bytes: fresh.bytes });
     }
     if (path === '/api/snapshot' && method === 'GET')
       return send(res, 200, {
@@ -868,7 +925,20 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
-      if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
+      if (path === '/healthz') {
+        const ok = databaseReads(store.db);
+        const body = {
+          ok,
+          version: store.version,
+          ...storageFor(options.dbPath),
+          ...backupHealth(backups),
+        };
+        return send(
+          res,
+          ok ? 200 : 503,
+          ok ? body : { ...body, error: 'The database is not answering.' },
+        );
+      }
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {
