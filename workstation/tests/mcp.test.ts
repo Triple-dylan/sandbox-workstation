@@ -312,3 +312,64 @@ test('mcp: its owner sees what the seat read and wrote, and nothing they could n
   // Only its owner sees the log.
   assert.throws(() => seats.activity(maya.id, seat.agent.id), /Not available/);
 });
+
+test('mcp: a seat comments on pages it can read, pinned to text, and resolves them', async () => {
+  const { store, seats, dylan, maya, launch, seat, call } = await setup();
+  const plan = store.createResource(maya.id, {
+    spaceId: launch.id,
+    kind: 'doc',
+    title: 'Launch plan',
+    body: '# Launch plan\n\nShip on **Friday**.',
+  });
+  const secret = store.createResource(dylan.id, {
+    spaceId: launch.id,
+    kind: 'doc',
+    title: 'Salary notes',
+    body: 'Friday raises',
+    visibility: 'private',
+  });
+  assert.deepEqual((await call('list_comments', { page_id: plan.id })).data, []);
+  const off = await call('comment_on_page', { page_id: plan.id, text: 'Hm', quote: 'Monday' });
+  assert.ok(off.isError);
+  assert.match(off.text, /not on the page/);
+  const made = await call('comment_on_page', {
+    page_id: plan.id,
+    text: 'Friday clashes with the offsite.',
+    quote: 'Ship on Friday',
+  });
+  assert.equal(made.isError, false);
+  assert.equal(made.data.from, 'Codex');
+  assert.deepEqual(made.data.about, { pageId: plan.id, quote: 'Ship on Friday' });
+  // It lands in the page's own discussion, where people see it beside the page.
+  const discussion = store.openDiscussion(maya.id, plan.id);
+  assert.equal(made.data.chatId, discussion.id);
+  const answer = store.postMessage(maya.id, {
+    conversationId: discussion.id,
+    text: 'Moved to Monday.',
+    replyTo: made.data.id,
+  });
+  const thanks = await call('comment_on_page', {
+    page_id: plan.id,
+    text: 'Thanks.',
+    reply_to: answer.id,
+  });
+  assert.equal(thanks.data.replyTo, answer.id);
+  assert.equal((await call('resolve_comment', { comment_id: made.data.id })).isError, false);
+  const listed = (await call('list_comments', { page_id: plan.id })).data;
+  assert.deepEqual(
+    listed.map((c: any) => [c.from, c.resolved]),
+    [
+      ['Codex', true],
+      ['Maya', false],
+      ['Codex', false],
+    ],
+  );
+  // Comments change nothing on the page, and a private page stays out of reach.
+  assert.equal(store.resource(plan.id)!.body, '# Launch plan\n\nShip on **Friday**.');
+  assert.ok((await call('comment_on_page', { page_id: secret.id, text: 'x' })).isError);
+  assert.ok((await call('list_comments', { page_id: secret.id })).isError);
+  // Its owner sees the comments in What it did.
+  const did = seats.activity(dylan.id, seat.agent.id).filter((a) => a.tool === 'comment_on_page');
+  assert.equal(did.length, 4);
+  assert.ok(did.every((a) => a.wrote));
+});

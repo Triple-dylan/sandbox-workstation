@@ -37,6 +37,12 @@ type Tool = {
 
 class ToolError extends Error {}
 
+/** Text without Markdown's marks or extra spaces, so a quote matches what a person sees. */
+const plain = (value: string) =>
+  value
+    .replace(/[*_`#>~[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 const text = (value: unknown, max = 200) => String(value ?? '').slice(0, max);
 const required = (args: Json, key: string) => {
   const value = args[key];
@@ -216,6 +222,7 @@ export class Mcp {
       'You see what those workspaces share and pages opened to you, nothing private.',
       'Start with inbox for messages to you. Read with list_pages, read_page, search and read_chat; answer with post_message.',
       'Changes to pages are suggestions (suggest_edit, suggest_cells, suggest_page) that a person accepts.',
+      'Talk about a page with comment_on_page, list_comments and resolve_comment.',
       'Call working_on with the page you are working on so people see it, and with done: true when you stop.',
     ].join(' ');
   }
@@ -619,6 +626,74 @@ export class Mcp {
             { runtime: 'outside' },
           );
           return this.messageSummary(message);
+        },
+      },
+      {
+        name: 'comment_on_page',
+        title: 'Comment on a page',
+        description:
+          "Leave a comment on a page, as yourself, in the page's discussion. Give quote to pin it to exact text on a document, and reply_to to answer a comment in its thread. Comments change nothing on the page.",
+        inputSchema: obj(
+          {
+            page_id: str('The page id.'),
+            text: str('The comment. Markdown works.'),
+            quote: str('Exact text on the page the comment is about, as read_page shows it.'),
+            reply_to: str('The comment id this answers, from list_comments.'),
+          },
+          ['page_id', 'text'],
+        ),
+        run: (seat, args) => {
+          const page = this.page(seat, required(args, 'page_id'));
+          const quote = typeof args.quote === 'string' ? args.quote.trim() : '';
+          if (quote && page.kind === 'doc' && !plain(page.body).includes(plain(quote)))
+            throw new ToolError('That text is not on the page. Quote it exactly, from read_page.');
+          const discussion = this.store.openDiscussion(seat.id, page.id);
+          const message = this.store.postMessage(
+            seat.id,
+            {
+              conversationId: discussion.id,
+              text: required(args, 'text'),
+              replyTo: typeof args.reply_to === 'string' && args.reply_to ? args.reply_to : null,
+              ...(quote ? { anchor: { resourceId: page.id, quote } } : {}),
+            },
+            { runtime: 'outside' },
+          );
+          return this.messageSummary(message);
+        },
+      },
+      {
+        name: 'list_comments',
+        title: 'Comments on a page',
+        description:
+          "A page's discussion, oldest first: each comment with who left it, the text it is pinned to, and whether it was resolved.",
+        inputSchema: obj({ page_id: str('The page id.') }, ['page_id']),
+        readOnly: true,
+        run: (seat, args) => {
+          const page = this.page(seat, required(args, 'page_id'));
+          const row = this.store.db
+            .prepare(`select id from conversations where kind = 'discussion' and resource_id = ?`)
+            .get(page.id) as { id: Id } | undefined;
+          if (!row) return [];
+          return this.store
+            .messages(row.id)
+            .map((m) => ({ ...this.messageSummary(m), resolved: !!m.resolved }));
+        },
+      },
+      {
+        name: 'resolve_comment',
+        title: 'Resolve a comment',
+        description:
+          'Mark a comment dealt with once you have answered or acted on it, or reopen it with resolved: false.',
+        inputSchema: obj(
+          {
+            comment_id: str('The comment id, from list_comments.'),
+            resolved: { type: 'boolean', description: 'false reopens it. Defaults to true.' },
+          },
+          ['comment_id'],
+        ),
+        run: (seat, args) => {
+          this.store.resolveMessage(seat.id, required(args, 'comment_id'), args.resolved !== false);
+          return { ok: true };
         },
       },
       {
