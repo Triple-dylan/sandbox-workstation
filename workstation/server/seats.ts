@@ -41,10 +41,64 @@ const toToken = (r: Row): SeatToken => ({
   lastUsedAt: r.last_used_at ?? null,
 });
 
+/** One thing a seat did through the MCP server, as its owner sees it. */
+export type SeatActivity = {
+  id: Id;
+  at: string;
+  /** The MCP tool, like read_page or post_message. */
+  tool: string;
+  /** Whether it changed anything or only read. */
+  wrote: boolean;
+  ok: boolean;
+  /** What it was about, named only when the viewer may see it themselves. */
+  page: { id: Id; title: string } | null;
+  chat: { id: Id; title: string } | null;
+  workspace: { id: Id; name: string } | null;
+  /** Something it worked on that the viewer can't see, such as a page opened to the seat alone.
+   * Ids that name nothing (a mistyped id) are simply left out. */
+  hidden: boolean;
+  /** What it searched for, or why the call failed. */
+  detail: string;
+};
+
+/** How much a seat's log keeps: its most recent calls. */
+const KEEP = 1000;
+/** The log's name for a sign-in that was turned away, kept beside its tool calls. */
+export const SIGN_IN = 'sign_in';
+/** How recently it must have called to count as connected now. */
+const LIVE_MS = 10 * 60_000;
+
+/**
+ * Whether a seat can sign in and when it last did, for its owner's Test connection check.
+ * state, in the order it is decided: retired; no-tokens (nothing it could sign in with);
+ * refused (its latest sign-in was turned away, after any that worked); connected (a call in the
+ * last ten minutes); idle (it has signed in, not lately); never (it has a token it never used).
+ */
+export type SeatCheck = {
+  state: 'retired' | 'no-tokens' | 'refused' | 'connected' | 'idle' | 'never';
+  /** When it last signed in with a live token, and with which. */
+  lastSeen: { at: string; label: string } | null;
+  /** Its latest MCP tool call. */
+  lastCall: { at: string; tool: string; ok: boolean } | null;
+  /** Its latest turned-away sign-in, and why. */
+  lastRefused: { at: string; detail: string } | null;
+  liveTokens: number;
+  workspaces: number;
+  /** What a token the owner pasted is: one of this seat's, live or revoked, or not its token. */
+  pasted?: { state: 'live' | 'revoked' | 'not-this-agent'; label: string | null };
+};
+
 export class Seats {
   private store: Store;
   constructor(store: Store) {
     this.store = store;
+    // What each seat read and wrote, for its owner (see record and activity below).
+    this.store.db.exec(`create table if not exists seat_activity (
+      id integer primary key autoincrement, agent_id text not null, at text not null,
+      tool text not null, wrote integer not null, ok integer not null,
+      page_id text, chat_id text, space_id text, detail text not null default ''
+    );
+    create index if not exists seat_activity_agent on seat_activity (agent_id, id)`);
   }
 
   private get(sql: string, ...args: any[]) {
@@ -171,16 +225,179 @@ export class Seats {
     return this.seat(agentId);
   }
 
+  /** Notes one MCP call. Only ids and a short detail are kept, never what it read or wrote. */
+  record(
+    agentId: Id,
+    entry: {
+      tool: string;
+      wrote: boolean;
+      ok: boolean;
+      pageId?: unknown;
+      chatId?: unknown;
+      spaceId?: unknown;
+      detail?: unknown;
+    },
+  ) {
+    const id = (v: unknown) => (typeof v === 'string' && v ? v.slice(0, 80) : null);
+    this.run(
+      'insert into seat_activity (agent_id, at, tool, wrote, ok, page_id, chat_id, space_id, detail) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      agentId,
+      now(),
+      entry.tool.slice(0, 40),
+      entry.wrote ? 1 : 0,
+      entry.ok ? 1 : 0,
+      id(entry.pageId),
+      id(entry.chatId),
+      id(entry.spaceId),
+      typeof entry.detail === 'string' ? entry.detail.slice(0, 200) : '',
+    );
+    this.run(
+      'delete from seat_activity where agent_id = ? and id <= (select id from seat_activity where agent_id = ? order by id desc limit 1 offset ?)',
+      agentId,
+      agentId,
+      KEEP,
+    );
+  }
+
+  /**
+   * What the seat did, newest first, for its owner. A page, chat or workspace is named only when
+   * the owner may see it too: a page someone opened to the seat alone shows as hidden.
+   */
+  activity(actorId: Id, agentId: Id, limit = 100): SeatActivity[] {
+    this.owned(actorId, agentId);
+    const rows = this.all(
+      'select * from seat_activity where agent_id = ? order by id desc limit ?',
+      agentId,
+      Math.min(Math.max(limit, 1), KEEP),
+    );
+    return rows.map((r) => {
+      let hidden = false;
+      const resource = r.page_id ? this.store.resource(r.page_id) : null;
+      const page =
+        resource && this.store.canReadResource(actorId, resource)
+          ? { id: resource.id, title: resource.title }
+          : null;
+      if (resource && !page) hidden = true;
+      const conversation = r.chat_id ? this.store.conversation(r.chat_id) : null;
+      const chat =
+        conversation && this.store.canReadConversation(actorId, conversation)
+          ? { id: conversation.id, title: conversation.title }
+          : null;
+      if (conversation && !chat) hidden = true;
+      const space = r.space_id ? this.store.space(r.space_id) : null;
+      const workspace =
+        space && this.store.isMember(actorId, space.id) ? { id: space.id, name: space.name } : null;
+      if (space && !workspace) hidden = true;
+      return {
+        id: String(r.id),
+        at: r.at,
+        tool: r.tool,
+        wrote: !!r.wrote,
+        ok: !!r.ok,
+        page,
+        chat,
+        workspace,
+        hidden,
+        // A search names what it looked for; keep that to what the owner could have seen too.
+        detail: hidden ? '' : r.detail,
+      };
+    });
+  }
+
+  /**
+   * Test connection, for its owner: whether it can sign in and when it last did. A token they
+   * paste is matched against this seat's own, live or revoked, without counting as a sign-in.
+   */
+  check(actorId: Id, agentId: Id, token?: string): SeatCheck {
+    const agent = this.owned(actorId, agentId);
+    const seat = this.seat(agentId);
+    const used = seat.tokens
+      .filter((t) => t.lastUsedAt)
+      .sort((a, b) => b.lastUsedAt!.localeCompare(a.lastUsedAt!))[0];
+    const lastSeen = used ? { at: used.lastUsedAt!, label: used.label } : null;
+    const call = this.get(
+      'select at, tool, ok from seat_activity where agent_id = ? and tool != ? order by id desc limit 1',
+      agentId,
+      SIGN_IN,
+    );
+    const turned = this.get(
+      'select at, detail from seat_activity where agent_id = ? and tool = ? order by id desc limit 1',
+      agentId,
+      SIGN_IN,
+    );
+    const lastRefused = turned
+      ? { at: turned.at as string, detail: turned.detail as string }
+      : null;
+    const state: SeatCheck['state'] = agent.retired
+      ? 'retired'
+      : seat.tokens.length === 0
+        ? 'no-tokens'
+        : lastRefused && (!lastSeen || lastRefused.at > lastSeen.at)
+          ? 'refused'
+          : !lastSeen
+            ? 'never'
+            : Date.now() - Date.parse(lastSeen.at) < LIVE_MS
+              ? 'connected'
+              : 'idle';
+    const result: SeatCheck = {
+      state,
+      lastSeen,
+      lastCall: call ? { at: call.at, tool: call.tool, ok: !!call.ok } : null,
+      lastRefused,
+      liveTokens: seat.tokens.length,
+      workspaces: seat.spaceIds.length,
+    };
+    if (token !== undefined) {
+      const row = token.trim().startsWith(TOKEN_PREFIX)
+        ? this.get(
+            'select agent_id, label, revoked from agent_tokens where token_hash = ?',
+            hash(token.trim()),
+          )
+        : undefined;
+      // Another seat's token is not named, even to someone who owns that one too.
+      result.pasted =
+        row && row.agent_id === agentId
+          ? { state: row.revoked || agent.retired ? 'revoked' : 'live', label: row.label }
+          : { state: 'not-this-agent', label: null };
+    }
+    return result;
+  }
+
+  /**
+   * Notes a sign-in turned away for a token that once worked, so its owner sees why it stopped.
+   * Retries are noted once a minute at most, so a stuck agent doesn't fill its log.
+   */
+  private refused(agentId: Id, detail: string) {
+    const last = this.get(
+      'select at, tool, detail from seat_activity where agent_id = ? order by id desc limit 1',
+      agentId,
+    );
+    if (
+      last?.tool === SIGN_IN &&
+      last.detail === detail &&
+      Date.now() - Date.parse(last.at) < 60_000
+    )
+      return;
+    this.record(agentId, { tool: SIGN_IN, wrote: false, ok: false, detail });
+  }
+
   /** The seat a token signs in as, while it is live and the seat is not retired. */
   agentForToken(token: string | undefined | null) {
     if (!token || !token.startsWith(TOKEN_PREFIX)) return null;
     const row = this.get(
-      'select id, agent_id from agent_tokens where token_hash = ? and revoked = 0',
+      'select id, agent_id, label, revoked from agent_tokens where token_hash = ?',
       hash(token),
     );
     if (!row) return null;
     const agent = this.store.user(row.agent_id);
-    if (!agent || agent.kind !== 'agent' || agent.role !== 'outside' || agent.retired) return null;
+    if (!agent || agent.kind !== 'agent' || agent.role !== 'outside') return null;
+    if (agent.retired || row.revoked) {
+      this.refused(
+        agent.id,
+        agent.retired ? 'It is retired.' : `The token "${row.label}" was revoked.`,
+      );
+      return null;
+    }
     const owner = agent.ownerId ? this.store.user(agent.ownerId) : null;
     if (!owner) return null;
     this.run('update agent_tokens set last_used_at = ? where id = ?', now(), row.id);
@@ -224,5 +441,8 @@ export function seatsApi(
     return { ok: true };
   }
   if (agentId && part === 'retire' && method === 'POST') return seats.retire(me.id, agentId);
+  if (agentId && part === 'activity' && method === 'GET') return seats.activity(me.id, agentId);
+  if (agentId && part === 'check' && method === 'POST')
+    return seats.check(me.id, agentId, typeof input.token === 'string' ? input.token : undefined);
   return undefined;
 }
