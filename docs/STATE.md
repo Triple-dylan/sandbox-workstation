@@ -177,7 +177,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 
 ## Added 2026-11-27 (agent looks)
 
-- Three original agent looks to try against the orbs: **Trace** (one unbroken pen line, its own loop per agent), **Tiles** (a 3×3 mark, its own pattern per agent) and **Bloom** (a soft lobed shape, its own lobes per agent). Each is drawn in the agent's colour, has nine variants (one per agent form) and shows idle, working, waiting for a yes and a failed job its own way; with reduced motion each holds a still picture of the state. Settings → **Agent look** switches every agent drawing in the app on this device (default: Orbs); **Compare** shows all four side by side in every state at 16–30px with labelled example agents and a *hold still* switch. Shapes are tested (`tests/agent-looks.test.ts`); looked at in the running app in light and dark. The orbs on the welcome screen and the agent-form picker's names are unchanged until a look is chosen.
+- Agents are drawn as **Tiles** everywhere (list, rail, chat, page headers, canvases, graph, the agent page's look picker and the welcome screen): a 3×3 mark in the agent's own colour, its pattern set by its form. Idle, a slow glint passes over it; working, light runs round its edge; waiting for a yes, the middle tile blinks; after a failed job the tiles sag and turn grey. With reduced motion each state holds still and still reads differently. The orbs and the `thinking-orbs` package are gone. Patterns are tested (`tests/agent-tiles.test.ts`); looked at running in light and dark.
 
 ## Known gaps
 

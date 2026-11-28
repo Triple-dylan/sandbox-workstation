@@ -5,7 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
 import {
   CANVAS_KINDS,
-  ORB_FORMS,
+  AGENT_FORMS,
   PAGE_KINDS,
   REACTIONS,
   SHAPES,
@@ -380,7 +380,7 @@ export class Store {
     const agentId = id();
     const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
-      form: ORB_FORMS[(taken * 4 + 1) % ORB_FORMS.length],
+      form: AGENT_FORMS[(taken * 4 + 1) % AGENT_FORMS.length],
       hue: (taken * 137 + 20) % 360,
       shape: shapes[Math.floor(Math.random() * shapes.length)],
       eyes: eyes[Math.floor(Math.random() * eyes.length)],
@@ -439,7 +439,7 @@ export class Store {
         agentId,
       );
     }
-    if (patch.form && (ORB_FORMS as readonly string[]).includes(patch.form)) {
+    if (patch.form && (AGENT_FORMS as readonly string[]).includes(patch.form)) {
       const current = this.user(agentId)!.character ?? { hue: 210, shape: 'round', eyes: 'dot' };
       this.run(
         'update users set character = ? where id = ?',

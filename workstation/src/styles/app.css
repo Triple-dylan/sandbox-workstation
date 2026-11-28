@@ -200,7 +200,7 @@ button.danger {
   box-shadow: var(--shadow);
 }
 
-/* ---------- carried over: orbs, graph, plan, editor text, sign-in ---------- */
+/* ---------- carried over: agent marks, graph, plan, editor text, sign-in ---------- */
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -224,28 +224,17 @@ button.danger {
   flex: none;
   line-height: 1;
 }
-.orb {
+.agent-mark {
+  --mark: var(--ink);
   position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
   vertical-align: middle;
 }
-.orb canvas {
+.agent-mark svg {
   display: block;
-}
-.orb.state-failed {
-  opacity: 0.45;
-}
-.orb-badge {
-  position: absolute;
-  right: -2px;
-  top: -2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ink);
-  box-shadow: 0 0 0 2px var(--paper);
+  overflow: visible;
 }
 .graph {
   overflow: hidden;
@@ -749,11 +738,6 @@ button.danger {
 .graph-legend {
   bottom: 40px;
 }
-.orb-button {
-  border: 0 !important;
-  padding: 0 !important;
-  display: inline-grid;
-}
 .reader-body {
   cursor: text;
 }
@@ -863,131 +847,39 @@ button.danger {
   background: var(--wash-2);
   box-shadow: 0 0 0 1.5px var(--ink);
 }
-.agent-forms .orb {
-  transform: scale(0.8);
-}
-.orb.state-working::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ink-2);
-  opacity: 0;
-  animation: orb-pulse 1.6s ease-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .orb.state-working::after {
-    animation: none;
-    opacity: 0.5;
-  }
-}
 
-/* ---------- our own agent looks (Trace, Tiles, Bloom), tried against the orbs ---------- */
-.look {
-  --mark: var(--ink);
-  color: var(--mark);
-}
-.look svg {
-  display: block;
-  overflow: visible;
-}
-.look.state-working::after {
-  content: none;
-}
-.look.state-failed {
-  opacity: 1;
-}
-.look * {
-  transform-box: view-box;
-  transform-origin: 12px 12px;
-}
-.look.still * {
-  animation: none !important;
-}
-
-/* Trace */
-.look-trace path {
-  fill: none;
-  stroke: var(--mark);
-  stroke-width: 2.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.look-trace .trace-run,
-.look-trace .trace-dot {
-  display: none;
-}
-.look-trace.state-idle .look-spin {
-  animation: look-turn 26s linear infinite;
-}
-.look-trace.state-working .trace-line {
-  opacity: 0.3;
-}
-.look-trace.state-working .trace-run {
-  display: inline;
-  stroke-width: 2.6;
-  stroke-dasharray: 26 74;
-  animation: trace-run 1.3s linear infinite;
-}
-.look-trace.state-working .look-spin {
-  animation: look-turn 9s linear infinite;
-}
-.look-trace.state-waiting .trace-line {
-  stroke-dasharray: 78 22;
-  stroke-dashoffset: -11;
-}
-.look-trace.state-waiting .trace-dot {
-  display: inline;
-  fill: var(--ink);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: look-ask 1.5s ease-in-out infinite;
-}
-.look-trace.state-failed path {
-  stroke: var(--ink-3);
-  stroke-dasharray: 5 7;
-}
-.look-trace.state-failed .look-spin {
-  transform: rotate(-14deg);
-}
-@keyframes trace-run {
-  to {
-    stroke-dashoffset: -100;
-  }
-}
-
-/* Tiles */
-.look-tiles .tile {
+/* ---------- agents: Tiles, a 3×3 mark in the agent's colour ---------- */
+.agent-mark .tile {
   fill: var(--mark);
 }
-.look-tiles .tile.off {
+.agent-mark .tile.off {
   opacity: 0.13;
 }
-.look-tiles.state-idle .tile.on {
+.agent-mark.state-idle .tile.on {
   animation: tile-glint 5.4s ease-in-out infinite;
   animation-delay: calc(var(--step) * 0.6s);
 }
-.look-tiles.state-working .tile.on {
+.agent-mark.state-working .tile.on {
   opacity: 0.35;
 }
-.look-tiles.state-working .tile:not(.mid) {
+.agent-mark.state-working .tile:not(.mid) {
   animation: tile-run 1.2s linear infinite;
   animation-delay: calc(var(--step) * 0.15s - 1.2s);
 }
-.look-tiles.still.state-working .tile:not(.mid) {
+.agent-mark.still.state-working .tile:not(.mid) {
   opacity: calc(0.15 + var(--step) * 0.12);
 }
-.look-tiles.state-waiting .tile.mid {
+.agent-mark.state-waiting .tile.mid {
   opacity: 1;
   animation: tile-blink 1.4s steps(1, end) infinite;
 }
-.look-tiles.state-waiting .tile.on:not(.mid) {
+.agent-mark.state-waiting .tile.on:not(.mid) {
   opacity: 0.55;
 }
-.look-tiles.state-failed .tile {
+.agent-mark.state-failed .tile {
   fill: var(--ink-3);
 }
-.look-tiles.state-failed .tile.on {
+.agent-mark.state-failed .tile.on {
   opacity: 0.8;
   transform: translateY(calc(var(--col) * 1.4px - 1.4px));
 }
@@ -1015,130 +907,9 @@ button.danger {
     opacity: 0.15;
   }
 }
-
-/* Bloom */
-.look-bloom .bloom-shape {
-  fill: color-mix(in oklab, var(--mark) 24%, transparent);
-  stroke: var(--mark);
-  stroke-width: 1.7;
-  stroke-linejoin: round;
-}
-.look-bloom .bloom-core {
-  fill: var(--mark);
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.look-bloom.state-idle .bloom-body {
-  animation: bloom-breathe 4.2s ease-in-out infinite;
-}
-.look-bloom.state-idle .look-spin {
-  animation: look-turn 40s linear infinite;
-}
-.look-bloom.state-working .look-spin {
-  animation: look-turn 2.8s linear infinite;
-}
-.look-bloom.state-working .bloom-shape {
-  fill: color-mix(in oklab, var(--mark) 40%, transparent);
-}
-.look-bloom.state-working .bloom-core {
-  animation: look-ask 0.9s ease-in-out infinite;
-}
-.look-bloom.state-waiting .bloom-body {
-  transform: scale(0.74);
-}
-.look-bloom.state-waiting .bloom-shape {
-  fill: var(--mark);
-}
-.look-bloom.state-waiting .bloom-core {
-  r: 1.6px;
-  fill: var(--paper);
-  animation: look-ask 1.5s ease-in-out infinite;
-}
-.look-bloom.state-failed .bloom-shape {
-  fill: color-mix(in oklab, var(--ink-3) 18%, transparent);
-  stroke: var(--ink-3);
-}
-.look-bloom.state-failed .bloom-core {
-  fill: var(--ink-3);
-}
-.look-bloom.state-failed .bloom-body {
-  transform: translateY(2px) scale(0.92, 0.8);
-}
-
-@keyframes look-turn {
-  to {
-    transform: rotate(1turn);
-  }
-}
-@keyframes look-ask {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.5);
-  }
-}
-@keyframes bloom-breathe {
-  0%,
-  100% {
-    transform: scale(0.9);
-  }
-  50% {
-    transform: scale(1);
-  }
-}
-
-/* The side-by-side comparison in Settings */
-.looks-compare {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  max-height: min(70vh, 720px);
-  overflow: auto;
-}
-.looks-compare h3 {
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.looks-compare h3 small {
-  color: var(--ink-3);
-  font-weight: 400;
-}
-.looks-compare p {
-  color: var(--ink-3);
-  font-size: 12.5px;
-  line-height: 1.45;
-  margin: 2px 0 8px;
-}
-.looks-states {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-.looks-state {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ink-2);
-}
-.looks-sizes {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.looks-rows {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: 2px 12px;
-  margin-top: 8px;
-}
-.looks-rows .list-row {
-  pointer-events: none;
+/* Reduced motion: each state holds still, and still reads differently. */
+.agent-mark.still * {
+  animation: none !important;
 }
 
 /* ---------- shell ---------- */
@@ -3545,7 +3316,7 @@ button.need:disabled {
   color: var(--ink-3);
   flex: none;
 }
-.need.row > span:not(.step-dot):not(.status):not(.orb):not(.avatar) {
+.need.row > span:not(.step-dot):not(.status):not(.agent-mark):not(.avatar) {
   flex: 1;
   min-width: 0;
   line-height: 1.4;
@@ -4557,14 +4328,14 @@ body,
   font-size: 12px;
   white-space: nowrap;
 }
-.row-orb {
+.row-agent {
   display: inline-flex;
   flex: none;
   margin-left: auto;
 }
-.list-row small + .row-orb,
-.list-row .row-orb + .count,
-.list-row .row-orb + .reach {
+.list-row small + .row-agent,
+.list-row .row-agent + .count,
+.list-row .row-agent + .reach {
   margin-left: 2px;
 }
 .used-in {
@@ -5455,7 +5226,7 @@ button.scope[aria-expanded='true'] {
   color: var(--ink-3);
 }
 .cface > * + .avatar,
-.cface > * + .orb {
+.cface > * + .agent-mark {
   margin-left: -7px;
 }
 .cface small {
@@ -5707,16 +5478,10 @@ button.chat-pin.add:hover {
   max-width: 560px;
   justify-self: end;
 }
-.welcome-orbs {
+.welcome-agents {
   display: flex;
-  gap: 6px;
-  margin: 0 0 28px -8px;
-}
-.welcome-orbs span {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
+  gap: 14px;
+  margin: 0 0 28px;
 }
 .welcome-hero h1 {
   font-size: clamp(30px, 4.2vw, 46px);
@@ -7555,15 +7320,4 @@ select:focus-visible {
 }
 .seat-check-line.bad::before {
   background: var(--danger);
-}
-.dialog:has(.looks-compare) {
-  width: min(860px, 100%);
-}
-.looks-still {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 6px !important;
-}
-.overlay:has(.looks-compare) {
-  z-index: 90;
 }

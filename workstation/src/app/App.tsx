@@ -1,7 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, Share2, X } from 'lucide-react';
 import { Character } from '../features/agents/Character.tsx';
-import { AGENT_LOOKS, setAgentLook } from '../features/agents/Looks.tsx';
 import { KindIcon, chatTitle } from './util.tsx';
 import { api, useSession } from '../data/client.ts';
 import { Join } from './Join.tsx';
@@ -14,7 +13,7 @@ import { applyTheme } from './theme.ts';
 import { scopeOf } from './util.tsx';
 import { DRAG, firstTarget } from './scope.ts';
 import { markSeen, markVisit } from './saved.ts';
-import { AgentLooks, PasteText, Settings, Shortcuts } from './Dialogs.tsx';
+import { PasteText, Settings, Shortcuts } from './Dialogs.tsx';
 import { clearLink, linkToken } from './Join.tsx';
 import { bringIn } from '../features/import/bringIn.ts';
 import { isPage } from '../../shared/types.ts';
@@ -214,7 +213,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
     root.dataset.accent = ui.prefs.accent === null ? 'off' : 'on';
     if (ui.prefs.accent === null) root.style.removeProperty('--accent');
     else root.style.setProperty('--accent', `hsl(${ui.prefs.accent} 55% 48%)`);
-    setAgentLook(AGENT_LOOKS.includes(ui.prefs.agentLook) ? ui.prefs.agentLook : 'orbs');
   }, [ui.prefs]);
   // Remember when you were last in a space, and which pages you have looked at.
   useEffect(() => {
@@ -657,7 +655,6 @@ function Shell({ s, refresh }: { s: Snapshot; refresh: () => Promise<void> }) {
         {ui.dialog === 'settings' && <Settings />}
         {ui.dialog === 'shortcuts' && <Shortcuts />}
         {ui.dialog === 'paste' && <PasteText />}
-        {ui.dialog === 'looks' && <AgentLooks />}
         <input
           ref={fileInput}
           type="file"
