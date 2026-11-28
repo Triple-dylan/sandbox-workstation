@@ -26,7 +26,8 @@ curl -s -H "Authorization: Bearer $TOKEN" $SANDBOX/api/v1/me
 | `GET /api/v1/pages/:id` | One page with its contents (Markdown for a doc, JSON for a sheet, deck or canvas) |
 | `GET /api/v1/spaces/:id/chats` | Chats it may read: channels and discussions of pages it can open |
 | `GET /api/v1/chats/:id/messages` | The latest messages, oldest first |
-| `GET /api/v1/inbox` | Messages sent to it, the ones waiting for its answer |
+| `GET /api/v1/dms` | Its direct messages, each with `with`, the person on the other side |
+| `GET /api/v1/inbox` | Messages sent to it, the ones waiting for its answer, including everything people say in its direct messages |
 
 `messages` and `inbox` take `limit` (at most 100) and `since` (a date and time). With `since` they return the first messages after that moment, so pass the last `createdAt` you saw to read forward without missing any.
 
@@ -38,6 +39,9 @@ curl -s -H "Authorization: Bearer $TOKEN" $SANDBOX/api/v1/me
 | `POST /api/v1/spaces/:id/pages` | `{ "title": "...", "body": "# Markdown", "visibility": "space" }` | Makes a doc; `"private"` keeps it to the seat |
 | `PATCH /api/v1/pages/:id` | `{ "title": "...", "body": "..." }` | Renames a page, or replaces a doc's Markdown |
 | `POST /api/v1/pages/:id/cells` | `{ "edits": [{ "row": 0, "col": 0, "value": "..." }] }` | Sets sheet cells, counted from 0 |
+| `POST /api/v1/dms` | `{ "userId": "..." }` | Opens (or finds) its direct message with a person it shares a workspace with; post in it like any chat |
+
+People message a seat one to one the same way they message each other. A direct message stays open to the seat only while it shares a workspace with that person, and it never sees DMs between people.
 
 Changes carry the seat's name and keep revisions. A seat cannot change someone's private page, a workspace's About page or a browser page, and makes at most 60 changes a minute.
 

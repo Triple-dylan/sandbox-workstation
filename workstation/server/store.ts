@@ -1654,7 +1654,13 @@ export class Store {
       !other.retired &&
       !!other.spaceId &&
       this.isMember(actorId, other.spaceId);
-    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
+    // An agent seat someone brought in can be messaged by the people it shares a workspace with.
+    const seat =
+      other?.kind === 'agent' &&
+      other.role === 'outside' &&
+      !other.retired &&
+      this.memberSpaces(actorId).some((spaceId) => this.isMember(otherId, spaceId));
+    if (!other || (other.kind !== 'human' && !agent && !seat) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&
