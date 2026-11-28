@@ -1,0 +1,448 @@
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { AccessError, InputError, type Store } from './store.ts';
+import type { Id, User } from '../shared/types.ts';
+
+/**
+ * Agent seats: an agent that runs somewhere else (Claude Code, Codex, Hermes, a Grok bot) joins
+ * workspaces as itself. It is a member like a person: it reads what the space shares and what is
+ * opened to it by name, never anyone's private pages, and nothing in spaces it has not joined.
+ * Sandbox's own model never answers for it; it reads and writes through its tokens (see mcp.ts).
+ *
+ * A seat belongs to the person who made it. Only they add it to their workspaces, make or revoke
+ * its tokens, or retire it. A workspace's owner can also take a seat out of their workspace.
+ */
+
+/** What a token looks like, so people (and secret scanners) can recognise one. */
+export const TOKEN_PREFIX = 'sbx_';
+const hash = (token: string) => createHash('sha256').update(token).digest('base64url');
+const now = () => new Date().toISOString();
+
+export type SeatToken = {
+  id: Id;
+  agentId: Id;
+  label: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+export type Seat = {
+  agent: User;
+  /** The shared workspaces it has joined. */
+  spaceIds: Id[];
+  /** Live tokens; the token itself was shown once, when made, and is never stored. */
+  tokens: SeatToken[];
+};
+
+type Row = Record<string, any>;
+const toToken = (r: Row): SeatToken => ({
+  id: r.id,
+  agentId: r.agent_id,
+  label: r.label,
+  createdAt: r.created_at,
+  lastUsedAt: r.last_used_at ?? null,
+});
+
+/** One thing a seat did through the MCP server, as its owner sees it. */
+export type SeatActivity = {
+  id: Id;
+  at: string;
+  /** The MCP tool, like read_page or post_message. */
+  tool: string;
+  /** Whether it changed anything or only read. */
+  wrote: boolean;
+  ok: boolean;
+  /** What it was about, named only when the viewer may see it themselves. */
+  page: { id: Id; title: string } | null;
+  chat: { id: Id; title: string } | null;
+  workspace: { id: Id; name: string } | null;
+  /** Something it worked on that the viewer can't see, such as a page opened to the seat alone.
+   * Ids that name nothing (a mistyped id) are simply left out. */
+  hidden: boolean;
+  /** What it searched for, or why the call failed. */
+  detail: string;
+};
+
+/** How much a seat's log keeps: its most recent calls. */
+const KEEP = 1000;
+/** The log's name for a sign-in that was turned away, kept beside its tool calls. */
+export const SIGN_IN = 'sign_in';
+/** How recently it must have called to count as connected now. */
+const LIVE_MS = 10 * 60_000;
+
+/**
+ * Whether a seat can sign in and when it last did, for its owner's Test connection check.
+ * state, in the order it is decided: retired; no-tokens (nothing it could sign in with);
+ * refused (its latest sign-in was turned away, after any that worked); connected (a call in the
+ * last ten minutes); idle (it has signed in, not lately); never (it has a token it never used).
+ */
+export type SeatCheck = {
+  state: 'retired' | 'no-tokens' | 'refused' | 'connected' | 'idle' | 'never';
+  /** When it last signed in with a live token, and with which. */
+  lastSeen: { at: string; label: string } | null;
+  /** Its latest MCP tool call. */
+  lastCall: { at: string; tool: string; ok: boolean } | null;
+  /** Its latest turned-away sign-in, and why. */
+  lastRefused: { at: string; detail: string } | null;
+  liveTokens: number;
+  workspaces: number;
+  /** What a token the owner pasted is: one of this seat's, live or revoked, or not its token. */
+  pasted?: { state: 'live' | 'revoked' | 'not-this-agent'; label: string | null };
+};
+
+export class Seats {
+  private store: Store;
+  constructor(store: Store) {
+    this.store = store;
+    // What each seat read and wrote, for its owner (see record and activity below).
+    this.store.db.exec(`create table if not exists seat_activity (
+      id integer primary key autoincrement, agent_id text not null, at text not null,
+      tool text not null, wrote integer not null, ok integer not null,
+      page_id text, chat_id text, space_id text, detail text not null default ''
+    );
+    create index if not exists seat_activity_agent on seat_activity (agent_id, id)`);
+  }
+
+  private get(sql: string, ...args: any[]) {
+    return this.store.db.prepare(sql).get(...args) as Row | undefined;
+  }
+  private all(sql: string, ...args: any[]) {
+    return this.store.db.prepare(sql).all(...args) as Row[];
+  }
+  private run(sql: string, ...args: any[]) {
+    this.store.db.prepare(sql).run(...args);
+  }
+
+  /** The seat, if this person owns it. */
+  private owned(actorId: Id, agentId: Id) {
+    const agent = this.store.user(agentId);
+    if (!agent || agent.kind !== 'agent' || agent.role !== 'outside' || agent.ownerId !== actorId)
+      throw new AccessError('Not available.');
+    return agent;
+  }
+
+  /** A new seat and its first token. The token is returned once and only its hash is kept. */
+  create(actorId: Id, input: { name: string; purpose?: string; spaceId?: Id | null }) {
+    const actor = this.store.user(actorId);
+    if (!actor || actor.kind !== 'human') throw new AccessError('Only people make agent seats.');
+    const name = String(input.name ?? '')
+      .trim()
+      .slice(0, 40);
+    if (!name) throw new InputError('Give the agent a name.');
+    if (input.spaceId) this.checkJoin(actorId, input.spaceId);
+    const agentId = this.store.createAgent(name, { ownerId: actorId, role: 'outside' });
+    this.run(
+      'update users set purpose = ? where id = ?',
+      String(input.purpose ?? '').slice(0, 300),
+      agentId,
+    );
+    if (input.spaceId) this.join(actorId, agentId, input.spaceId);
+    const token = this.newToken(actorId, agentId, 'First token');
+    this.store.changed();
+    return { seat: this.seat(agentId), token };
+  }
+
+  /** Every seat this person owns, retired ones included so their history stays findable. */
+  mine(actorId: Id): Seat[] {
+    return this.all(
+      `select id from users where kind = 'agent' and role = 'outside' and owner_id = ? order by created_at, rowid`,
+      actorId,
+    ).map((r) => this.seat(r.id));
+  }
+  seat(agentId: Id): Seat {
+    return {
+      agent: this.store.user(agentId)!,
+      spaceIds: this.spacesOf(agentId),
+      tokens: this.all(
+        'select * from agent_tokens where agent_id = ? and revoked = 0 order by created_at, rowid',
+        agentId,
+      ).map(toToken),
+    };
+  }
+  spacesOf(agentId: Id) {
+    return this.all(
+      `select m.space_id from members m join spaces s on s.id = m.space_id where m.user_id = ? and s.kind = 'project' and s.deleted_at is null order by s.created_at`,
+      agentId,
+    ).map((r) => r.space_id as Id);
+  }
+
+  private checkJoin(actorId: Id, spaceId: Id) {
+    const space = this.store.requireMember(actorId, spaceId);
+    if (space.kind !== 'project')
+      throw new InputError('Agent seats join shared workspaces, not your private space.');
+    return space;
+  }
+  /** Its owner brings the seat into a workspace they are in. It is then a member like anyone. */
+  join(actorId: Id, agentId: Id, spaceId: Id) {
+    const agent = this.owned(actorId, agentId);
+    if (agent.retired) throw new InputError('This agent is retired.');
+    this.checkJoin(actorId, spaceId);
+    this.run('insert or ignore into members values (?, ?, ?)', spaceId, agentId, 'agent');
+    this.store.changed();
+  }
+  /** Its owner takes it out, or the workspace's owner does. It loses that workspace at once. */
+  leave(actorId: Id, agentId: Id, spaceId: Id) {
+    const agent = this.store.user(agentId);
+    const space = this.store.space(spaceId);
+    if (!agent || agent.role !== 'outside' || !space) throw new AccessError('Not available.');
+    if (agent.ownerId !== actorId && space.ownerId !== actorId)
+      throw new AccessError(`Only its owner or the person who started ${space.name} can do that.`);
+    this.run('delete from members where space_id = ? and user_id = ?', spaceId, agentId);
+    this.store.changed();
+  }
+
+  /** Another token, for another machine or tool. Shown once. */
+  newToken(actorId: Id, agentId: Id, rawLabel: string) {
+    const agent = this.owned(actorId, agentId);
+    if (agent.retired) throw new InputError('This agent is retired.');
+    const label =
+      String(rawLabel ?? '')
+        .trim()
+        .slice(0, 60) || 'Token';
+    const token = TOKEN_PREFIX + randomBytes(32).toString('base64url');
+    const tokenId = randomUUID();
+    this.run(
+      'insert into agent_tokens (id, token_hash, agent_id, label, created_at) values (?, ?, ?, ?, ?)',
+      tokenId,
+      hash(token),
+      agentId,
+      label,
+      now(),
+    );
+    this.store.changed();
+    return { id: tokenId, label, token };
+  }
+  revokeToken(actorId: Id, agentId: Id, tokenId: Id) {
+    this.owned(actorId, agentId);
+    this.run('update agent_tokens set revoked = 1 where id = ? and agent_id = ?', tokenId, agentId);
+    this.store.changed();
+  }
+
+  /** Retiring stops it for good: every token stops working and it leaves its workspaces' work. */
+  retire(actorId: Id, agentId: Id) {
+    this.owned(actorId, agentId);
+    this.store.retireAgent(actorId, agentId);
+    this.run('update agent_tokens set revoked = 1 where agent_id = ?', agentId);
+    this.store.changed();
+    return this.seat(agentId);
+  }
+
+  /** Notes one MCP call. Only ids and a short detail are kept, never what it read or wrote. */
+  record(
+    agentId: Id,
+    entry: {
+      tool: string;
+      wrote: boolean;
+      ok: boolean;
+      pageId?: unknown;
+      chatId?: unknown;
+      spaceId?: unknown;
+      detail?: unknown;
+    },
+  ) {
+    const id = (v: unknown) => (typeof v === 'string' && v ? v.slice(0, 80) : null);
+    this.run(
+      'insert into seat_activity (agent_id, at, tool, wrote, ok, page_id, chat_id, space_id, detail) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      agentId,
+      now(),
+      entry.tool.slice(0, 40),
+      entry.wrote ? 1 : 0,
+      entry.ok ? 1 : 0,
+      id(entry.pageId),
+      id(entry.chatId),
+      id(entry.spaceId),
+      typeof entry.detail === 'string' ? entry.detail.slice(0, 200) : '',
+    );
+    this.run(
+      'delete from seat_activity where agent_id = ? and id <= (select id from seat_activity where agent_id = ? order by id desc limit 1 offset ?)',
+      agentId,
+      agentId,
+      KEEP,
+    );
+  }
+
+  /**
+   * What the seat did, newest first, for its owner. A page, chat or workspace is named only when
+   * the owner may see it too: a page someone opened to the seat alone shows as hidden.
+   */
+  activity(actorId: Id, agentId: Id, limit = 100): SeatActivity[] {
+    this.owned(actorId, agentId);
+    const rows = this.all(
+      'select * from seat_activity where agent_id = ? order by id desc limit ?',
+      agentId,
+      Math.min(Math.max(limit, 1), KEEP),
+    );
+    return rows.map((r) => {
+      let hidden = false;
+      const resource = r.page_id ? this.store.resource(r.page_id) : null;
+      const page =
+        resource && this.store.canReadResource(actorId, resource)
+          ? { id: resource.id, title: resource.title }
+          : null;
+      if (resource && !page) hidden = true;
+      const conversation = r.chat_id ? this.store.conversation(r.chat_id) : null;
+      const chat =
+        conversation && this.store.canReadConversation(actorId, conversation)
+          ? { id: conversation.id, title: conversation.title }
+          : null;
+      if (conversation && !chat) hidden = true;
+      const space = r.space_id ? this.store.space(r.space_id) : null;
+      const workspace =
+        space && this.store.isMember(actorId, space.id) ? { id: space.id, name: space.name } : null;
+      if (space && !workspace) hidden = true;
+      return {
+        id: String(r.id),
+        at: r.at,
+        tool: r.tool,
+        wrote: !!r.wrote,
+        ok: !!r.ok,
+        page,
+        chat,
+        workspace,
+        hidden,
+        // A search names what it looked for; keep that to what the owner could have seen too.
+        detail: hidden ? '' : r.detail,
+      };
+    });
+  }
+
+  /**
+   * Test connection, for its owner: whether it can sign in and when it last did. A token they
+   * paste is matched against this seat's own, live or revoked, without counting as a sign-in.
+   */
+  check(actorId: Id, agentId: Id, token?: string): SeatCheck {
+    const agent = this.owned(actorId, agentId);
+    const seat = this.seat(agentId);
+    const used = seat.tokens
+      .filter((t) => t.lastUsedAt)
+      .sort((a, b) => b.lastUsedAt!.localeCompare(a.lastUsedAt!))[0];
+    const lastSeen = used ? { at: used.lastUsedAt!, label: used.label } : null;
+    const call = this.get(
+      'select at, tool, ok from seat_activity where agent_id = ? and tool != ? order by id desc limit 1',
+      agentId,
+      SIGN_IN,
+    );
+    const turned = this.get(
+      'select at, detail from seat_activity where agent_id = ? and tool = ? order by id desc limit 1',
+      agentId,
+      SIGN_IN,
+    );
+    const lastRefused = turned
+      ? { at: turned.at as string, detail: turned.detail as string }
+      : null;
+    const state: SeatCheck['state'] = agent.retired
+      ? 'retired'
+      : seat.tokens.length === 0
+        ? 'no-tokens'
+        : lastRefused && (!lastSeen || lastRefused.at > lastSeen.at)
+          ? 'refused'
+          : !lastSeen
+            ? 'never'
+            : Date.now() - Date.parse(lastSeen.at) < LIVE_MS
+              ? 'connected'
+              : 'idle';
+    const result: SeatCheck = {
+      state,
+      lastSeen,
+      lastCall: call ? { at: call.at, tool: call.tool, ok: !!call.ok } : null,
+      lastRefused,
+      liveTokens: seat.tokens.length,
+      workspaces: seat.spaceIds.length,
+    };
+    if (token !== undefined) {
+      const row = token.trim().startsWith(TOKEN_PREFIX)
+        ? this.get(
+            'select agent_id, label, revoked from agent_tokens where token_hash = ?',
+            hash(token.trim()),
+          )
+        : undefined;
+      // Another seat's token is not named, even to someone who owns that one too.
+      result.pasted =
+        row && row.agent_id === agentId
+          ? { state: row.revoked || agent.retired ? 'revoked' : 'live', label: row.label }
+          : { state: 'not-this-agent', label: null };
+    }
+    return result;
+  }
+
+  /**
+   * Notes a sign-in turned away for a token that once worked, so its owner sees why it stopped.
+   * Retries are noted once a minute at most, so a stuck agent doesn't fill its log.
+   */
+  private refused(agentId: Id, detail: string) {
+    const last = this.get(
+      'select at, tool, detail from seat_activity where agent_id = ? order by id desc limit 1',
+      agentId,
+    );
+    if (
+      last?.tool === SIGN_IN &&
+      last.detail === detail &&
+      Date.now() - Date.parse(last.at) < 60_000
+    )
+      return;
+    this.record(agentId, { tool: SIGN_IN, wrote: false, ok: false, detail });
+  }
+
+  /** The seat a token signs in as, while it is live and the seat is not retired. */
+  agentForToken(token: string | undefined | null) {
+    if (!token || !token.startsWith(TOKEN_PREFIX)) return null;
+    const row = this.get(
+      'select id, agent_id, label, revoked from agent_tokens where token_hash = ?',
+      hash(token),
+    );
+    if (!row) return null;
+    const agent = this.store.user(row.agent_id);
+    if (!agent || agent.kind !== 'agent' || agent.role !== 'outside') return null;
+    if (agent.retired || row.revoked) {
+      this.refused(
+        agent.id,
+        agent.retired ? 'It is retired.' : `The token "${row.label}" was revoked.`,
+      );
+      return null;
+    }
+    const owner = agent.ownerId ? this.store.user(agent.ownerId) : null;
+    if (!owner) return null;
+    this.run('update agent_tokens set last_used_at = ? where id = ?', now(), row.id);
+    return agent;
+  }
+}
+
+/**
+ * The seat routes under /api/seats, for the person who owns them (signed in with their cookie).
+ * Returns undefined when the path is not a seat route.
+ */
+export function seatsApi(
+  seats: Seats,
+  me: User,
+  method: string,
+  segments: string[],
+  input: Record<string, unknown>,
+) {
+  if (segments[0] !== 'seats') return undefined;
+  const str = (key: string) => (typeof input[key] === 'string' ? (input[key] as string) : '');
+  const [, agentId, part, partId] = segments;
+  if (!agentId && method === 'GET') return seats.mine(me.id);
+  if (!agentId && method === 'POST')
+    return seats.create(me.id, {
+      name: str('name'),
+      purpose: str('purpose'),
+      spaceId: str('spaceId') || null,
+    });
+  if (agentId && part === 'spaces' && !partId && method === 'POST') {
+    seats.join(me.id, agentId, str('spaceId'));
+    return seats.seat(agentId);
+  }
+  if (agentId && part === 'spaces' && partId && method === 'DELETE') {
+    seats.leave(me.id, agentId, partId);
+    return { ok: true };
+  }
+  if (agentId && part === 'tokens' && !partId && method === 'POST')
+    return seats.newToken(me.id, agentId, str('label'));
+  if (agentId && part === 'tokens' && partId && method === 'DELETE') {
+    seats.revokeToken(me.id, agentId, partId);
+    return { ok: true };
+  }
+  if (agentId && part === 'retire' && method === 'POST') return seats.retire(me.id, agentId);
+  if (agentId && part === 'activity' && method === 'GET') return seats.activity(me.id, agentId);
+  if (agentId && part === 'check' && method === 'POST')
+    return seats.check(me.id, agentId, typeof input.token === 'string' ? input.token : undefined);
+  return undefined;
+}

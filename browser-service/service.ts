@@ -1,15 +1,25 @@
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import { guardProxy } from './guard.ts';
+import { PageWatch } from './pages.ts';
+import { fullness, healthLine, readMemory, type Memory } from './health.ts';
+import { startFront } from './front.ts';
 
 /**
  * The shared browser service: real Chrome on its own server, for the workstation app to drive
  * over a WebSocket. Nothing about it runs on the machines people use the app from.
  *
- * - The address includes a secret (BROWSER_TOKEN); without it nobody can connect.
+ * - The address includes a secret (BROWSER_TOKEN); without it nobody can connect. Playwright's own
+ *   server listens on this machine alone, behind a small front door (front.ts) that lets through
+ *   only the secret address and answers GET /healthz.
  * - Chrome is a normal, visible browser on a virtual screen (Xvfb): many sites refuse headless ones.
  * - Every connection Chrome makes goes through a proxy that refuses this server and private
  *   networks, checked at connection time, so a page can't be used to look inside the network.
+ * - Pages nobody has used for a while are closed (PAGE_IDLE_MINUTES, 30 unless set), and a health
+ *   line with its memory and open pages is logged every minute, so a creep shows before it hurts.
+ * - Memory is capped twice: one page's scripts can use at most 512 MB (that tab fails, not the
+ *   service), and when the container passes 85% of its limit (MEMORY_HIGH_PERCENT) the page used
+ *   longest ago is closed, one at a time, until it is back under.
  */
 export async function startService(options: {
   token: string;
@@ -18,6 +28,17 @@ export async function startService(options: {
   /** Tests only: private hosts the browser may reach, and a headless browser. */
   allowHosts?: string[];
   headless?: boolean;
+  /** A page whose address and title haven't changed for this long is closed. 0 never closes. */
+  idleMs?: number;
+  /** How often the health line is logged. 0 never logs it. */
+  healthMs?: number;
+  /** Above this share of the container's limit, pages used longest ago are closed. 0 never. */
+  highPercent?: number;
+  /** How often memory and idle pages are checked. */
+  checkMs?: number;
+  /** Tests only: memory as the service sees it. */
+  memory?: () => Memory;
+  log?: (line: string) => void;
 }) {
   if (options.token.length < 24) throw new Error('BROWSER_TOKEN must be at least 24 characters.');
   const allowed = new Set(options.allowHosts ?? []);
@@ -31,30 +52,139 @@ export async function startService(options: {
     await new Promise((r) => setTimeout(r, 500));
   }
   const proxy = await guardProxy((host) => allowed.has(host));
-  const server = await chromium.launchServer({
-    headless: options.headless ?? false,
+  // If Chrome doesn't start, nothing is left running (the proxy would keep the process alive).
+  const stopAll = () => {
+    proxy.close();
+    display?.kill();
+  };
+  const server = await chromium
+    .launchServer({
+      headless: options.headless ?? false,
+      // Only the front door below reaches it.
+      host: '127.0.0.1',
+      port: 0,
+      wsPath: `/${options.token}`,
+      env: { ...process.env, ...env },
+      // Every connection, even to this machine, goes through the guard.
+      proxy: { server: proxy.url, bypass: '<-loopback>' },
+      args: [
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--disable-features=Translate',
+        // One page's scripts can't take the whole service down with it.
+        `--js-flags=--max-old-space-size=${PAGE_HEAP_MB}`,
+      ],
+    })
+    .catch((error) => {
+      stopAll();
+      throw error;
+    });
+  const log = options.log ?? console.log;
+  const idleMs = options.idleMs ?? 30 * 60_000;
+  const healthMs = options.healthMs ?? 60_000;
+  const highPercent = options.highPercent ?? 85;
+  const memory = options.memory ?? (() => readMemory({ chromePid: server.process().pid }));
+
+  // The service's own connection, only to watch: Chrome tells it about every page, whoever
+  // opened it. It opens nothing itself.
+  const watching = async () => {
+    const watcher = await chromium.connect(server.wsEndpoint());
+    const pages = new PageWatch(await watcher.newBrowserCDPSession(), {
+      idleMs,
+    });
+    await pages.start();
+    return { watcher, pages };
+  };
+  const { watcher, pages } = await watching().catch(async (error) => {
+    await server.close().catch(() => {});
+    stopAll();
+    throw error;
+  });
+  const status = () => ({
+    memory: memory(),
+    ...pages.counts(),
+    closedIdle: pages.closedIdle,
+    closedForMemory: pages.closedForMemory,
+  });
+  const health = () => {
+    const now = status();
+    return healthLine(now.memory, now, now.closedIdle, now.closedForMemory);
+  };
+  const inside = new URL(server.wsEndpoint());
+  const front = await startFront({
+    token: options.token,
     host: options.host ?? '::',
     port: options.port,
-    wsPath: `/${options.token}`,
-    env: { ...process.env, ...env },
-    // Every connection, even to this machine, goes through the guard.
-    proxy: { server: proxy.url, bypass: '<-loopback>' },
-    args: ['--disable-dev-shm-usage', '--no-first-run', '--disable-features=Translate'],
+    target: { host: inside.hostname, port: Number(inside.port) },
+    health: () => ({ ok: watcher.isConnected(), ...status() }),
+  }).catch(async (error) => {
+    await watcher.close().catch(() => {});
+    await server.close().catch(() => {});
+    stopAll();
+    throw error;
   });
+  const timers: ReturnType<typeof setInterval>[] = [];
+  let checking = false;
+  const check = async () => {
+    if (checking) return;
+    checking = true;
+    try {
+      const closed = await pages.closeIdle();
+      if (closed)
+        log(
+          `Closed ${closed} ${closed === 1 ? 'page' : 'pages'} nobody had used for ${minutes(idleMs)}.`,
+        );
+      // One page at a time: memory is read again on the next check, once Chrome has let go.
+      const now = memory();
+      const full = fullness(now);
+      if (
+        highPercent &&
+        full !== null &&
+        full * 100 >= highPercent &&
+        (await pages.closeLeastUsed())
+      )
+        log(`Memory at ${Math.round(full * 100)}% of the limit: closed the page used longest ago.`);
+    } finally {
+      checking = false;
+    }
+  };
+  const checkMs = options.checkMs ?? Math.min(15_000, Math.max(100, (idleMs || Infinity) / 4));
+  if (idleMs || highPercent) timers.push(setInterval(() => void check(), checkMs));
+  if (healthMs) timers.push(setInterval(() => log(health()), healthMs));
+  for (const timer of timers) timer.unref();
+
   return {
-    endpoint: server.wsEndpoint(),
+    endpoint: front.endpoint,
+    port: front.port,
+    /** What the health line would say now. */
+    health,
+    pages,
     async close() {
+      for (const timer of timers) clearInterval(timer);
+      await front.close();
+      await watcher.close().catch(() => {});
       await server.close();
-      proxy.close();
-      display?.kill();
+      stopAll();
     },
   };
 }
 
+/** The most memory one page's scripts may use. */
+const PAGE_HEAP_MB = 512;
+
+const minutes = (ms: number) => {
+  const n = Math.round(ms / 60_000);
+  return n === 1 ? '1 minute' : n ? `${n} minutes` : 'under a minute';
+};
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const token = process.env.BROWSER_TOKEN ?? '';
   const port = Number(process.env.PORT ?? 3000);
-  const service = await startService({ token, port });
+  const idle = process.env.PAGE_IDLE_MINUTES?.trim();
+  const idleMs = idle ? Math.max(0, Number(idle) || 0) * 60_000 : undefined;
+  const high = process.env.MEMORY_HIGH_PERCENT?.trim();
+  const highPercent = high ? Math.min(100, Math.max(0, Number(high) || 0)) : undefined;
+  const service = await startService({ token, port, idleMs, highPercent });
   // The address itself carries the secret, so only where it listens is printed.
   console.log(`Shared browser service listening on port ${port}`);
   for (const signal of ['SIGINT', 'SIGTERM'] as const)
