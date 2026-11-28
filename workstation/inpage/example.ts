@@ -2,7 +2,7 @@
 // A clearly labelled example space for the in-page preview: a go-to-market launch run across
 // product, product marketing and marketing. Invented product, invented people. Never used by the
 // real server.
-export function seedExample(store, meId: string) {
+export async function seedExample(store, meId: string) {
   // Your own space: only you ever see this.
   const mine = store.personalSpace(meId);
   store.createResource(meId, {
@@ -198,8 +198,8 @@ export function seedExample(store, meId: string) {
     description: 'When asked how our pricing compares',
     body: '1. Read Competitive notes and Pricing and packaging.\n2. Compare per-agent price plan by plan.\n3. Say where we are cheaper, where we are not, and name the source page for each number.',
   });
-  store.setAgentSkill(maya.id, editor.id, copySkill.id, true);
-  store.setAgentSkill(meId, scout.id, priceSkill.id, true);
+  await store.setAgentSkill(maya.id, editor.id, copySkill.id, true);
+  await store.setAgentSkill(meId, scout.id, priceSkill.id, true);
 
   // Things brought in from elsewhere keep a note of where they came from.
   store.createResource(maya.id, {
@@ -219,14 +219,18 @@ export function seedExample(store, meId: string) {
   });
   store.updateResource(jon.id, old.id, { archived: true });
 
-  const step = (title: string, patch = {}) => {
+  const step = async (title: string, patch = {}) => {
     const goal = store.createGoal(meId, { spaceId, title });
-    store.updateGoal(meId, goal.id, patch);
+    await store.updateGoal(meId, goal.id, patch);
   };
-  step('Lock positioning', { ownerId: maya.id, due: '2027-05-16', done: true });
-  step('Finalise pricing', { ownerId: meId, agentId: scout.id, due: '2027-05-30' });
-  step('Announcement and deck ready', { ownerId: maya.id, agentId: editor.id, due: '2027-06-04' });
-  step('Launch day', { ownerId: jon.id, due: '2027-06-10' });
+  await step('Lock positioning', { ownerId: maya.id, due: '2027-05-16', done: true });
+  await step('Finalise pricing', { ownerId: meId, agentId: scout.id, due: '2027-05-30' });
+  await step('Announcement and deck ready', {
+    ownerId: maya.id,
+    agentId: editor.id,
+    due: '2027-06-04',
+  });
+  await step('Launch day', { ownerId: jon.id, due: '2027-06-10' });
 
   // ---- The launch board: one canvas that ties the three areas together
   const board = page(meId, 'canvas', null, 'Launch board', '');

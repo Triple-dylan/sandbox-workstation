@@ -93,7 +93,7 @@ globalThis.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
         const me = await app.store.userForToken(token);
         if (response.ok && me) {
           stayQuiet(4000);
-          seedExample(app.store, me.id);
+          await seedExample(app.store, me.id);
         }
       } catch (error) {
         console.warn('Example project was not created', error);

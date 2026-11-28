@@ -61,8 +61,8 @@ async function fill(s: ReturnType<typeof setup>, spaceId: string) {
   const dm = store.openDm(maya.id, agent.id);
   store.postMessage(maya.id, { conversationId: dm.id, text: 'Hi agent' });
   const skill = store.createSkill(dylan.id, { spaceId, name: 'Weekly notes' });
-  store.setAgentSkill(dylan.id, agent.id, skill.id, true);
-  store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
+  await store.setAgentSkill(dylan.id, agent.id, skill.id, true);
+  await store.setWatch(dylan.id, agent.id, page.id, 'when it changes');
   store.createGoal(dylan.id, { spaceId, title: 'Launch' });
   await store.invite(dylan.id, spaceId);
   store.createRoutine(dylan.id, {

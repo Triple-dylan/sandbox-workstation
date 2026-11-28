@@ -757,18 +757,18 @@ export function createApp(options: AppOptions) {
       return send(
         res,
         200,
-        store.updateSkill(me.id, segments[1], {
+        await store.updateSkill(me.id, segments[1], {
           ...(typeof input.name === 'string' ? { name: input.name } : {}),
           ...(typeof input.description === 'string' ? { description: input.description } : {}),
           ...(typeof input.body === 'string' ? { body: input.body } : {}),
         }),
       );
     if (segments[0] === 'skills' && segments[1] && method === 'DELETE') {
-      store.deleteSkill(me.id, segments[1]);
+      await store.deleteSkill(me.id, segments[1]);
       return send(res, 200, { ok: true });
     }
     if (segments[0] === 'agents' && segments[1] && segments[2] === 'skills' && method === 'POST') {
-      store.setAgentSkill(me.id, segments[1], str('skillId'), input.on !== false);
+      await store.setAgentSkill(me.id, segments[1], str('skillId'), input.on !== false);
       return send(res, 200, { ok: true });
     }
     if (path === '/api/goals' && method === 'POST')
@@ -785,7 +785,7 @@ export function createApp(options: AppOptions) {
       return send(
         res,
         200,
-        store.updateGoal(me.id, segments[1], {
+        await store.updateGoal(me.id, segments[1], {
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
           ...('ownerId' in input ? { ownerId: input.ownerId ? String(input.ownerId) : null } : {}),
           ...('agentId' in input ? { agentId: input.agentId ? String(input.agentId) : null } : {}),
@@ -794,13 +794,13 @@ export function createApp(options: AppOptions) {
         }),
       );
     if (segments[0] === 'goals' && segments[1] && segments[2] === 'move' && method === 'POST') {
-      store.moveGoal(me.id, segments[1], input.direction === 'up' ? 'up' : 'down');
+      await store.moveGoal(me.id, segments[1], input.direction === 'up' ? 'up' : 'down');
       return send(res, 200, { ok: true });
     }
     if (segments[0] === 'agents' && segments[1] && segments[2] === 'retire' && method === 'POST')
       return send(res, 200, store.retireAgent(me.id, segments[1]));
     if (segments[0] === 'goals' && segments[1] && method === 'DELETE') {
-      store.deleteGoal(me.id, segments[1]);
+      await store.deleteGoal(me.id, segments[1]);
       return send(res, 200, { ok: true });
     }
     if (segments[0] === 'agents' && segments[1] && method === 'PATCH')
@@ -818,9 +818,13 @@ export function createApp(options: AppOptions) {
       );
     if (segments[0] === 'agents' && segments[1] && segments[2] === 'watches') {
       if (method === 'POST')
-        return send(res, 200, store.setWatch(me.id, segments[1], str('resourceId'), str('rule')));
+        return send(
+          res,
+          200,
+          await store.setWatch(me.id, segments[1], str('resourceId'), str('rule')),
+        );
       if (method === 'DELETE' && segments[3]) {
-        store.dropWatch(me.id, segments[1], segments[3]);
+        await store.dropWatch(me.id, segments[1], segments[3]);
         return send(res, 200, { ok: true });
       }
     }
