@@ -135,7 +135,10 @@ export class AgentEngine {
   private onChange(event: ChangeEvent) {
     if (event.type === 'message') {
       const author = this.store.user(event.message.authorId);
-      if (author?.kind !== 'human') return;
+      // An agent seat may ask a workspace's own agent by name (the API checks its allowance first).
+      const to = event.message.addressedTo ? this.store.user(event.message.addressedTo) : null;
+      const seatAsks = author?.role === 'outside' && to?.role === 'project';
+      if (author?.kind !== 'human' && !seatAsks) return;
       this.track(
         this.handleMessage(event.message).catch((error) =>
           console.error('agent message handling failed', error),
@@ -283,7 +286,8 @@ export class AgentEngine {
     const addressed = message.addressedTo ? this.store.user(message.addressedTo) : agentInPrivate;
     const delegate = message.delegated;
     const request = message.text;
-    if (addressed?.kind === 'agent' && addressed.retired) return;
+    // An agent seat answers from wherever it runs; Sandbox's own model never speaks for it.
+    if (addressed?.kind === 'agent' && (addressed.retired || addressed.role === 'outside')) return;
     if (addressed?.kind === 'agent') {
       const looking = this.store.messageContext(message.id)?.spaceId;
       const spaceId =
@@ -616,7 +620,7 @@ export class AgentEngine {
       kind,
       agent: {
         name: agent.name,
-        role: agent.role ?? 'project',
+        role: agent.role === 'personal' ? 'personal' : 'project',
         front: agent.role === 'project' && this.store.projectAgent(spaceId)?.id === agent.id,
         purpose: agent.purpose ?? '',
         approvals: agent.approvals ?? 'ask',
@@ -704,6 +708,7 @@ export class AgentEngine {
     relay: boolean | { askedBy: Id } = false,
     focusOn: Id[] = [],
   ) {
+    if (agent.role === 'outside') return;
     const spaceId = explicitSpaceId ?? this.spaceFor(agent);
     if (!spaceId) return;
     if (conversation && !relay && !this.store.canReadConversation(agent.id, conversation)) return;
@@ -771,8 +776,10 @@ export class AgentEngine {
         recent.filter((m) => m.text.startsWith('[decided]')).map((m) => m.at),
       ]);
       const remembered = cacheable ? this.answers.get(key) : undefined;
+      // A seat that asked is metered like a person, so its own allowance can be checked.
+      const asker = trigger ? this.store.user(trigger.authorId) : null;
       const requester =
-        trigger && this.store.user(trigger.authorId)?.kind === 'human' ? trigger.authorId : null;
+        asker && (asker.kind === 'human' || asker.role === 'outside') ? asker.id : null;
       if (!remembered) this.guard(task.spaceName, spaceId, requester);
       result = remembered ?? (await this.runtime.run(task));
       if (!remembered) {
@@ -873,7 +880,7 @@ export class AgentEngine {
         trigger,
         result.reply || 'I drafted a proposal for review.',
         job,
-        this.runtime.id,
+        result.runtime ?? this.runtime.id,
         approvalId,
         sourceIds,
         relay,

@@ -385,7 +385,10 @@ export class Store {
     this.changed();
     return this.user(userId)!;
   }
-  createAgent(name: string, scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' }) {
+  createAgent(
+    name: string,
+    scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' | 'outside' },
+  ) {
     const agentId = id();
     const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
@@ -424,9 +427,9 @@ export class Store {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
     const allowed =
-      agent.role === 'personal'
-        ? agent.ownerId === actorId
-        : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+      agent.role === 'project'
+        ? !!agent.spaceId && this.isMember(actorId, agent.spaceId)
+        : agent.ownerId === actorId;
     if (!allowed) throw new AccessError('Not available.');
     const name = patch.name === undefined ? agent.name : patch.name.trim().slice(0, 40);
     if (!name) throw new InputError('Give the agent a name.');
@@ -1663,7 +1666,13 @@ export class Store {
       !other.retired &&
       !!other.spaceId &&
       this.isMember(actorId, other.spaceId);
-    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
+    // An agent seat someone brought in can be messaged by the people it shares a workspace with.
+    const seat =
+      other?.kind === 'agent' &&
+      other.role === 'outside' &&
+      !other.retired &&
+      this.memberSpaces(actorId).some((spaceId) => this.isMember(otherId, spaceId));
+    if (!other || (other.kind !== 'human' && !agent && !seat) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&
@@ -1715,7 +1724,14 @@ export class Store {
       conversation.spaceId
     ) {
       if (this.isMember(userId, conversation.spaceId))
-        agents.push(...this.projectAgents(conversation.spaceId));
+        agents.push(
+          ...this.projectAgents(conversation.spaceId),
+          // Agent seats that joined this space: a message to one waits for it to read.
+          ...this.all(
+            `select u.* from members m join users u on u.id = m.user_id where m.space_id = ? and u.kind = 'agent' and u.role = 'outside' and u.retired = 0 order by u.created_at`,
+            conversation.spaceId,
+          ).map(toUser),
+        );
     }
     return agents;
   }
@@ -2650,6 +2666,25 @@ export class Store {
       now().slice(0, 10),
       Math.max(0, Math.round(tokens)),
     );
+  }
+
+  /** What a provider other than OpenAI (the fallback) used, per UTC day: tokens and dollars. */
+  addProviderUsage(provider: string, tokens: number, dollars: number) {
+    this.run(
+      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = tokens + excluded.tokens, dollars = dollars + excluded.dollars',
+      now().slice(0, 10),
+      provider,
+      Math.max(0, Math.round(tokens)),
+      Math.max(0, dollars),
+    );
+  }
+  /** Everything a provider has used since this database began. */
+  providerUsage(provider: string) {
+    const row = this.get(
+      'select coalesce(sum(tokens), 0) as tokens, coalesce(sum(dollars), 0) as dollars from provider_usage where provider = ?',
+      provider,
+    );
+    return { tokens: Number(row?.tokens ?? 0), dollars: Number(row?.dollars ?? 0) };
   }
 
   /** Tokens agents used today for one space or on behalf of one person. */
