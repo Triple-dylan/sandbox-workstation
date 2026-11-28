@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Backups } from './Backups.tsx';
 import { Copy, Link2, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from './workspace.tsx';
+import { DeleteMyData } from './DeleteMyData.tsx';
 
 /**
  * Every popup shares this frame: a title with a close button, the content, and at most one primary
@@ -167,6 +169,7 @@ export function Settings() {
         (v) => set({ shareCursor: v === 'on' }),
       )}
       <DeviceLink />
+      <Backups />
       {s.connectors?.map((c) => (
         <div className="setting" key={c.id}>
           <span>{c.name}</span>
@@ -195,11 +198,18 @@ export function Settings() {
           See them all
         </button>
       </div>
+      <div className="setting">
+        <span>My data</span>
+        <a className="plain" href="/api/me/export" download>
+          Download
+        </a>
+      </div>
+      <DeleteMyData />
       <p className="dialog-note">
         Saved in this browser.{' '}
         {s.runtime.id === 'none'
           ? 'Agents are not connected on this server yet: it needs an OpenAI key.'
-          : `Agents answer with ${s.runtime.model || s.runtime.label}.`}
+          : `Agents answer with ${s.runtime.model || s.runtime.label}${s.runtime.fallback ? `, or ${s.runtime.fallback} when OpenAI is unavailable` : ''}.`}
       </p>
     </Dialog>
   );

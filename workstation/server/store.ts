@@ -3,6 +3,9 @@ import { MAX_COLS, MAX_ROWS, readRange, readSheet } from '../shared/sheet.ts';
 import { readOp, runOp } from '../shared/sheetOps.ts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Db } from './db.ts';
+import type { Sql } from './sql/index.ts';
+import { sqliteSql } from './sql/sqlite.ts';
+import { passageVectors, type PassageVectors } from './sql/vectors.ts';
 import {
   CANVAS_KINDS,
   ORB_FORMS,
@@ -248,10 +251,19 @@ export class Store {
   version = 0;
   private listeners = new Set<(event: ChangeEvent) => void>();
   readonly db: Db;
+  /**
+   * The same database through the async layer (`server/sql/`). Methods move onto it in batches;
+   * once all have, Postgres can stand in for SQLite here.
+   */
+  readonly sql: Sql;
+  /** Search vectors of pages' passages. Callers pass only pages the asker may read. */
+  readonly vectors: PassageVectors;
   /** Invitation only: people outside your spaces are not visible and cannot be messaged. */
   closed = false;
   constructor(db: Db, options: { closed?: boolean } = {}) {
     this.db = db;
+    this.sql = sqliteSql(db);
+    this.vectors = passageVectors(this.sql);
     this.closed = !!options.closed;
     // Earlier versions kept loose pieces on one board per space. They now live on a canvas page.
     const loose = this.all(
@@ -373,7 +385,10 @@ export class Store {
     this.changed();
     return this.user(userId)!;
   }
-  createAgent(name: string, scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' }) {
+  createAgent(
+    name: string,
+    scope: { ownerId?: Id; spaceId?: Id; role: 'personal' | 'project' | 'outside' },
+  ) {
     const agentId = id();
     const taken = Number(this.get(`select count(*) n from users where kind = 'agent'`)!.n);
     const character: Character = {
@@ -412,9 +427,9 @@ export class Store {
     const agent = this.user(agentId);
     if (!agent || agent.kind !== 'agent') throw new AccessError('Not available.');
     const allowed =
-      agent.role === 'personal'
-        ? agent.ownerId === actorId
-        : !!agent.spaceId && this.isMember(actorId, agent.spaceId);
+      agent.role === 'project'
+        ? !!agent.spaceId && this.isMember(actorId, agent.spaceId)
+        : agent.ownerId === actorId;
     if (!allowed) throw new AccessError('Not available.');
     const name = patch.name === undefined ? agent.name : patch.name.trim().slice(0, 40);
     if (!name) throw new InputError('Give the agent a name.');
@@ -1670,7 +1685,13 @@ export class Store {
       !other.retired &&
       !!other.spaceId &&
       this.isMember(actorId, other.spaceId);
-    if (!other || (other.kind !== 'human' && !agent) || otherId === actorId)
+    // An agent seat someone brought in can be messaged by the people it shares a workspace with.
+    const seat =
+      other?.kind === 'agent' &&
+      other.role === 'outside' &&
+      !other.retired &&
+      this.memberSpaces(actorId).some((spaceId) => this.isMember(otherId, spaceId));
+    if (!other || (other.kind !== 'human' && !agent && !seat) || otherId === actorId)
       throw new InputError('Choose another person.');
     if (
       this.closed &&
@@ -1722,7 +1743,14 @@ export class Store {
       conversation.spaceId
     ) {
       if (this.isMember(userId, conversation.spaceId))
-        agents.push(...this.projectAgents(conversation.spaceId));
+        agents.push(
+          ...this.projectAgents(conversation.spaceId),
+          // Agent seats that joined this space: a message to one waits for it to read.
+          ...this.all(
+            `select u.* from members m join users u on u.id = m.user_id where m.space_id = ? and u.kind = 'agent' and u.role = 'outside' and u.retired = 0 order by u.created_at`,
+            conversation.spaceId,
+          ).map(toUser),
+        );
     }
     return agents;
   }
@@ -2668,54 +2696,25 @@ export class Store {
     );
   }
 
-  /** When the stored search vectors of a page were made (its updatedAt then), if any. */
-  vectorStamp(resourceId: Id) {
-    const row = this.get(
-      'select stamp from passage_vectors where resource_id = ? limit 1',
-      resourceId,
+  /** What a provider other than OpenAI (the fallback) used, per UTC day: tokens and dollars. */
+  addProviderUsage(provider: string, tokens: number, dollars: number) {
+    this.run(
+      'insert into provider_usage values (?, ?, ?, ?) on conflict (day, provider) do update set tokens = tokens + excluded.tokens, dollars = dollars + excluded.dollars',
+      now().slice(0, 10),
+      provider,
+      Math.max(0, Math.round(tokens)),
+      Math.max(0, dollars),
     );
-    return row ? String(row.stamp) : null;
   }
-  replaceVectors(resourceId: Id, stamp: string, rows: { text: string; vector: Float32Array }[]) {
-    this.db.exec('begin immediate');
-    try {
-      this.run('delete from passage_vectors where resource_id = ?', resourceId);
-      rows.forEach((row, i) =>
-        this.run(
-          'insert into passage_vectors values (?, ?, ?, ?, ?)',
-          resourceId,
-          i,
-          stamp,
-          row.text,
-          new Uint8Array(row.vector.buffer, row.vector.byteOffset, row.vector.byteLength),
-        ),
-      );
-      this.db.exec('commit');
-    } catch (error) {
-      this.db.exec('rollback');
-      throw error;
-    }
+  /** Everything a provider has used since this database began. */
+  providerUsage(provider: string) {
+    const row = this.get(
+      'select coalesce(sum(tokens), 0) as tokens, coalesce(sum(dollars), 0) as dollars from provider_usage where provider = ?',
+      provider,
+    );
+    return { tokens: Number(row?.tokens ?? 0), dollars: Number(row?.dollars ?? 0) };
   }
-  /** Stored search vectors for these pages. Callers pass only pages the asker may read. */
-  vectorsFor(resourceIds: Id[]) {
-    if (!resourceIds.length) return [];
-    const rows = this.db
-      .prepare(
-        `select * from passage_vectors where resource_id in (${resourceIds.map(() => '?').join(',')})`,
-      )
-      .all(...resourceIds) as Record<string, unknown>[];
-    return rows.map((row) => {
-      const bytes = row.vector as Uint8Array;
-      return {
-        resourceId: String(row.resource_id),
-        stamp: String(row.stamp),
-        text: String(row.text),
-        vector: new Float32Array(
-          bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-        ),
-      };
-    });
-  }
+
   /** Tokens agents used today for one space or on behalf of one person. */
   agentUsageToday(scope: 'space' | 'person', key: Id) {
     const row = this.get(

@@ -7,6 +7,7 @@ import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, ago } from '../app/util.tsx';
 import { Avatar, Character, orbForm } from '../features/agents/Character.tsx';
 import { ApprovalCard } from '../features/feed/Feed.tsx';
+import { SeatPage } from '../features/agents/SeatPage.tsx';
 import { ORB_FORMS, isPage } from '../../shared/types.ts';
 import type { Job, RoutineCadence, User } from '../../shared/types.ts';
 
@@ -47,6 +48,8 @@ export function WhoPage({ who }: { who: User }) {
       </div>
     );
   }
+  // An agent that runs elsewhere and signs in with a token has its own page.
+  if (who.role === 'outside') return <SeatPage who={who} />;
   const personal = who.role === 'personal';
   const editable = personal
     ? who.ownerId === s.me.id
