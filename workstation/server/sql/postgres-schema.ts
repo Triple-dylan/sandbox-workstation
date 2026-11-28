@@ -13,6 +13,9 @@
  *   against Postgres name their columns rather than relying on position.
  */
 
+/** Length of a search vector: text-embedding-3-small asked for 512 dimensions. */
+export const EMBEDDING_DIMENSIONS = 512;
+
 export const postgresSchema = `
 create table if not exists users (
   id text primary key,
@@ -349,4 +352,11 @@ create table if not exists agent_tokens (
 `;
 
 /** Columns added after the tables above were first made, oldest first. Each must be repeatable. */
-export const postgresMigrations: string[] = [];
+export const postgresMigrations: string[] = [
+  // Search vectors as pgvector values with an index (see server/sql/vectors.ts). The SQLite-style
+  // byte column stays for the parity test but is left empty on Postgres.
+  'create extension if not exists vector',
+  `alter table passage_vectors add column if not exists embedding vector(${EMBEDDING_DIMENSIONS})`,
+  'alter table passage_vectors alter column vector drop not null',
+  'create index if not exists passage_vectors_embedding on passage_vectors using hnsw (embedding vector_ip_ops)',
+];

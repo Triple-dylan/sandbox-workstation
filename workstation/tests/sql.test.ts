@@ -1,15 +1,9 @@
-import { after, describe, test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
 import { openDb } from '../server/db.ts';
-import { numberPlaceholders, type Sql } from '../server/sql/index.ts';
+import { numberPlaceholders } from '../server/sql/index.ts';
 import { openSql } from '../server/sql/open.ts';
-import { sqliteSql } from '../server/sql/sqlite.ts';
-
-// Postgres tests run when TEST_DATABASE_URL points at a server with an empty database to use (CI
-// starts one). Each run works in a schema of its own and drops it afterwards.
-const postgresUrl = process.env.TEST_DATABASE_URL;
-if (process.env.CI && !postgresUrl) throw new Error('CI must set TEST_DATABASE_URL');
+import { backends, freshPostgres, freshPostgresUrl, postgresUrl } from './postgres-helper.ts';
 
 test('placeholders become $1, $2 outside strings, quoted names and comments', () => {
   assert.equal(
@@ -18,29 +12,6 @@ test('placeholders become $1, $2 outside strings, quoted names and comments', ()
   );
   assert.equal(numberPlaceholders('select 1'), 'select 1');
 });
-
-const schemas: string[] = [];
-async function freshPostgres(): Promise<Sql> {
-  const schema = `t_${randomBytes(6).toString('hex')}`;
-  const admin = await openSql(postgresUrl!);
-  await admin.exec(`create schema ${schema}`);
-  await admin.close();
-  schemas.push(schema);
-  const url = new URL(postgresUrl!);
-  url.searchParams.set('options', `-c search_path=${schema}`);
-  return openSql(url.toString());
-}
-after(async () => {
-  if (!postgresUrl || !schemas.length) return;
-  const admin = await openSql(postgresUrl);
-  for (const schema of schemas) await admin.exec(`drop schema if exists ${schema} cascade`);
-  await admin.close();
-});
-
-const backends: [string, () => Promise<Sql>][] = [
-  ['sqlite', async () => sqliteSql(openDb(':memory:'))],
-];
-if (postgresUrl) backends.push(['postgres', freshPostgres]);
 
 for (const [name, open] of backends)
   describe(`${name} backend`, () => {
@@ -212,14 +183,12 @@ if (postgresUrl) {
   });
 
   test('starting several servers at once brings the schema up once, safely', async () => {
-    const first = await freshPostgres();
-    const url = new URL(postgresUrl);
-    url.searchParams.set('options', `-c search_path=${schemas.at(-1)}`);
-    const again = await Promise.all([1, 2, 3].map(() => openSql(url.toString())));
-    const row = await first.get(
+    const url = await freshPostgresUrl();
+    const opened = await Promise.all([1, 2, 3].map(() => openSql(url)));
+    const row = await opened[0].get(
       `select count(*) as n from information_schema.tables where table_schema = current_schema()`,
     );
     assert.ok(row!.n > 20);
-    for (const sql of [first, ...again]) await sql.close();
+    for (const sql of opened) await sql.close();
   });
 }
