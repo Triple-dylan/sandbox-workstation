@@ -1,0 +1,34 @@
+# Self-hosting Sandbox: the app and its shared browser on one machine, data on a named volume.
+# Settings come from .env in this folder (copy .env.example). See docs/SELF-HOST.md.
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # These win over .env, whose local defaults (HOST=127.0.0.1, PORT=4174) don't fit a container.
+      HOST: 0.0.0.0
+      PORT: 8080
+      WORKSTATION_DB: /data/workstation.db
+      # Hosted copies are by invitation; the first people in use this setup code.
+      ACCESS_CODE: ${ACCESS_CODE:?Set ACCESS_CODE in .env (the setup code for the first people in)}
+      BROWSER_SERVICE_URL: ws://browser:3000/${BROWSER_TOKEN:?Set BROWSER_TOKEN in .env (24+ random characters)}
+    ports:
+      - "${SANDBOX_PORT:-8080}:8080"
+    volumes:
+      - sandbox-data:/data
+    depends_on:
+      - browser
+    restart: unless-stopped
+
+  browser:
+    build: ./browser-service
+    environment:
+      PORT: 3000
+      BROWSER_TOKEN: ${BROWSER_TOKEN:?Set BROWSER_TOKEN in .env (24+ random characters)}
+    # Reached only by the app over the compose network; no port is published.
+    restart: unless-stopped
+
+volumes:
+  sandbox-data:

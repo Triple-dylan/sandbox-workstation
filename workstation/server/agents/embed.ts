@@ -52,11 +52,6 @@ function unit(v: Float32Array) {
   for (let i = 0; i < v.length; i++) v[i] /= n;
   return v;
 }
-function dot(a: Float32Array, b: Float32Array) {
-  let s = 0;
-  for (let i = 0; i < a.length && i < b.length; i++) s += a[i] * b[i];
-  return s;
-}
 
 type Page = { id: string; stamp: string; title: string; kind: string; text: string };
 
@@ -75,8 +70,8 @@ export class VectorIndex {
 
   /** Brings the stored vectors of these pages up to date. Unchanged pages cost nothing. */
   async refresh(pages: Page[]) {
-    const stale = pages.filter((p) => this.store.vectorStamp(p.id) !== p.stamp);
-    for (const page of stale) {
+    for (const page of pages) {
+      if ((await this.store.vectors.stamp(page.id)) === page.stamp) continue;
       const running = this.refreshing.get(page.id);
       if (running) {
         await running;
@@ -85,7 +80,7 @@ export class VectorIndex {
       const work = (async () => {
         const passages = passagesOf(`${page.title}\n${page.text}`).slice(0, 64);
         const vectors = await this.embedder.embed(passages);
-        this.store.replaceVectors(
+        await this.store.vectors.replace(
           page.id,
           page.stamp,
           passages.map((text, i) => ({ text, vector: vectors[i] })),
@@ -104,13 +99,7 @@ export class VectorIndex {
     if (!query.trim() || !pages.length) return keyword;
     const [q] = await this.embedder.embed([query.slice(0, 2000)]);
     const byId = new Map(pages.map((p) => [p.id, p]));
-    const stored = this.store
-      .vectorsFor(pages.map((p) => p.id))
-      .filter((row) => byId.get(row.resourceId)?.stamp === row.stamp);
-    const meaning = stored
-      .map((row) => ({ row, score: dot(q, row.vector) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit * 2);
+    const meaning = await this.store.vectors.nearest(q, pages, limit * 2);
     const fused = new Map<string, { passage: Passage; pageId: string; score: number }>();
     const add = (pageId: string, passage: Passage, rank: number) => {
       const key = `${passage.title}\u0000${passage.text.slice(0, 120)}`;
@@ -123,7 +112,7 @@ export class VectorIndex {
       const page = pages.find((x) => x.title === p.title);
       add(page?.id ?? p.title, p, rank);
     });
-    meaning.forEach(({ row }, rank) => {
+    meaning.forEach((row, rank) => {
       const page = byId.get(row.resourceId)!;
       add(page.id, { title: page.title, kind: page.kind, text: row.text.slice(0, 900) }, rank);
     });
