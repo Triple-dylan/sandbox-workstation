@@ -105,7 +105,8 @@ export class SeatAsks {
   /** Remembers an ask, so its answer can be marked as being for the seat. */
   record(message: Message) {
     this.run(
-      'insert or ignore into seat_asks values (?, ?, ?, ?, ?, ?, null)',
+      `insert into seat_asks (message_id, seat_id, agent_id, conversation_id, thread_id, created_at, answer_id)
+       values (?, ?, ?, ?, ?, ?, null) on conflict do nothing`,
       message.id,
       message.authorId,
       message.addressedTo,

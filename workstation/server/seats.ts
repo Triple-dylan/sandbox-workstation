@@ -175,7 +175,12 @@ export class Seats {
     const agent = this.owned(actorId, agentId);
     if (agent.retired) throw new InputError('This agent is retired.');
     this.checkJoin(actorId, spaceId);
-    this.run('insert or ignore into members values (?, ?, ?)', spaceId, agentId, 'agent');
+    this.run(
+      'insert into members (space_id, user_id, role) values (?, ?, ?) on conflict do nothing',
+      spaceId,
+      agentId,
+      'agent',
+    );
     this.store.changed();
   }
   /** Its owner takes it out, or the workspace's owner does. It loses that workspace at once. */

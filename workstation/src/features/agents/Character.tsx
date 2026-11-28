@@ -1,8 +1,8 @@
+import { useSyncExternalStore } from 'react';
 import { isDark } from '../../app/theme.ts';
-import { ThinkingOrb } from 'thinking-orbs';
-import { ORB_FORMS, type OrbForm } from '../../../shared/types.ts';
+import { AGENT_FORMS, type AgentForm } from '../../../shared/types.ts';
 import type { Job, User } from '../../../shared/types.ts';
-
+import { ring, tilePatterns } from './tiles.ts';
 export type AgentState = 'idle' | 'working' | 'waiting' | 'failed';
 
 export function agentState(agentId: string, jobs: Job[]): AgentState {
@@ -15,15 +15,15 @@ export function agentState(agentId: string, jobs: Job[]): AgentState {
   return 'idle';
 }
 
-const stateLabel: Record<AgentState, string> = {
+export const stateLabel: Record<AgentState, string> = {
   idle: 'idle',
   working: 'working',
   waiting: 'waiting for approval',
   failed: 'last job failed',
 };
 
-/** The orb's ink: the agent's own hue, kept restrained and readable in either theme. */
-function tint(hue: number) {
+/** An agent's ink: its own hue, kept restrained and readable in either theme. */
+export function tint(hue: number) {
   const dark = isDark();
   const s = dark ? 0.85 : 0.6;
   const l = dark ? 0.82 : 0.36;
@@ -35,19 +35,84 @@ function tint(hue: number) {
   return `rgb(${f(0)}, ${f(8)}, ${f(4)})`;
 }
 
-/** An agent's own orb form: the one it was given, or one derived from its id. */
-export function orbForm(agent: User): OrbForm {
+/** An agent's own form (its tile pattern): the one it was given, or one derived from its id. */
+export function agentForm(agent: User): AgentForm {
   if (agent.character?.form) return agent.character.form;
   let hash = 0;
   for (const ch of agent.id) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
-  return ORB_FORMS[Math.abs(hash) % ORB_FORMS.length];
+  return AGENT_FORMS[Math.abs(hash) % AGENT_FORMS.length];
+}
+
+// Reduced motion, followed live: the mark then holds a still picture of its state.
+const motionQuery =
+  typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+function useReducedMotion() {
+  return useSyncExternalStore(
+    (l) => {
+      motionQuery?.addEventListener('change', l);
+      return () => motionQuery?.removeEventListener('change', l);
+    },
+    () => !!motionQuery?.matches,
+  );
 }
 
 /**
- * An agent's identity: a dotted thinking orb (as in the DropDeployment harness). Each agent has
- * its own form and colour, the same everywhere it appears. What it is doing shows in how it moves:
- * slow when idle, fast with a pulse when working, a dot when it is waiting on a person.
+ * Tiles: a 3×3 mark with its own pattern (the agent's form), drawn in the agent's own colour.
+ * Idle, a slow glint passes over it; working, light runs round its edge; waiting for a yes, the
+ * middle tile blinks; after a failed job the tiles sag and turn grey.
  */
+export function AgentMark({
+  form,
+  size,
+  state = 'idle',
+  color,
+  label,
+}: {
+  form: AgentForm;
+  size: number;
+  state?: AgentState;
+  color?: string;
+  label?: string;
+}) {
+  const still = useReducedMotion();
+  const pattern = tilePatterns[form] ?? tilePatterns.breathing;
+  return (
+    <span
+      className={`agent-mark state-${state}${still ? ' still' : ''}`}
+      style={
+        { width: size, height: size, ...(color ? { '--mark': color } : {}) } as React.CSSProperties
+      }
+      title={label}
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        role={label ? 'img' : undefined}
+        aria-label={label}
+        aria-hidden={label ? undefined : true}
+      >
+        {Array.from({ length: 9 }, (_, i) => {
+          const step = ring.indexOf(i);
+          return (
+            <rect
+              key={i}
+              className={`tile ${pattern[i] === 'x' ? 'on' : 'off'}${i === 4 ? ' mid' : ''}`}
+              x={1.5 + (i % 3) * 7.5}
+              y={1.5 + Math.floor(i / 3) * 7.5}
+              width={6}
+              height={6}
+              rx={1.6}
+              style={{ '--step': step < 0 ? 0 : step, '--col': i % 3 } as React.CSSProperties}
+            />
+          );
+        })}
+      </svg>
+    </span>
+  );
+}
+
+/** An agent's identity, the same everywhere it appears: its own tile pattern and colour. */
 export function Character({
   agent,
   size = 28,
@@ -57,25 +122,16 @@ export function Character({
   agent: User;
   size?: number;
   state?: AgentState;
-  form?: OrbForm;
+  form?: AgentForm;
 }) {
-  const preset = size <= 24 ? 20 : size <= 44 ? 32 : 64;
   return (
-    <span
-      className={`orb state-${state}`}
-      style={{ width: preset, height: preset }}
-      title={`${agent.name} · ${stateLabel[state]}`}
-    >
-      <ThinkingOrb
-        state={form ?? orbForm(agent)}
-        size={preset}
-        speed={state === 'working' ? 2.2 : state === 'waiting' ? 0.9 : 0.45}
-        paused={state === 'failed'}
-        color={agent.character ? tint(agent.character.hue) : undefined}
-        aria-label={`${agent.name}, ${stateLabel[state]}`}
-      />
-      {state === 'waiting' && <i className="orb-badge" aria-hidden="true" />}
-    </span>
+    <AgentMark
+      form={form ?? agentForm(agent)}
+      size={size}
+      state={state}
+      color={agent.character ? tint(agent.character.hue) : undefined}
+      label={`${agent.name} · ${stateLabel[state]}`}
+    />
   );
 }
 

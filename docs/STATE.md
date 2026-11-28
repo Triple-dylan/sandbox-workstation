@@ -87,8 +87,12 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - First step of the move to Postgres (plan: SQLite stays the default until the store has moved over): `server/sql/` runs queries through one async interface with a SQLite backend and a Postgres backend, and keeps a Postgres copy of the schema that brings itself up to date when a server starts. CI runs a Postgres with pgvector; tests check both backends the same way and fail if a table or column is added to SQLite and not to Postgres. Nothing in the app uses it yet.
+- Search vectors on Postgres (`server/sql/vectors.ts`): stored as pgvector values with an HNSW index. Searches over up to 500 pages compare every passage; larger searches go through the index and keep only the pages asked about. On SQLite they are compared one by one as before. Tested on both, with the same results. Not wired into agents' search yet.
+- A job queue in the database for connector sync (`server/sql/queue.ts`), on SQLite and Postgres: jobs for the same linked item run one at a time in order, others run side by side; a failed job is tried again later, waiting longer each time, and stays failed with its error after its last try; a job whose server dies is taken again when its lease runs out; one waiting job per dedupe name. On Postgres several servers can take jobs at once without taking the same one. Tested on both. Not wired into connectors yet.
+- `npm run db:copy -- <sqlite file> <postgres://…>` copies a SQLite database into an empty Postgres one in one transaction, keeping row order and search vectors. It refuses a database that already has rows. Tested against Postgres with a seeded store.
 - Every query in the store is now also valid Postgres (`insert or ignore` became `on conflict do nothing`, `collate nocase` became `lower(name)`, the usage counters name their table). A test asks Postgres to parse and plan each query in `server/store.ts`, so new ones stay portable.
 - Search vectors on Postgres (`server/sql/vectors.ts`): stored as pgvector values with an HNSW index. Searches over up to 500 pages compare every passage; larger searches go through the index and keep only the pages asked about. On SQLite they are compared one by one as before. Tested on both, with the same results. Agents' meaning search now goes through it (still on SQLite).
+- The Postgres schema also has the tables that agent seats, seat asks, MCP sign-in and webhooks make for themselves at start-up, and the check that SQLite and Postgres match now looks at the whole app's tables rather than only `server/db.ts`. Two seat inserts no longer use SQLite-only `insert or ignore`.
 - Postgres move, store batch 4b: signing in, sessions, Google identities, invite links and sign-in links now go through the async database layer (still on SQLite), and their inserts name their columns. No change in behaviour; the server, the in-page preview and the tests await them.
 ## Added 2026-11-27 (agent seats)
 
@@ -164,6 +168,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
+- Railway keeps the database now (2026-11-27): a volume (`sandbox-data`) is attached at `/data` on the `sandbox-workstation` service, and the live `/healthz` reports `persistent: true` on `ext4`. Everything made before then was on throwaway storage and is gone. Backups start from this volume.
 - `/healthz` answers 503 with `ok: false` when the database stops answering a read, so Railway restarts the app instead of serving errors.
 ## Added 2026-11-27
 
@@ -177,6 +182,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - `/healthz` says how backups stand: how many are kept, when the newest was taken, its age in hours, and `stale` when there is none or it is over 26 hours old (a missed night). No paths. Left out when backups are off.
 - Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept.
 - Settings shows owners a Backups row: when the newest copy was taken and its size, how many are kept, **Back up now** and **Download**. Everyone else, and a server with backups off, sees no row (`GET /api/backups` answers 403 or 404).
+
+## Added 2026-11-27 (agent looks)
+
+- Agents are drawn as **Tiles** everywhere (list, rail, chat, page headers, canvases, graph, the agent page's look picker and the welcome screen): a 3×3 mark in the agent's own colour, its pattern set by its form. Idle, a slow glint passes over it; working, light runs round its edge; waiting for a yes, the middle tile blinks; after a failed job the tiles sag and turn grey. With reduced motion each state holds still and still reads differently. The orbs and the `thinking-orbs` package are gone. Patterns are tested (`tests/agent-tiles.test.ts`); looked at running in light and dark.
 
 ## Known gaps
 

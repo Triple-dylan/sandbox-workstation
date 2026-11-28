@@ -200,7 +200,7 @@ button.danger {
   box-shadow: var(--shadow);
 }
 
-/* ---------- carried over: orbs, graph, plan, editor text, sign-in ---------- */
+/* ---------- carried over: agent marks, graph, plan, editor text, sign-in ---------- */
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -224,28 +224,17 @@ button.danger {
   flex: none;
   line-height: 1;
 }
-.orb {
+.agent-mark {
+  --mark: var(--ink);
   position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
   vertical-align: middle;
 }
-.orb canvas {
+.agent-mark svg {
   display: block;
-}
-.orb.state-failed {
-  opacity: 0.45;
-}
-.orb-badge {
-  position: absolute;
-  right: -2px;
-  top: -2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ink);
-  box-shadow: 0 0 0 2px var(--paper);
+  overflow: visible;
 }
 .graph {
   overflow: hidden;
@@ -749,11 +738,6 @@ button.danger {
 .graph-legend {
   bottom: 40px;
 }
-.orb-button {
-  border: 0 !important;
-  padding: 0 !important;
-  display: inline-grid;
-}
 .reader-body {
   cursor: text;
 }
@@ -863,23 +847,69 @@ button.danger {
   background: var(--wash-2);
   box-shadow: 0 0 0 1.5px var(--ink);
 }
-.agent-forms .orb {
-  transform: scale(0.8);
+
+/* ---------- agents: Tiles, a 3×3 mark in the agent's colour ---------- */
+.agent-mark .tile {
+  fill: var(--mark);
 }
-.orb.state-working::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  border: 1.5px solid var(--ink-2);
-  opacity: 0;
-  animation: orb-pulse 1.6s ease-out infinite;
+.agent-mark .tile.off {
+  opacity: 0.13;
 }
-@media (prefers-reduced-motion: reduce) {
-  .orb.state-working::after {
-    animation: none;
+.agent-mark.state-idle .tile.on {
+  animation: tile-glint 5.4s ease-in-out infinite;
+  animation-delay: calc(var(--step) * 0.6s);
+}
+.agent-mark.state-working .tile.on {
+  opacity: 0.35;
+}
+.agent-mark.state-working .tile:not(.mid) {
+  animation: tile-run 1.2s linear infinite;
+  animation-delay: calc(var(--step) * 0.15s - 1.2s);
+}
+.agent-mark.still.state-working .tile:not(.mid) {
+  opacity: calc(0.15 + var(--step) * 0.12);
+}
+.agent-mark.state-waiting .tile.mid {
+  opacity: 1;
+  animation: tile-blink 1.4s steps(1, end) infinite;
+}
+.agent-mark.state-waiting .tile.on:not(.mid) {
+  opacity: 0.55;
+}
+.agent-mark.state-failed .tile {
+  fill: var(--ink-3);
+}
+.agent-mark.state-failed .tile.on {
+  opacity: 0.8;
+  transform: translateY(calc(var(--col) * 1.4px - 1.4px));
+}
+@keyframes tile-glint {
+  0%,
+  80%,
+  100% {
+    opacity: 1;
+  }
+  90% {
     opacity: 0.5;
   }
+}
+@keyframes tile-run {
+  0% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    opacity: 0.16;
+  }
+}
+@keyframes tile-blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+/* Reduced motion: each state holds still, and still reads differently. */
+.agent-mark.still * {
+  animation: none !important;
 }
 
 /* ---------- shell ---------- */
@@ -3286,7 +3316,7 @@ button.need:disabled {
   color: var(--ink-3);
   flex: none;
 }
-.need.row > span:not(.step-dot):not(.status):not(.orb):not(.avatar) {
+.need.row > span:not(.step-dot):not(.status):not(.agent-mark):not(.avatar) {
   flex: 1;
   min-width: 0;
   line-height: 1.4;
@@ -4298,14 +4328,14 @@ body,
   font-size: 12px;
   white-space: nowrap;
 }
-.row-orb {
+.row-agent {
   display: inline-flex;
   flex: none;
   margin-left: auto;
 }
-.list-row small + .row-orb,
-.list-row .row-orb + .count,
-.list-row .row-orb + .reach {
+.list-row small + .row-agent,
+.list-row .row-agent + .count,
+.list-row .row-agent + .reach {
   margin-left: 2px;
 }
 .used-in {
@@ -5196,7 +5226,7 @@ button.scope[aria-expanded='true'] {
   color: var(--ink-3);
 }
 .cface > * + .avatar,
-.cface > * + .orb {
+.cface > * + .agent-mark {
   margin-left: -7px;
 }
 .cface small {
@@ -5448,16 +5478,10 @@ button.chat-pin.add:hover {
   max-width: 560px;
   justify-self: end;
 }
-.welcome-orbs {
+.welcome-agents {
   display: flex;
-  gap: 6px;
-  margin: 0 0 28px -8px;
-}
-.welcome-orbs span {
-  display: grid;
-  place-items: center;
-  width: 64px;
-  height: 64px;
+  gap: 14px;
+  margin: 0 0 28px;
 }
 .welcome-hero h1 {
   font-size: clamp(30px, 4.2vw, 46px);
