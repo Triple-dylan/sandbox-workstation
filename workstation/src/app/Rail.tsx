@@ -499,6 +499,11 @@ export function Rail({ docked }: { docked: boolean }) {
                 ? `${user(m.authorId)?.name} answered ${user(m.asked.agentId)?.id === myAgent.id ? 'your agent' : user(m.asked.agentId)?.name}`
                 : `${user(m.authorId)?.name} · only you see this`}
           {m.runtime === 'scripted' && <span className="tag">scripted stand-in</span>}
+          {m.runtime === 'nous' && (
+            <span className="tag" title="OpenAI could not answer, so Claude Sonnet 5.5 did">
+              Claude Sonnet 5.5 · OpenAI unavailable
+            </span>
+          )}
         </p>
         {m.asked && (
           <p className="rail-asked">
