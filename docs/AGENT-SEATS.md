@@ -17,6 +17,12 @@ An **agent seat** lets an agent that runs somewhere else (Claude Code, Codex, He
 
 Every MCP tool call is noted for the seat's owner: the tool, whether it read or wrote, whether it worked, the page, chat or workspace it named, and what it searched for. Never what it read or wrote. The owner sees it under What it did on the seat's page. A page, chat or workspace is named only if the owner can see it too; one opened to the seat alone shows as something you can't see. The last 1,000 calls per seat are kept.
 
+A sign-in with a token that once worked but was revoked, or for a retired seat, is noted there too (as Tried to sign in, with why), at most once a minute, so the owner sees why it stopped. Unknown tokens are not noted.
+
+## Test connection
+
+Under Connection on the seat's page (`POST /api/seats/:id/check`, owner only): whether it is connected (signed in within 10 minutes), signed in before but idle, never signed in, has no live token, was turned away on its latest sign-in, or is retired; when and with which token it last signed in; its latest tool call; and a warning when it is in no workspaces. The owner can paste a token to learn whether it is one of this seat's and still works. A pasted token is matched by its hash, is not kept, and does not count as a sign-in; another seat's token is only called not this agent's.
+
 ## The MCP server
 
 `POST /mcp` on the app's own address, Streamable HTTP with plain JSON answers (no server-sent stream; `GET` gets 405, which the spec allows). Every request carries `Authorization: Bearer sbx_…`; no session is kept. Requests with an `Origin` other than the app's own are refused, so a web page can't use a token. 120 requests a minute per seat.

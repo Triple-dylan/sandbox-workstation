@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Copy, KeyRound, Plus, X } from 'lucide-react';
+import { Copy, KeyRound, Plus, RefreshCw, X } from 'lucide-react';
 import { api } from '../../data/client.ts';
 import { useWorkspace } from '../../app/workspace.tsx';
 import { Choice } from '../../app/Choice.tsx';
@@ -140,6 +140,8 @@ export function SeatPage({ who }: { who: User }) {
             </p>
           )}
 
+          <SeatCheckPanel agentId={who.id} name={who.name} version={seat} />
+
           <h3>Tokens</h3>
           {seat?.tokens.length === 0 && <p className="feed-empty">None. It can't sign in.</p>}
           {seat?.tokens.map((t) => (
@@ -278,6 +280,7 @@ const DID: Record<string, string> = {
   suggest_page: 'Suggested a new page',
   suggestion_status: 'Checked on a suggestion',
   working_on: 'Working on',
+  sign_in: 'Tried to sign in',
 };
 const SHOWN = 30;
 
@@ -337,6 +340,122 @@ function SeatLog({ agentId }: { agentId: Id }) {
           {all ? 'Show recent only' : `Show all ${log.length}`}
         </button>
       )}
+    </div>
+  );
+}
+
+type Check = {
+  state: 'retired' | 'no-tokens' | 'refused' | 'connected' | 'idle' | 'never';
+  lastSeen: { at: string; label: string } | null;
+  lastCall: { at: string; tool: string; ok: boolean } | null;
+  lastRefused: { at: string; detail: string } | null;
+  liveTokens: number;
+  workspaces: number;
+  pasted?: { state: 'live' | 'revoked' | 'not-this-agent'; label: string | null };
+};
+
+/** One sentence for where its connection stands, with what to do when it can't sign in. */
+function verdict(c: Check, name: string) {
+  const seen = c.lastSeen ? `${ago(c.lastSeen.at)} with ${c.lastSeen.label}` : '';
+  switch (c.state) {
+    case 'retired':
+      return `${name} is retired, so it can't sign in.`;
+    case 'no-tokens':
+      return `${name} has no live token. Make one below, or sign it in from its browser.`;
+    case 'refused':
+      return `Its last sign-in was turned away ${ago(c.lastRefused!.at)}. ${c.lastRefused!.detail} Give it a new token.`;
+    case 'connected':
+      return `Connected. It last signed in ${seen}.`;
+    case 'idle':
+      return `It works, but it isn't connected now. It last signed in ${seen}.`;
+    case 'never':
+      return `It hasn't signed in yet. Paste a connect line into it, or check a token below.`;
+  }
+}
+
+const PASTED = {
+  live: (label: string | null) => `That token works. It's ${label}.`,
+  revoked: (label: string | null) => `That token was ${label} and no longer works.`,
+  'not-this-agent': () => `That isn't one of this agent's tokens.`,
+};
+
+/**
+ * Test connection: whether the seat can sign in and when it last did. A token pasted here is
+ * checked against this seat's own without counting as a sign-in, and is never kept.
+ */
+function SeatCheckPanel({
+  agentId,
+  name,
+  version,
+}: {
+  agentId: Id;
+  name: string;
+  version: unknown;
+}) {
+  const [check, setCheck] = useState<Check | null>(null);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const test = useCallback(
+    async (pasted?: string) => {
+      setBusy(true);
+      try {
+        setCheck(
+          await api<Check>(`/seats/${agentId}/check`, {
+            body: pasted === undefined ? {} : { token: pasted },
+          }),
+        );
+      } catch {
+        setCheck(null);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [agentId],
+  );
+  // Look again whenever the seat changes, like a token made or revoked.
+  useEffect(() => void test(), [test, version]);
+  const good = check?.state === 'connected' || check?.state === 'idle';
+  return (
+    <div className="seat-check" aria-live="polite">
+      <h3>Connection</h3>
+      {check && (
+        <>
+          <p className={`seat-check-line ${good ? 'ok' : check.state === 'never' ? '' : 'bad'}`}>
+            {verdict(check, name)}
+          </p>
+          {check.lastCall && (
+            <p className="muted">
+              Last call {ago(check.lastCall.at)}: {DID[check.lastCall.tool] ?? check.lastCall.tool}
+              {check.lastCall.ok ? '' : ", which didn't work"}.
+            </p>
+          )}
+          {check.workspaces === 0 && check.state !== 'retired' && (
+            <p className="muted">It's in no workspaces yet, so it can sign in but see nothing.</p>
+          )}
+          {check.pasted && (
+            <p className="seat-check-line">{PASTED[check.pasted.state](check.pasted.label)}</p>
+          )}
+        </>
+      )}
+      <form
+        className="seat-new-token"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void test(token.trim() ? token : undefined).then(() => setToken(''));
+        }}
+      >
+        <input
+          type="password"
+          value={token}
+          autoComplete="off"
+          placeholder="Paste a token to check it (optional)"
+          aria-label="Token to check"
+          onChange={(e) => setToken(e.target.value)}
+        />
+        <button type="submit" disabled={busy}>
+          <RefreshCw size={12} /> Test connection
+        </button>
+      </form>
     </div>
   );
 }

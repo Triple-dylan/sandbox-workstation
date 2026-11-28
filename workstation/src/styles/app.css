@@ -7269,3 +7269,31 @@ select:focus-visible {
   padding: 0;
   font: inherit;
 }
+.seat-check {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.seat-check p {
+  margin: 0;
+}
+.seat-check-line {
+  font-size: 13px;
+}
+.seat-check-line::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  vertical-align: 1px;
+}
+.seat-check-line.ok::before {
+  background: var(--ok);
+}
+.seat-check-line.bad::before {
+  background: var(--danger);
+}
