@@ -181,6 +181,10 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 - Back up now: `POST /api/backup` takes a copy on demand for someone in `BACKUP_OWNERS` (for example before a risky change) and answers with its name and time; pressed again within a minute it returns the same copy. It counts toward the copies kept.
 - Settings shows owners a Backups row: when the newest copy was taken and its size, how many are kept, **Back up now** and **Download**. Everyone else, and a server with backups off, sees no row (`GET /api/backups` answers 403 or 404).
 
+## Added 2026-11-27 (agent looks)
+
+- Agents are drawn as **Tiles** everywhere (list, rail, chat, page headers, canvases, graph, the agent page's look picker and the welcome screen): a 3×3 mark in the agent's own colour, its pattern set by its form. Idle, a slow glint passes over it; working, light runs round its edge; waiting for a yes, the middle tile blinks; after a failed job the tiles sag and turn grey. With reduced motion each state holds still and still reads differently. The orbs and the `thinking-orbs` package are gone. Patterns are tested (`tests/agent-tiles.test.ts`); looked at running in light and dark.
+
 ## Known gaps
 
 - The preview is one person at a time; live multi-person use needs the local server. The example teammates are not live.

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ThinkingOrb } from 'thinking-orbs';
+import { AgentMark } from '../features/agents/Character.tsx';
 import { api } from '../data/client.ts';
 import { isDark } from './theme.ts';
 import { inviteFrom } from './invite.ts';
@@ -63,19 +63,17 @@ export function GoogleButton({
 }
 
 /** Three agents at rest: the product's people-and-agents idea, before anyone has signed in. */
-function Orbs() {
+function Agents() {
   const dark = isDark();
-  const orbs = [
+  const agents = [
     { state: 'listening', color: dark ? 'rgb(150, 196, 232)' : 'rgb(40, 92, 140)' },
     { state: 'composing', color: dark ? 'rgb(232, 190, 150)' : 'rgb(150, 88, 34)' },
     { state: 'connecting', color: dark ? 'rgb(170, 222, 180)' : 'rgb(40, 120, 70)' },
   ] as const;
   return (
-    <div className="welcome-orbs" aria-hidden="true">
-      {orbs.map((o) => (
-        <span key={o.state}>
-          <ThinkingOrb state={o.state} size={64} speed={0.4} color={o.color} />
-        </span>
+    <div className="welcome-agents" aria-hidden="true">
+      {agents.map((o) => (
+        <AgentMark key={o.state} form={o.state} size={52} color={o.color} />
       ))}
     </div>
   );
@@ -86,7 +84,7 @@ export function Layout({ hero, children }: { hero: ReactNode; children: ReactNod
   return (
     <main className="welcome">
       <section className="welcome-hero">
-        <Orbs />
+        <Agents />
         {hero}
       </section>
       <section className="welcome-door">{children}</section>
