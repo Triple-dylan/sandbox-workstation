@@ -30,6 +30,7 @@ import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
 import type { Embedder } from './agents/embed.ts';
 import { agentLimits, selectEmbedder, selectRuntime } from './env.ts';
+import { backupHealth, backupNow, backupOptions, listBackups } from './backup.ts';
 import { handOverProject } from './handover.ts';
 import { CANVAS_KINDS, PAGE_KINDS } from '../shared/types.ts';
 import { readRange, readSheet } from '../shared/sheet.ts';
