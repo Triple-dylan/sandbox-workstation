@@ -30,7 +30,8 @@ export type User = {
   /** Agents only: whose personal agent this is, or which project it serves. */
   ownerId?: Id;
   spaceId?: Id;
-  role?: 'personal' | 'project';
+  /** outside: an agent seat, running elsewhere and owned by ownerId (see server/seats.ts). */
+  role?: 'personal' | 'project' | 'outside';
   /** Agents only: what it is for, and standing instructions. Editable by its owner or project members. */
   purpose?: string;
   instructions?: string;
@@ -408,7 +409,8 @@ export type Snapshot = {
   activity: Activity[];
   presence: Presence[];
   lastRead: Record<Id, string>;
-  runtime: { id: string; label: string; model?: string };
+  /** fallback: what answers, labelled, when the usual provider cannot. */
+  runtime: { id: string; label: string; model?: string; fallback?: string };
   /** How people get in: anyone picks a name (local), or by invitation (hosted). */
   signIn?: 'open' | 'invite';
   /** Whether this person may start a new workspace here. */
