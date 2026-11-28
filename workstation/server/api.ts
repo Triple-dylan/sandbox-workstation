@@ -2,6 +2,7 @@ import { AccessError, InputError, type Store } from './store.ts';
 import type { Seats } from './seats.ts';
 import type { Webhooks } from './webhooks.ts';
 import { AllowanceUsed, type SeatAsks } from './seat-asks.ts';
+import { changes } from './changes.ts';
 import { isPage } from '../shared/types.ts';
 import type { Conversation, Id, Message, Resource, User } from '../shared/types.ts';
 
@@ -505,6 +506,14 @@ export function outsideApi(
     if (a === 'chats' && b && c === 'messages') return ok(outside.messages(b, options));
     if (a === 'inbox' && !b) return ok(outside.inbox(options));
     if (a === 'dms' && !b) return ok(outside.dms());
+    if (a === 'changes' && !b)
+      return ok(
+        changes(store, outside, {
+          cursor: query.get('cursor'),
+          since: query.get('since'),
+          limit: Number(query.get('limit')),
+        }),
+      );
     if (a === 'chats' && b && c === 'agents') return ok(outside.askable(b, asks));
     if (a === 'asks' && !b && asks) return ok(asks.allowance(agent.id));
     if (a === 'webhooks' && !b && webhooks) return ok(webhooks.list(agent.id));

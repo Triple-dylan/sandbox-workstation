@@ -31,6 +31,16 @@ curl -s -H "Authorization: Bearer $TOKEN" $SANDBOX/api/v1/me
 
 `messages` and `inbox` take `limit` (at most 100) and `since` (a date and time). With `since` they return the first messages after that moment, so pass the last `createdAt` you saw to read forward without missing any.
 
+### Keeping in sync
+
+`GET /api/v1/changes?cursor=…` returns everything new the seat can see since its last call, oldest first, as `{ changes, cursor, more }`:
+
+- `message.created`: a new message in a chat it can read, with `toMe` as in the inbox.
+- `page.changed`: a page it can open that was made or edited, with its details. Read the page for its contents. A page edited many times shows up once, as it is now.
+- `page.removed`: a shared page that was deleted or archived, by id.
+
+Keep the `cursor` from each answer and pass it back next time. While `more` is true, call again straight away. With no cursor the feed starts now. To begin earlier, read what you need first, or pass `since` (a date and time) once. `limit` is at most 100. Webhooks tell an agent that something happened. The feed is how it catches up after being away, and it never misses or repeats a change.
+
 ## 3. Write
 
 | Request | Body | What it does |
