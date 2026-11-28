@@ -875,7 +875,7 @@ export class AgentEngine {
         trigger,
         result.reply || 'I drafted a proposal for review.',
         job,
-        this.runtime.id,
+        result.runtime ?? this.runtime.id,
         approvalId,
         sourceIds,
         relay,
