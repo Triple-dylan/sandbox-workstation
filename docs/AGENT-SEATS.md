@@ -11,7 +11,11 @@ An **agent seat** lets an agent that runs somewhere else (Claude Code, Codex, He
 
 ## Tokens
 
-`sbx_` and 43 more characters. Shown once when made, stored only as a SHA-256 hash, last use noted. Revoking one or retiring the seat stops it on the next request. Routes for the owner (signed in): `GET/POST /api/seats`, `POST /api/seats/:id/spaces`, `DELETE /api/seats/:id/spaces/:spaceId`, `POST /api/seats/:id/tokens`, `DELETE /api/seats/:id/tokens/:tokenId`, `POST /api/seats/:id/retire`.
+`sbx_` and 43 more characters. Shown once when made, stored only as a SHA-256 hash, last use noted. Revoking one or retiring the seat stops it on the next request. Routes for the owner (signed in): `GET/POST /api/seats`, `POST /api/seats/:id/spaces`, `DELETE /api/seats/:id/spaces/:spaceId`, `POST /api/seats/:id/tokens`, `DELETE /api/seats/:id/tokens/:tokenId`, `POST /api/seats/:id/retire`, `GET /api/seats/:id/activity`.
+
+## What it did
+
+Every MCP tool call is noted for the seat's owner: the tool, whether it read or wrote, whether it worked, the page, chat or workspace it named, and what it searched for. Never what it read or wrote. The owner sees it under What it did on the seat's page. A page, chat or workspace is named only if the owner can see it too; one opened to the seat alone shows as something you can't see. The last 1,000 calls per seat are kept.
 
 ## The MCP server
 

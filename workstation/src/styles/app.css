@@ -7241,3 +7241,31 @@ select:focus-visible {
 .seat-new-token input {
   flex: 1;
 }
+.seat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.seat-log-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 3px 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.seat-log-row .wrote {
+  color: var(--ink);
+}
+.seat-log-row.failed {
+  color: var(--ink-3);
+}
+.seat-log-row time {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.seat-log-row button.link {
+  padding: 0;
+  font: inherit;
+}

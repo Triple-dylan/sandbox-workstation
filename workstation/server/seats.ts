@@ -41,10 +41,40 @@ const toToken = (r: Row): SeatToken => ({
   lastUsedAt: r.last_used_at ?? null,
 });
 
+/** One thing a seat did through the MCP server, as its owner sees it. */
+export type SeatActivity = {
+  id: Id;
+  at: string;
+  /** The MCP tool, like read_page or post_message. */
+  tool: string;
+  /** Whether it changed anything or only read. */
+  wrote: boolean;
+  ok: boolean;
+  /** What it was about, named only when the viewer may see it themselves. */
+  page: { id: Id; title: string } | null;
+  chat: { id: Id; title: string } | null;
+  workspace: { id: Id; name: string } | null;
+  /** Something it worked on that the viewer can't see, such as a page opened to the seat alone.
+   * Ids that name nothing (a mistyped id) are simply left out. */
+  hidden: boolean;
+  /** What it searched for, or why the call failed. */
+  detail: string;
+};
+
+/** How much a seat's log keeps: its most recent calls. */
+const KEEP = 1000;
+
 export class Seats {
   private store: Store;
   constructor(store: Store) {
     this.store = store;
+    // What each seat read and wrote, for its owner (see record and activity below).
+    this.store.db.exec(`create table if not exists seat_activity (
+      id integer primary key autoincrement, agent_id text not null, at text not null,
+      tool text not null, wrote integer not null, ok integer not null,
+      page_id text, chat_id text, space_id text, detail text not null default ''
+    );
+    create index if not exists seat_activity_agent on seat_activity (agent_id, id)`);
   }
 
   private get(sql: string, ...args: any[]) {
@@ -171,6 +201,85 @@ export class Seats {
     return this.seat(agentId);
   }
 
+  /** Notes one MCP call. Only ids and a short detail are kept, never what it read or wrote. */
+  record(
+    agentId: Id,
+    entry: {
+      tool: string;
+      wrote: boolean;
+      ok: boolean;
+      pageId?: unknown;
+      chatId?: unknown;
+      spaceId?: unknown;
+      detail?: unknown;
+    },
+  ) {
+    const id = (v: unknown) => (typeof v === 'string' && v ? v.slice(0, 80) : null);
+    this.run(
+      'insert into seat_activity (agent_id, at, tool, wrote, ok, page_id, chat_id, space_id, detail) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      agentId,
+      now(),
+      entry.tool.slice(0, 40),
+      entry.wrote ? 1 : 0,
+      entry.ok ? 1 : 0,
+      id(entry.pageId),
+      id(entry.chatId),
+      id(entry.spaceId),
+      typeof entry.detail === 'string' ? entry.detail.slice(0, 200) : '',
+    );
+    this.run(
+      'delete from seat_activity where agent_id = ? and id <= (select id from seat_activity where agent_id = ? order by id desc limit 1 offset ?)',
+      agentId,
+      agentId,
+      KEEP,
+    );
+  }
+
+  /**
+   * What the seat did, newest first, for its owner. A page, chat or workspace is named only when
+   * the owner may see it too: a page someone opened to the seat alone shows as hidden.
+   */
+  activity(actorId: Id, agentId: Id, limit = 100): SeatActivity[] {
+    this.owned(actorId, agentId);
+    const rows = this.all(
+      'select * from seat_activity where agent_id = ? order by id desc limit ?',
+      agentId,
+      Math.min(Math.max(limit, 1), KEEP),
+    );
+    return rows.map((r) => {
+      let hidden = false;
+      const resource = r.page_id ? this.store.resource(r.page_id) : null;
+      const page =
+        resource && this.store.canReadResource(actorId, resource)
+          ? { id: resource.id, title: resource.title }
+          : null;
+      if (resource && !page) hidden = true;
+      const conversation = r.chat_id ? this.store.conversation(r.chat_id) : null;
+      const chat =
+        conversation && this.store.canReadConversation(actorId, conversation)
+          ? { id: conversation.id, title: conversation.title }
+          : null;
+      if (conversation && !chat) hidden = true;
+      const space = r.space_id ? this.store.space(r.space_id) : null;
+      const workspace =
+        space && this.store.isMember(actorId, space.id) ? { id: space.id, name: space.name } : null;
+      if (space && !workspace) hidden = true;
+      return {
+        id: String(r.id),
+        at: r.at,
+        tool: r.tool,
+        wrote: !!r.wrote,
+        ok: !!r.ok,
+        page,
+        chat,
+        workspace,
+        hidden,
+        // A search names what it looked for; keep that to what the owner could have seen too.
+        detail: hidden ? '' : r.detail,
+      };
+    });
+  }
+
   /** The seat a token signs in as, while it is live and the seat is not retired. */
   agentForToken(token: string | undefined | null) {
     if (!token || !token.startsWith(TOKEN_PREFIX)) return null;
@@ -224,5 +333,6 @@ export function seatsApi(
     return { ok: true };
   }
   if (agentId && part === 'retire' && method === 'POST') return seats.retire(me.id, agentId);
+  if (agentId && part === 'activity' && method === 'GET') return seats.activity(me.id, agentId);
   return undefined;
 }
