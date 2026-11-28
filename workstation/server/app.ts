@@ -917,7 +917,20 @@ export function createApp(options: AppOptions) {
   const server = createServer(async (req, res) => {
     const path = new URL(req.url ?? '/', 'http://local').pathname;
     try {
-      if (path === '/healthz') return send(res, 200, { ok: true, version: store.version });
+      if (path === '/healthz') {
+        const ok = databaseReads(store.db);
+        const body = {
+          ok,
+          version: store.version,
+          ...storageFor(options.dbPath),
+          ...backupHealth(backups),
+        };
+        return send(
+          res,
+          ok ? 200 : 503,
+          ok ? body : { ...body, error: 'The database is not answering.' },
+        );
+      }
       // Outside agents sign in here with their seat's token (server/mcp.ts).
       if (path === '/mcp') return await mcp.handle(req, res, origin(req));
       if (path.startsWith('/api/')) await api(req, res, path);
