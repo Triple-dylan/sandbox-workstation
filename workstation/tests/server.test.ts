@@ -2571,12 +2571,12 @@ test('workspaces: the owner renames, removes people and deletes; anyone else can
   assert.ok(!snap(maya.id).spaces.some((x) => x.id === project.id));
 
   // Deleting needs the exact name, then closes it to everyone and stops its invite link.
-  const { token } = store.invite(dylan.id, project.id);
+  const { token } = await store.invite(dylan.id, project.id);
   assert.throws(() => store.deleteProject(dylan.id, project.id, 'spring'), /Type Spring launch/);
   store.deleteProject(dylan.id, project.id, 'Spring launch');
   assert.ok(!snap(dylan.id).spaces.some((x) => x.id === project.id));
   assert.equal(store.projectAgent(project.id), null);
-  assert.throws(() => store.acceptInvite(sam.id, token));
+  await assert.rejects(() => store.acceptInvite(sam.id, token));
 });
 
 test('your private space: your agent keeps "About you" from it, brings that to private chats in every workspace, and turns a brought-in file into a page you accept', async () => {

@@ -139,9 +139,9 @@ export function createApp(options: AppOptions) {
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const mayStartWorkspace = (userId: Id) => {
+  const mayStartWorkspace = async (userId: Id) => {
     if (!creators.length) return true;
-    const email = store.emailOf(userId)?.toLowerCase();
+    const email = (await store.emailOf(userId))?.toLowerCase();
     return !!email && creators.some((c) => (c.startsWith('@') ? email.endsWith(c) : email === c));
   };
   // Who may download the whole database: the people who run this copy, by email. Unset, nobody.
@@ -150,8 +150,8 @@ export function createApp(options: AppOptions) {
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  const mayDownloadBackup = (userId: Id) => {
-    const email = store.emailOf(userId)?.toLowerCase();
+  const mayDownloadBackup = async (userId: Id) => {
+    const email = (await store.emailOf(userId))?.toLowerCase();
     return !!email && backupOwners.includes(email);
   };
   // A few tries a minute per address on the doors in, so codes and links cannot be guessed.
@@ -292,17 +292,17 @@ export function createApp(options: AppOptions) {
       }
       if (!account.verified) throw new AccessError('Use a Google account with a verified email.');
       const invite = typeof input.invite === 'string' ? input.invite : '';
-      let user = store.googleUser(account.subject);
+      let user = await store.googleUser(account.subject);
       // Anyone with a verified Google account may sign up; what they can reach is still only
       // their own space and the workspaces they start or are invited to.
-      if (!user) user = store.createGoogleUser(account.subject, account.name, account.email);
-      if (invite) store.acceptInvite(user.id, invite);
-      const token = store.createSession(user.id);
+      if (!user) user = await store.createGoogleUser(account.subject, account.name, account.email);
+      if (invite) await store.acceptInvite(user.id, invite);
+      const token = await store.createSession(user.id);
       return send(res, 200, { ok: true }, { 'set-cookie': cookieFor(req, token) });
     }
     if (segments0(path) === 'invite' && method === 'GET') {
       slowDown(req);
-      return send(res, 200, store.inviteInfo(path.split('/')[3] ?? ''));
+      return send(res, 200, await store.inviteInfo(path.split('/')[3] ?? ''));
     }
     if (path === '/api/profiles' && method === 'GET')
       return send(
@@ -317,18 +317,18 @@ export function createApp(options: AppOptions) {
       const input = await body(req);
       slowDown(req);
       let user: User | null = null;
-      if (typeof input.signin === 'string') user = store.useSignInLink(input.signin);
+      if (typeof input.signin === 'string') user = await store.useSignInLink(input.signin);
       else if (googleClientId) throw new AccessError('Sign in with Google.');
       else if (mode === 'invite') {
         // A new account needs an invite link, or the setup code for the first people in.
         const invite = typeof input.invite === 'string' ? input.invite : '';
-        if (invite) store.inviteInfo(invite);
+        if (invite) await store.inviteInfo(invite);
         else if (!accessCode || String(input.code ?? '').trim() !== accessCode)
           throw new AccessError(
             accessCode ? 'That setup code is not right.' : 'You need an invite link to join.',
           );
         user = store.createHuman(String(input.name ?? ''));
-        if (invite) store.acceptInvite(user.id, invite);
+        if (invite) await store.acceptInvite(user.id, invite);
       } else {
         if (accessCode && String(input.code ?? '').trim() !== accessCode)
           throw new AccessError('That access code is not right.');
@@ -342,16 +342,16 @@ export function createApp(options: AppOptions) {
           ? store.user(String(input.userId))
           : (returning ?? store.createHuman(String(input.name ?? '')));
         if (user && typeof input.invite === 'string' && input.invite)
-          store.acceptInvite(user.id, input.invite);
+          await store.acceptInvite(user.id, input.invite);
       }
       if (!user || user.kind !== 'human') throw new InputError('Unknown person.');
-      const token = store.createSession(user.id);
+      const token = await store.createSession(user.id);
       return send(res, 200, { ok: true }, { 'set-cookie': cookieFor(req, token) });
     }
-    const me: User | null = store.userForToken(cookie(req));
+    const me: User | null = await store.userForToken(cookie(req));
     if (!me) return send(res, 401, { error: 'Sign in first.' });
     if (path === '/api/logout' && method === 'POST') {
-      store.endSession(cookie(req));
+      await store.endSession(cookie(req));
       return send(res, 200, { ok: true }, { 'set-cookie': `${COOKIE}=; Max-Age=0; Path=/` });
     }
     // Deletes everything that is theirs and signs them out everywhere. They type their name first.
@@ -366,7 +366,7 @@ export function createApp(options: AppOptions) {
     }
     if (path === '/api/backup' && method === 'GET') {
       if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
-      if (!mayDownloadBackup(me.id))
+      if (!(await mayDownloadBackup(me.id)))
         throw new AccessError('Only the people who run this server can download its backups.');
       // The newest nightly copy; if there is none yet, one is taken now.
       const newest = listBackups(backups.dir)[0] ?? backupNow(options.dbPath, backups);
@@ -384,7 +384,7 @@ export function createApp(options: AppOptions) {
     // What Settings shows an owner: the newest copy and how many are kept. Refused for anyone else.
     if (path === '/api/backups' && method === 'GET') {
       if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
-      if (!mayDownloadBackup(me.id))
+      if (!(await mayDownloadBackup(me.id)))
         throw new AccessError('Only the people who run this server can see its backups.');
       const kept = listBackups(backups.dir);
       const newest = kept[0];
@@ -397,7 +397,7 @@ export function createApp(options: AppOptions) {
     // Back up now: an owner takes a copy on demand, for example before a risky change.
     if (path === '/api/backup' && method === 'POST') {
       if (!backups) return send(res, 404, { error: 'Backups are off on this server.' });
-      if (!mayDownloadBackup(me.id))
+      if (!(await mayDownloadBackup(me.id)))
         throw new AccessError('Only the people who run this server can take backups.');
       // A copy from the last minute is returned as it is rather than taking another.
       const recent = listBackups(backups.dir)[0];
@@ -411,7 +411,7 @@ export function createApp(options: AppOptions) {
       return send(res, 200, {
         ...store.snapshot(me.id, [...presence.values()], runtimeInfo),
         signIn: mode,
-        mayStartWorkspace: mayStartWorkspace(me.id),
+        mayStartWorkspace: await mayStartWorkspace(me.id),
         connectors: connectors.info(me.id),
       });
     if (segments0(path) === 'connect' && method === 'GET') {
@@ -511,13 +511,13 @@ export function createApp(options: AppOptions) {
       return send(res, 200, { ok: true });
     }
     if (path === '/api/invites' && method === 'POST')
-      return send(res, 200, store.invite(me.id, str('spaceId'), input.fresh === true));
+      return send(res, 200, await store.invite(me.id, str('spaceId'), input.fresh === true));
     if (path === '/api/invites/accept' && method === 'POST')
-      return send(res, 200, store.acceptInvite(me.id, str('token')));
+      return send(res, 200, await store.acceptInvite(me.id, str('token')));
     if (path === '/api/signin-links' && method === 'POST')
-      return send(res, 200, store.signInLink(me.id));
+      return send(res, 200, await store.signInLink(me.id));
     if (path === '/api/projects' && method === 'POST') {
-      if (!mayStartWorkspace(me.id))
+      if (!(await mayStartWorkspace(me.id)))
         throw new AccessError(
           'Starting workspaces is limited on this workstation. Ask for an invite.',
         );
@@ -1004,7 +1004,7 @@ export function createApp(options: AppOptions) {
       if (path === '/mcp') return await mcp.handle(req, res, origin(req));
       // Browser sign-in for those agents, so they need no pasted token (server/oauth.ts).
       if (path.startsWith('/.well-known/oauth-') || path.startsWith('/oauth/'))
-        if (await oauth.handle(req, res, path, origin(req), store.userForToken(cookie(req))))
+        if (await oauth.handle(req, res, path, origin(req), await store.userForToken(cookie(req))))
           return;
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);

@@ -55,7 +55,7 @@ async function setup() {
     const res = await fetch(`http://127.0.0.1:${port}/api${path}`, {
       method,
       headers: {
-        cookie: `sw_session=${store.createSession(as)}`,
+        cookie: `sw_session=${await store.createSession(as)}`,
         'x-workstation': '1',
         'content-type': 'application/json',
       },

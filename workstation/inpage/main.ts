@@ -88,9 +88,9 @@ globalThis.fetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   const done = call(init.method ?? 'GET', url, init.body as string | undefined).done;
   // The very first person to join gets a labelled example project, so there is something to look at.
   if (first)
-    return done.then((response) => {
+    return done.then(async (response) => {
       try {
-        const me = app.store.userForToken(token);
+        const me = await app.store.userForToken(token);
         if (response.ok && me) {
           stayQuiet(4000);
           seedExample(app.store, me.id);
