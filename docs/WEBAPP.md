@@ -26,8 +26,7 @@ Where the build stands against what a hosted, multi-team version needs. Updated 
 6. **Relay for window sharing.** Across office networks, direct browser-to-browser connections often fail; a TURN relay is needed.
 7. **Retrieval at scale.** Keyword ranking is still rebuilt in memory and vectors are compared by brute force, which is fine for thousands of passages; a large corpus wants a vector index (pgvector with Postgres). PDF import is not built.
 8. **Limits and abuse.** Upload size policy. (Agent spend limits per space and per person, and a per-person rate, are done.)
-9. **Operations.** Backups and error reporting. (Deleted workspaces are purged after 30 days, `PURGE_AFTER_DAYS`; a person can delete their data from Settings.)
-9. **Operations.** Error reporting. Nightly backups exist (a copy of the database in `backups/` beside it, last 7 kept); they live on the same volume, so they guard against bad writes, not against losing the volume. Restoring one: `docs/BACKUPS.md`. Deleted workspaces and pages are purged after 30 days (`PURGE_AFTER_DAYS`). A person can delete their data, server side so far.
+9. **Operations.** Error reporting. Nightly backups exist (a copy of the database in `backups/` beside it, last 7 kept); they live on the same volume, so they guard against bad writes, not against losing the volume. Restoring one: `docs/BACKUPS.md`. Deleted workspaces and pages are purged after 30 days (`PURGE_AFTER_DAYS`). A person can delete their data from Settings.
 
 ## Suggested order
 
