@@ -71,6 +71,8 @@ export function Sidebar() {
       .filter((u) => u.kind === 'agent' && u.role === 'project')
       .sort((a, b) => Number(b.id === space.agentId) - Number(a.id === space.agentId)),
     ...mine,
+    // Agents that run elsewhere (Claude Code, Codex...) and joined this workspace with a seat.
+    ...members.filter((u) => u.kind === 'agent' && u.role === 'outside'),
   ];
   const overview = s.resources.find(
     (r) => r.spaceId === space.id && r.role === 'orientation' && !r.archived,
