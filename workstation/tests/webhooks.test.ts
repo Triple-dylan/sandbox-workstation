@@ -161,3 +161,33 @@ test('webhooks: a failed delivery is retried; a revoked token or retired seat st
   await settle();
   assert.equal(got.length, 3);
 });
+
+test('webhooks: each try is logged for the seat, without the event contents', async () => {
+  const { store, seats, dylan, maya, general, call, settle } = await setup();
+  const { url } = await receiver([503]);
+  const hook = (await call('POST', '/webhooks', { url })).body;
+  store.postMessage(maya.id, { conversationId: general.id, text: 'launch codes are 1234' });
+  await settle();
+  const log = await call('GET', `/webhooks/${hook.id}/deliveries`);
+  assert.equal(log.status, 200);
+  assert.deepEqual(
+    log.body.map((d: any) => [d.attempt, d.status, d.error]),
+    [
+      [2, 200, null],
+      [1, 503, 'Answered 503.'],
+    ],
+    'newest first: the retry, then the failed try',
+  );
+  assert.equal(log.body[0].eventId, log.body[1].eventId);
+  assert.equal(log.body[0].type, 'message.created');
+  assert.ok(log.body.every((d: any) => typeof d.ms === 'number'));
+  assert.ok(!JSON.stringify(log.body).includes('launch codes'), 'no contents in the log');
+  assert.equal((await call('GET', `/webhooks/${hook.id}/deliveries?limit=1`)).body.length, 1);
+
+  // Another seat cannot read it.
+  const other = seats.create(dylan.id, { name: 'Other' });
+  assert.equal(
+    (await call('GET', `/webhooks/${hook.id}/deliveries`, undefined, other.token.token)).status,
+    403,
+  );
+});

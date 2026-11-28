@@ -22,13 +22,17 @@ import type { Id } from '../shared/types.ts';
  * refused, and redirects are not followed, so a webhook cannot be used to look inside the server.
  *
  * Delivery is tried three times over about a minute and kept in memory, so events pending when the
- * server restarts are lost; an agent that must not miss anything also reads `/api/v1/inbox`.
+ * server restarts are lost; an agent that must not miss anything also reads `/api/v1/changes`.
+ * Every try is logged (`GET /api/v1/webhooks/:id/deliveries`): the event, the answer or what went
+ * wrong, and how long it took, the last 200 per webhook. The log never holds an event's contents.
  */
 
 const MAX_PER_SEAT = 5;
 /** Edits to a page come in bursts while someone types; one event goes out once it settles. */
 const PAGE_SETTLE_MS = 5_000;
 const TIMEOUT_MS = 10_000;
+/** Tries kept in each webhook's delivery log. */
+const LOG_KEEP = 200;
 
 export type WebhookInfo = {
   id: Id;
@@ -37,6 +41,16 @@ export type WebhookInfo = {
   lastStatus: number | null;
   lastError: string | null;
   lastDeliveryAt: string | null;
+};
+export type WebhookDelivery = {
+  id: Id;
+  eventId: Id;
+  type: WebhookEvent['type'];
+  attempt: number;
+  at: string;
+  status: number | null;
+  error: string | null;
+  ms: number;
 };
 export type WebhookEvent = {
   id: Id;
@@ -47,6 +61,7 @@ export type WebhookEvent = {
 };
 
 type Row = Record<string, any>;
+type TryResult = { status: number | null; error: string | null; ms: number };
 const toInfo = (r: Row): WebhookInfo => ({
   id: r.id,
   url: r.url,
@@ -87,6 +102,13 @@ export class Webhooks {
       secret text not null, created_at text not null, revoked integer not null default 0,
       last_status integer, last_error text, last_delivery_at text
     )`);
+    store.db.exec(`create table if not exists agent_webhook_deliveries (
+      id text primary key, webhook_id text not null, event_id text not null, type text not null,
+      attempt integer not null, at text not null, status integer, error text, ms integer not null
+    )`);
+    store.db.exec(
+      'create index if not exists agent_webhook_deliveries_by_hook on agent_webhook_deliveries (webhook_id, at)',
+    );
     this.unsubscribe = store.onChange((event) => this.onChange(event));
   }
 
@@ -128,6 +150,53 @@ export class Webhooks {
       now(),
     );
     return { ...toInfo(this.all('select * from agent_webhooks where id = ?', id)[0]), secret };
+  }
+
+  /** The latest tries of one of the seat's webhooks, newest first. */
+  deliveries(agentId: Id, webhookId: Id, rawLimit?: unknown): WebhookDelivery[] {
+    const owned = this.all(
+      'select 1 from agent_webhooks where id = ? and agent_id = ? and revoked = 0',
+      webhookId,
+      agentId,
+    ).length;
+    if (!owned) throw new AccessError('Not available.');
+    const n = Math.floor(Number(rawLimit));
+    const limit = Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 50;
+    return this.all(
+      'select * from agent_webhook_deliveries where webhook_id = ? order by at desc, rowid desc limit ?',
+      webhookId,
+      limit,
+    ).map((r) => ({
+      id: r.id,
+      eventId: r.event_id,
+      type: r.type,
+      attempt: r.attempt,
+      at: r.at,
+      status: r.status ?? null,
+      error: r.error ?? null,
+      ms: r.ms,
+    }));
+  }
+  private logTry(hook: Row, event: WebhookEvent, attempt: number, result: TryResult) {
+    this.run(
+      'insert into agent_webhook_deliveries values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      randomUUID(),
+      hook.id,
+      event.id,
+      event.type,
+      attempt,
+      now(),
+      result.status,
+      result.error,
+      result.ms,
+    );
+    this.run(
+      `delete from agent_webhook_deliveries where webhook_id = ? and rowid not in (
+         select rowid from agent_webhook_deliveries where webhook_id = ? order by at desc, rowid desc limit ?)`,
+      hook.id,
+      hook.id,
+      LOG_KEEP,
+    );
   }
 
   remove(agentId: Id, webhookId: Id) {
@@ -214,6 +283,7 @@ export class Webhooks {
     for (let attempt = 0; attempt <= this.retryMs.length; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, this.retryMs[attempt - 1]));
       if (this.stopped) return;
+      const started = Date.now();
       let status: number | null = null;
       let error: string | null = null;
       if (!(await mayVisit(hook.url, this.allow)))
@@ -243,6 +313,7 @@ export class Webhooks {
             (e as Error).name === 'TimeoutError' ? 'No answer in time.' : 'Could not connect.';
         }
       if (this.stopped) return;
+      this.logTry(hook, event, attempt + 1, { status, error, ms: Date.now() - started });
       this.run(
         'update agent_webhooks set last_status = ?, last_error = ?, last_delivery_at = ? where id = ?',
         status,

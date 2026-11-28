@@ -517,6 +517,8 @@ export function outsideApi(
     if (a === 'chats' && b && c === 'agents') return ok(outside.askable(b, asks));
     if (a === 'asks' && !b && asks) return ok(asks.allowance(agent.id));
     if (a === 'webhooks' && !b && webhooks) return ok(webhooks.list(agent.id));
+    if (a === 'webhooks' && b && c === 'deliveries' && webhooks)
+      return ok(webhooks.deliveries(agent.id, b, query.get('limit')));
   }
   if (method === 'GET') return { status: 404, data: { error: 'Not found.' } };
   if (!allowWrite(agent.id))
