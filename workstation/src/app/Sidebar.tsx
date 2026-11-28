@@ -157,7 +157,7 @@ export function Sidebar() {
           </small>
         )}
         {atWork(s, { resourceId: p.id }).map((a) => (
-          <span key={a.id} className="row-orb" title={`${a.name} is working here`}>
+          <span key={a.id} className="row-agent" title={`${a.name} is working here`}>
             <Character agent={a} size={18} state="working" />
           </span>
         ))}

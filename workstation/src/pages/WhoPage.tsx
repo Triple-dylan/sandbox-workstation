@@ -5,10 +5,11 @@ import { Square } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { useWorkspace } from '../app/workspace.tsx';
 import { KindIcon, ago } from '../app/util.tsx';
-import { Avatar, Character, orbForm } from '../features/agents/Character.tsx';
+import { Avatar, Character, agentForm } from '../features/agents/Character.tsx';
+import { tileNames } from '../features/agents/tiles.ts';
 import { ApprovalCard } from '../features/feed/Feed.tsx';
 import { SeatPage } from '../features/agents/SeatPage.tsx';
-import { ORB_FORMS, isPage } from '../../shared/types.ts';
+import { AGENT_FORMS, isPage } from '../../shared/types.ts';
 import type { Job, RoutineCadence, User } from '../../shared/types.ts';
 
 const verb: Record<Job['kind'], string> = {
@@ -104,15 +105,15 @@ export function WhoPage({ who }: { who: User }) {
           <div className="agent-look">
             <span>Look</span>
             <div className="agent-forms" role="radiogroup" aria-label="Look">
-              {ORB_FORMS.map((form) => (
+              {AGENT_FORMS.map((form) => (
                 <button
                   type="button"
                   key={form}
                   role="radio"
                   disabled={!editable}
-                  aria-checked={orbForm(who) === form}
-                  aria-label={`Look: ${form}`}
-                  title={form}
+                  aria-checked={agentForm(who) === form}
+                  aria-label={`Look: ${tileNames[form]}`}
+                  title={tileNames[form]}
                   onClick={() => void patch({ form })}
                 >
                   <Character agent={who} size={20} form={form} />

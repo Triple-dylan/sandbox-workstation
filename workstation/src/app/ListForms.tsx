@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Copy, Link2, Lock, Plus, Upload, X } from 'lucide-react';
 import { api } from '../data/client.ts';
 import { Actor, Character } from '../features/agents/Character.tsx';
-import { ORB_FORMS, PAGE_KINDS, type PageKind, type User } from '../../shared/types.ts';
+import { AGENT_FORMS, PAGE_KINDS, type PageKind, type User } from '../../shared/types.ts';
 import { KindIcon, kindName } from './util.tsx';
 import { useWorkspace } from './workspace.tsx';
 import { inviteFrom } from './invite.ts';
@@ -302,7 +302,7 @@ export function NewAgent() {
   // Elsewhere: an agent like Claude Code or Codex that runs on your machine and signs in here.
   const [where, setWhere] = useState<'here' | 'elsewhere'>('here');
   const outside = where === 'elsewhere' && space.kind === 'project';
-  const form = ORB_FORMS[s.users.filter((u) => u.kind === 'agent').length % ORB_FORMS.length];
+  const form = AGENT_FORMS[s.users.filter((u) => u.kind === 'agent').length % AGENT_FORMS.length];
   const preview = {
     id: 'preview',
     name,

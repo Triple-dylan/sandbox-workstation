@@ -1,7 +1,10 @@
 export type Id = string;
 
-/** The nine orb forms. An agent keeps one as its look; how fast it moves shows what it is doing. */
-export const ORB_FORMS = [
+/**
+ * The nine agent forms: each is one tile pattern (see `src/features/agents/tiles.ts`). The names
+ * date from the orbs and are kept so saved agents keep their look.
+ */
+export const AGENT_FORMS = [
   'breathing',
   'weaving',
   'composing',
@@ -12,13 +15,13 @@ export const ORB_FORMS = [
   'solving',
   'shaping',
 ] as const;
-export type OrbForm = (typeof ORB_FORMS)[number];
+export type AgentForm = (typeof AGENT_FORMS)[number];
 export type Character = {
   hue: number;
   shape: 'round' | 'tall' | 'wide';
   eyes: 'dot' | 'arc';
-  /** The agent's own orb form. When unset, one is derived from its id so agents still differ. */
-  form?: OrbForm;
+  /** The agent's own form (its tile pattern). When unset, one is derived from its id so agents still differ. */
+  form?: AgentForm;
 };
 
 export type User = {
