@@ -167,6 +167,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - `/healthz` says whether the database survives a deploy: `persistent` (true, false, or null where it can't tell) and `storage` (the file system, such as `overlay` or `ext4`). The server also logs a warning at startup when the data folder is on storage that is thrown away, as `/data` is on Railway with no volume attached. Tested against sample mount tables and checked locally with a database on tmpfs.
+- Railway keeps the database now (2026-11-27): a volume (`sandbox-data`) is attached at `/data` on the `sandbox-workstation` service, and the live `/healthz` reports `persistent: true` on `ext4`. Everything made before then was on throwaway storage and is gone. Backups start from this volume.
 - `/healthz` answers 503 with `ok: false` when the database stops answering a read, so Railway restarts the app instead of serving errors.
 ## Added 2026-11-27
 
