@@ -14,6 +14,8 @@ import { Seats, seatsApi } from './seats.ts';
 import { outsideApi } from './api.ts';
 import { Webhooks } from './webhooks.ts';
 import { SeatAsks, seatAsksApi } from './seat-asks.ts';
+import { Mcp } from './mcp.ts';
+import { OAuth } from './oauth.ts';
 import { SharedBrowsers, type BrowserInput } from './browser/index.ts';
 import type { Provider } from './connectors/providers.ts';
 import type { AgentRuntime } from './agents/runtime.ts';
@@ -100,18 +102,19 @@ export function createApp(options: AppOptions) {
   // Before webhooks: an answer to a seat's ask is marked before its event goes out.
   const asks = new SeatAsks(store);
   const webhooks = new Webhooks(store, options.webhooks);
+  const mcp = new Mcp(store, seats);
+  const oauth = new OAuth(store, seats);
   // Chrome runs in its own service (browser-service/), never inside this app or on its machine.
   const browsers = new SharedBrowsers(store, {
     endpoint: options.browserService ?? (env.BROWSER_SERVICE_URL?.trim() || null),
     allowHosts: options.browserHosts,
   });
   // Where Google and Microsoft send people back after they sign in to link a spreadsheet.
-  const callback = (req: IncomingMessage, provider: string) => {
-    const origin =
-      env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
-      `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
-    return `${origin}/api/connect/${provider}/callback`;
-  };
+  const origin = (req: IncomingMessage) =>
+    env.PUBLIC_URL?.trim().replace(/\/$/, '') ||
+    `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers['x-forwarded-host'] ?? req.headers.host}`;
+  const callback = (req: IncomingMessage, provider: string) =>
+    `${origin(req)}/api/connect/${provider}/callback`;
   const staticDir =
     options.staticDir === undefined
       ? fileURLToPath(new URL('../dist/', import.meta.url))
@@ -954,6 +957,12 @@ export function createApp(options: AppOptions) {
           ok ? body : { ...body, error: 'The database is not answering.' },
         );
       }
+      // Outside agents sign in here with their seat's token (server/mcp.ts).
+      if (path === '/mcp') return await mcp.handle(req, res, origin(req));
+      // Browser sign-in for those agents, so they need no pasted token (server/oauth.ts).
+      if (path.startsWith('/.well-known/oauth-') || path.startsWith('/oauth/'))
+        if (await oauth.handle(req, res, path, origin(req), store.userForToken(cookie(req))))
+          return;
       if (path.startsWith('/api/')) await api(req, res, path);
       else await serveStatic(res, path);
     } catch (error) {
@@ -976,6 +985,7 @@ export function createApp(options: AppOptions) {
     seats,
     webhooks,
     asks,
+    mcp,
     runtime,
     async close() {
       if (closed) return;
@@ -984,6 +994,7 @@ export function createApp(options: AppOptions) {
       engine.stop();
       webhooks.stop();
       asks.stop();
+      mcp.stop();
       connectors.close();
       collab.stop();
       await browsers.stop();
