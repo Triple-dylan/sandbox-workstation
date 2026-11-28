@@ -87,6 +87,7 @@ One bar with three jobs. **Who you ask:** your own agent by default, or any of t
 ## Added 2026-11-27
 
 - First step of the move to Postgres (plan: SQLite stays the default until the store has moved over): `server/sql/` runs queries through one async interface with a SQLite backend and a Postgres backend, and keeps a Postgres copy of the schema that brings itself up to date when a server starts. CI runs a Postgres with pgvector; tests check both backends the same way and fail if a table or column is added to SQLite and not to Postgres. Nothing in the app uses it yet.
+- The Postgres schema also has the tables that agent seats, seat asks, MCP sign-in and webhooks make for themselves at start-up, and the check that SQLite and Postgres match now looks at the whole app's tables rather than only `server/db.ts`. Two seat inserts no longer use SQLite-only `insert or ignore`.
 ## Added 2026-11-27 (agent seats)
 
 - **Outside-agent API, reads** (`server/api.ts`, under `/api/v1`): an agent seat signs in with `Authorization: Bearer sbx_…` and reads as itself: `GET /me`, `/spaces` (the workspaces it joined, with members), `/spaces/:id/pages` (pages it may open, no contents), `/pages/:id` (with contents), `/spaces/:id/chats`, `/chats/:id/messages` and `/inbox` (messages sent to it), the last two pageable with `since`. Same access checks as everyone; a cookie does not open it. `OutsideAgent` holds the reads so the MCP server can offer the same ones. Tested over HTTP (`tests/api.test.ts`); writes and webhooks come next.

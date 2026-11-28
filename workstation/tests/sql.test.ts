@@ -1,6 +1,8 @@
 import { after, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
+import { scriptedRuntime } from '../server/agents/scripted.ts';
+import { createApp } from '../server/app.ts';
 import { openDb } from '../server/db.ts';
 import { numberPlaceholders, type Sql } from '../server/sql/index.ts';
 import { openSql } from '../server/sql/open.ts';
@@ -181,10 +183,17 @@ for (const [name, open] of backends)
 
 if (postgresUrl) {
   test('postgres has every table and column SQLite has', async () => {
-    const lite = openDb(':memory:');
+    // The whole app, so tables that modules (seats, webhooks, sign-in) make for themselves count too.
+    const app = createApp({
+      dbPath: ':memory:',
+      staticDir: null,
+      runtime: scriptedRuntime,
+      env: {},
+    });
+    const lite = app.store.db;
     const pg = await freshPostgres();
     const tables = lite
-      .prepare(`select name from sqlite_master where type = 'table'`)
+      .prepare(`select name from sqlite_master where type = 'table' and name not like 'sqlite_%'`)
       .all()
       .map((r) => String(r.name));
     const missing: string[] = [];
@@ -202,7 +211,7 @@ if (postgresUrl) {
         for (const column of lite.prepare(`select name from pragma_table_info(?)`).all(table))
           if (!pgColumns.has(column.name)) missing.push(`${table}.${String(column.name)}`);
     }
-    lite.close();
+    await app.close();
     await pg.close();
     assert.deepEqual(
       missing,
